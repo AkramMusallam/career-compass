@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from fastapi.testclient import TestClient
 
-from app.database import Base, engine
+from app.core.database import Base, engine
 from app.main import app
 from app.seed.seed_runner import run_seed
 

@@ -6,9 +6,9 @@ monkeypatch على celery_app.conf مباشرة) بحيث يُنفَّذ است�
 متزامن (synchronous) داخل نفس عملية الاختبار، وهو نمط اختبار Celery القياسي والموصى به رسمياً
 لاختبار منطق المهام دون بنية تحتية فعلية.
 """
-from app.celery_app import celery_app
+from app.worker.celery_app import celery_app
 from app.services import email_notifications as email_module
-from app.tasks import send_weekly_progress_emails_task
+from app.worker.tasks import send_weekly_progress_emails_task
 from tests.test_email_notifications import FakeSMTP, _reset_fake_smtp
 
 

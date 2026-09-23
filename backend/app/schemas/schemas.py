@@ -455,5 +455,15 @@ class BadgesResponse(BaseModel):
 # ============================================================
 
 
+class ATSScoreResponse(BaseModel):
+    score: int
+    feedback: List[str]
+
+class CoverLetterRequest(BaseModel):
+    job_description: str
+
+class CoverLetterResponse(BaseModel):
+    cover_letter: str
+
 class ErrorDetail(BaseModel):
     detail: str

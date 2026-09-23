@@ -252,7 +252,7 @@ def test_pdf_export_and_feedback_batch1(client):
     assert fb_resp2.status_code == 200
     assert fb_resp2.json()["useful"] is False
 
-    from app.mongo import feedback_collection
+    from app.core.mongo import feedback_collection
 
     count = feedback_collection.count_documents(
         {"analysis_id": analysis_id, "user_id": int(login.json()["user"]["id"])}

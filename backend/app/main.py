@@ -14,9 +14,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.config import settings
-from app.database import init_db
-from app.routers import analyze, assessment, auth, benchmark, cv, history, profile, settings_router, shared
+from app.core.config import settings
+from app.core.database import init_db
+from app.api.routes import analyze, assessment, auth, benchmark, cv, history, profile, settings_router, shared, interview
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("career_compass")
@@ -85,3 +85,4 @@ app.include_router(profile.router)
 app.include_router(settings_router.router)
 app.include_router(shared.router)
 app.include_router(benchmark.router)
+app.include_router(interview.router)

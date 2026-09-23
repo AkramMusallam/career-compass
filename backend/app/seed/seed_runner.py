@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal, init_db
+from app.core.database import SessionLocal, init_db
 from app.models.mysql_models import Course, ImportanceLevel, Job, JobSkill, Question, QuestionOption, QuestionType, Skill
 from app.seed.assessment_data import QUESTIONS, SKILL_QUESTION_OPTION_BONUS
 from app.seed.courses_data import COURSES

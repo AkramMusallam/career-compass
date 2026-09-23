@@ -5,10 +5,10 @@ Batch 5.5 — اختبارات خدمة البريد الإلكتروني للت
 كل استدعاء لاحقاً للتحقق منه، وdatabase/mongo تستخدمان نفس SQLite/mongomock المستخدمين في
 باقي الاختبارات (عبر conftest.py).
 """
-from app.database import SessionLocal
+from app.core.database import SessionLocal
 from app.models.mysql_models import User
-from app.mongo import analysis_results_collection
-from app.security import hash_password
+from app.core.mongo import analysis_results_collection
+from app.core.security import hash_password
 from app.services import email_notifications as email_module
 
 

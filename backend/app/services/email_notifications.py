@@ -23,9 +23,9 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.core.config import settings
 from app.models.mysql_models import User
-from app.mongo import analysis_results_collection
+from app.core.mongo import analysis_results_collection
 
 logger = logging.getLogger("career_compass.email_notifications")
 

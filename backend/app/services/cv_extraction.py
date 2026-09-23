@@ -255,8 +255,52 @@ def _extract_experience(block_lines: list[str]) -> list[ExtractedExperience]:
 import json
 import logging
 import ollama
+import openai
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def call_llm(prompt: str, system_prompt: str, is_json: bool = False) -> str:
+    """Wrapper to call OpenAI if configured, otherwise fallback to Ollama."""
+    # Try OpenAI first
+    if settings.OPENAI_API_KEY:
+        try:
+            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            kwargs = {
+                "model": "gpt-3.5-turbo",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7
+            }
+            if is_json:
+                kwargs["response_format"] = {"type": "json_object"}
+            
+            resp = client.chat.completions.create(**kwargs)
+            return resp.choices[0].message.content
+        except Exception as e:
+            logger.warning(f"OpenAI fallback failed: {e}. Trying Ollama...")
+
+    # Fallback to Ollama
+    try:
+        kwargs = {
+            "model": "llama3.2",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ]
+        }
+        if is_json:
+            kwargs["format"] = "json"
+            
+        response = ollama.chat(**kwargs)
+        return response['message']['content']
+    except Exception as e:
+        logger.warning(f"Ollama local extraction failed: {e}")
+        raise e
+
 
 def _extract_with_ollama(full_text: str) -> ExtractedCVData | None:
     """Uses a local Ollama model to intelligently extract CV data."""
@@ -274,13 +318,8 @@ CV Text:
 {full_text}
 """
     try:
-        # We assume the user has a fast local model like llama3.2 or qwen installed
-        response = ollama.chat(model='llama3.2', messages=[
-            {'role': 'system', 'content': 'You are a precise data extraction API that only outputs valid JSON.'},
-            {'role': 'user', 'content': prompt}
-        ], format='json')
-        
-        data = json.loads(response['message']['content'])
+        content = call_llm(prompt, 'You are a precise data extraction API that only outputs valid JSON.', is_json=True)
+        data = json.loads(content)
         
         # Convert dictionaries to dataclass instances
         return ExtractedCVData(
@@ -323,3 +362,46 @@ def extract_cv_data(file_path: str | Path) -> ExtractedCVData:
     experience = _extract_experience(section_lines("experience"))
 
     return ExtractedCVData(skills=skills, projects=projects, education=education, experience=experience)
+
+def evaluate_ats_score(file_path: str | Path) -> dict:
+    raw_text = _read_pdf_text(file_path)
+    full_text = clean_text(raw_text)
+    prompt = f"""
+You are an expert ATS (Applicant Tracking System). Evaluate the following CV text.
+Return ONLY a valid JSON object matching exactly this structure:
+{{
+  "score": 85,
+  "feedback": ["Good use of keywords", "Missing specific metrics in experience"]
+}}
+
+CV Text:
+{full_text}
+"""
+    try:
+        content = call_llm(prompt, 'You are a precise JSON-only ATS evaluator.', is_json=True)
+        import json
+        data = json.loads(content)
+        return {"score": data.get("score", 0), "feedback": data.get("feedback", [])}
+    except Exception as e:
+        logger.warning(f"Ollama ATS evaluation failed: {e}")
+        return {"score": 50, "feedback": ["Could not evaluate due to AI engine error."]}
+
+def generate_cover_letter(file_path: str | Path, job_description: str) -> str:
+    raw_text = _read_pdf_text(file_path)
+    full_text = clean_text(raw_text)
+    prompt = f"""
+You are an expert career coach. Write a professional, tailored cover letter for the following job description based on the candidate's CV.
+Return ONLY the cover letter text, no markdown, no intro or outro.
+
+Job Description:
+{job_description}
+
+Candidate CV:
+{full_text}
+"""
+    try:
+        content = call_llm(prompt, 'You are a professional cover letter writer.', is_json=False)
+        return content.strip()
+    except Exception as e:
+        logger.warning(f"Ollama Cover Letter generation failed: {e}")
+        return "Could not generate cover letter due to AI engine error."
