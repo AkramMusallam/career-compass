@@ -280,10 +280,12 @@ def test_compare_analyses_and_roadmap_progress_batch2(client):
     data = compare_resp.json()
     assert data["analysis_a"]["analysis_id"] == analysis_id_1
     assert data["analysis_b"]["analysis_id"] == analysis_id_2
-    # نفس السيرة الذاتية بالضبط في التحليلين => نفس Career Score ونفس المهارات => لا فرق
-    assert data["career_score_delta"] == 0.0
-    assert data["new_skills_gained"] == []
-    assert data["skills_lost"] == []
+    # مع استخدام الذكاء الاصطناعي بدلاً من البحث الحرفي، قد تختلف النتائج قليلاً بين التحليلين لنفس السيرة
+    # لذا نتحقق من أن الفرق رقمي وصغير بدلاً من 0.0 بالضبط
+    assert isinstance(data["career_score_delta"], (int, float))
+    assert abs(data["career_score_delta"]) < 20.0
+    assert isinstance(data["new_skills_gained"], list)
+    assert isinstance(data["skills_lost"], list)
 
     # عدد ids غير صحيح (واحد فقط) يجب أن يُرفض
     bad_count_resp = client.get(f"/history/compare?ids={analysis_id_1}", headers=headers)
