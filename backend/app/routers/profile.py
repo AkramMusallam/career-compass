@@ -3,7 +3,7 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -11,6 +11,7 @@ from app.models.mysql_models import User
 from app.mongo import analysis_results_collection
 from app.schemas.schemas import BadgeOut, BadgesResponse, ProfileResponse, ProfileUpdateRequest, ProfileUpdateResponse
 from app.security import get_current_user
+from app.services.email_notifications import send_account_deletion_email
 from app.services.badges import compute_user_badges
 
 router = APIRouter(tags=["Profile"])
@@ -59,12 +60,18 @@ def get_profile_badges(current_user: User = Depends(get_current_user)):
 
 @router.delete("/profile", response_model=dict)
 def delete_account(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    user_email = current_user.email
+    user_name = current_user.full_name
+    
     # Delete all associated analyses in MongoDB
     analysis_results_collection.delete_many({"user_id": current_user.id})
     # Delete the user in MySQL
     db.delete(current_user)
     db.commit()
+    
+    background_tasks.add_task(send_account_deletion_email, user_email, user_name)
     return {"detail": "Account deleted successfully"}

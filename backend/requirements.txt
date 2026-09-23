@@ -14,12 +14,14 @@ reportlab==4.4.10
 arabic-reshaper==3.0.1
 python-bidi==0.6.11
 
-# Batch 5.4 — مهام مجدولة (التنبيهات البريدية الأسبوعية)
+# Background Tasks
 celery==5.4.0
 redis==5.2.1
 
-# اختبارات (Development/Testing فقط)
+# AI Engine
+ollama
+
+# Testing (dev only)
 pytest==8.3.4
 httpx==0.28.1
 mongomock==4.3.0
-ollama

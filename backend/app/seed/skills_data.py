@@ -175,12 +175,6 @@ def normalize_skill_name(raw_name: str) -> str | None:
         if canonical.lower() == lower_clean:
             return canonical
     return cleaned
-    canonical = _SKILLS_CASE_INSENSITIVE_LOOKUP.get(cleaned.lower())
-    if canonical:
-        return canonical
-    if cleaned in ARABIC_SKILL_SYNONYMS:
-        return ARABIC_SKILL_SYNONYMS[cleaned]
-    return cleaned
 
 
 def normalize_and_dedupe_skills(skills: list[str]) -> list[str]:

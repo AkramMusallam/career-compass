@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -16,7 +16,7 @@ router = APIRouter(tags=["Authentication"])
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+def register(payload: RegisterRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -30,6 +30,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
+    # ... OrO_U.Oc O U,OU,UOOU^U+US ...
+    background_tasks.add_task(send_registration_welcome_email, user.email, user.full_name)
     return RegisterResponse(
         id=str(user.id),
         full_name=user.full_name,
@@ -39,12 +41,14 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     token = create_access_token(subject=str(user.id))
+    # ... OrO_U.Oc O U,OU,UOOU^U+US ...
+    background_tasks.add_task(send_login_welcome_email, user.email, user.full_name)
     return LoginResponse(
         access_token=token,
         token_type="bearer",
@@ -54,17 +58,17 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 from app.schemas.schemas import ForgotPasswordRequest, ResetPasswordRequest
 from app.security import create_reset_token, decode_access_token
-from app.services.email_notifications import send_password_reset_email
+from app.services.email_notifications import send_password_reset_email, send_login_welcome_email, send_registration_welcome_email
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
-def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(payload: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
     if not user:
         # For security reasons, don't reveal that the user does not exist.
         return {"detail": "If an account with that email exists, a password reset link has been sent."}
 
     token = create_reset_token(subject=str(user.id))
-    send_password_reset_email(user.email, user.full_name, token)
+    background_tasks.add_task(send_password_reset_email, user.email, user.full_name, token)
     
     return {"detail": "If an account with that email exists, a password reset link has been sent."}
 

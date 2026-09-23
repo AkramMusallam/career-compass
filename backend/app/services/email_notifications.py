@@ -225,3 +225,70 @@ def send_weekly_progress_emails(db: Session) -> dict:
 
     logger.info("تقرير الإرسال الأسبوعي: %s", report)
     return report
+
+
+def send_login_welcome_email(to_email: str, user_name: str) -> bool:
+    subject = "Welcome Back to Career Compass! 🚀"
+    html_body = f'''<div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+  <div style="background: linear-gradient(135deg, {PRIMARY_COLOR}, #3b82f6); padding: 30px 20px; text-align: center;">
+    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">Career Compass</h1>
+  </div>
+  <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px;">
+    <h2 style="margin-top: 0; color: #0F172A; font-size: 20px;">مرحباً بعودتك، {user_name}! 👋</h2>
+    <p style="font-size: 16px; line-height: 1.6; color: #475569;">سعداء جداً برؤيتك مجدداً في المنصة. هل أنت مستعد لإكمال رحلتك المهنية وتحقيق أهدافك اليوم؟</p>
+    <div style="background: #F8FAFC; border-left: 4px solid {PRIMARY_COLOR}; padding: 16px; margin: 24px 0; border-radius: 4px;">
+      <p style="margin: 0; font-size: 14px; color: #334155;">💡 <b>تلميح:</b> لا تنسَ تفقد خطة العمل (Roadmap) الخاصة بك وتحديث مهاراتك باستمرار للحصول على توصيات أفضل.</p>
+    </div>
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="{settings.FRONTEND_BASE_URL}" style="background: {PRIMARY_COLOR}; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block; transition: background 0.3s;">الذهاب إلى لوحة التحكم</a>
+    </div>
+    <p style="font-size: 12px; color: #94A3B8; text-align: center; margin-top: 32px; border-top: 1px solid #E2E8F0; padding-top: 16px;">
+      تم تسجيل الدخول إلى حسابك للتو. إذا لم تكن أنت من قام بتسجيل الدخول، يرجى تغيير كلمة المرور فوراً.
+    </p>
+  </div>
+</div>'''
+    text_body = f"مرحباً بعودتك يا {user_name}!\nسعداء برؤيتك مجدداً في Career Compass.\n\nإذا لم تقم بتسجيل الدخول، يرجى تغيير كلمة المرور."
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_account_deletion_email(to_email: str, user_name: str) -> bool:
+    subject = "وداعاً من Career Compass 😢"
+    html_body = f'''<div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+  <div style="background: #ef4444; padding: 30px 20px; text-align: center;">
+    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">Career Compass</h1>
+  </div>
+  <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px;">
+    <h2 style="margin-top: 0; color: #0F172A; font-size: 20px;">وداعاً، {user_name} 💔</h2>
+    <p style="font-size: 16px; line-height: 1.6; color: #475569;">لقد تم حذف حسابك وجميع بياناتك، بما في ذلك سيرتك الذاتية وخططك المهنية، من خوادمنا بشكل نهائي بناءً على طلبك.</p>
+    <p style="font-size: 16px; line-height: 1.6; color: #475569;">نحن حزينون جداً لمغادرتك، ونتمنى لك كل التوفيق والنجاح في مسيرتك المهنية القادمة.</p>
+    <div style="background: #F8FAFC; border-left: 4px solid #ef4444; padding: 16px; margin: 24px 0; border-radius: 4px;">
+      <p style="margin: 0; font-size: 14px; color: #334155;">إذا قمت بحذف حسابك عن طريق الخطأ، أو إذا أردت العودة في أي وقت، فأبوابنا دائماً مفتوحة لك لتسجيل حساب جديد.</p>
+    </div>
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="{settings.FRONTEND_BASE_URL}/register" style="background: #0F172A; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">إنشاء حساب جديد مستقبلاً</a>
+    </div>
+  </div>
+</div>'''
+    text_body = f"وداعاً يا {user_name}.\nلقد تم حذف حسابك وجميع بياناتك من خوادمنا نهائياً.\nنتمنى لك كل التوفيق في مسيرتك المهنية!"
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_registration_welcome_email(to_email: str, user_name: str) -> bool:
+    subject = "مرحباً بك في Career Compass! 🎉"
+    html_body = f'''<div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+  <div style="background: linear-gradient(135deg, {PRIMARY_COLOR}, #10b981); padding: 30px 20px; text-align: center;">
+    <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">Career Compass</h1>
+  </div>
+  <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px;">
+    <h2 style="margin-top: 0; color: #0F172A; font-size: 20px;">أهلاً بك يا {user_name} في بداية رحلتك! 🚀</h2>
+    <p style="font-size: 16px; line-height: 1.6; color: #475569;">نحن سعداء جداً بانضمامك إلى منصتنا. لقد اتخذت للتو خطوة ممتازة نحو استكشاف مسارك المهني بفضل الذكاء الاصطناعي.</p>
+    <div style="background: #F8FAFC; border-left: 4px solid {PRIMARY_COLOR}; padding: 16px; margin: 24px 0; border-radius: 4px;">
+      <p style="margin: 0; font-size: 14px; color: #334155;"><b>الخطوة القادمة:</b> قم برفع سيرتك الذاتية للبدء فوراً في تحليل مهاراتك وتلقي النصائح المخصصة لك.</p>
+    </div>
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="{settings.FRONTEND_BASE_URL}/upload" style="background: {PRIMARY_COLOR}; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">ارفع سيرتك الذاتية الآن</a>
+    </div>
+  </div>
+</div>'''
+    text_body = f"أهلاً بك يا {user_name} في Career Compass!\nخطوتك الأولى هي رفع سيرتك الذاتية ليقوم الذكاء الاصطناعي بتحليلها.\nنتمنى لك التوفيق!"
+    return send_email(to_email, subject, html_body, text_body)
