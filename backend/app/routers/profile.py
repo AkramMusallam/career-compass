@@ -1,0 +1,70 @@
+"""
+الواجهة 10 (Profile) — القسم 5. تحتوي أيضاً على قائمة الإنجازات (Badges — Batch 4.3).
+"""
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models.mysql_models import User
+from app.mongo import analysis_results_collection
+from app.schemas.schemas import BadgeOut, BadgesResponse, ProfileResponse, ProfileUpdateRequest, ProfileUpdateResponse
+from app.security import get_current_user
+from app.services.badges import compute_user_badges
+
+router = APIRouter(tags=["Profile"])
+
+
+@router.get("/profile", response_model=ProfileResponse)
+def get_profile(current_user: User = Depends(get_current_user)):
+    total_analyses = analysis_results_collection.count_documents({"user_id": current_user.id})
+    highest = 0.0
+    top_doc = analysis_results_collection.find_one({"user_id": current_user.id}, sort=[("career_score", -1)])
+    if top_doc:
+        highest = top_doc["career_score"]
+
+    return ProfileResponse(
+        id=str(current_user.id),
+        full_name=current_user.full_name,
+        email=current_user.email,
+        created_at=current_user.created_at,
+        total_analyses=total_analyses,
+        highest_career_score=highest,
+        benchmark_opt_in=current_user.benchmark_opt_in,
+        notifications_opt_in=current_user.notifications_opt_in,
+    )
+
+
+@router.put("/profile", response_model=ProfileUpdateResponse)
+def update_profile(
+    payload: ProfileUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_user.full_name = payload.full_name
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+
+    return ProfileUpdateResponse(id=str(current_user.id), full_name=current_user.full_name, email=current_user.email)
+
+
+@router.get("/profile/badges", response_model=BadgesResponse)
+def get_profile_badges(current_user: User = Depends(get_current_user)):
+    analyses = list(analysis_results_collection.find({"user_id": current_user.id}))
+    badges = compute_user_badges(analyses)
+    return BadgesResponse(badges=[BadgeOut(**b) for b in badges])
+
+
+@router.delete("/profile", response_model=dict)
+def delete_account(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Delete all associated analyses in MongoDB
+    analysis_results_collection.delete_many({"user_id": current_user.id})
+    # Delete the user in MySQL
+    db.delete(current_user)
+    db.commit()
+    return {"detail": "Account deleted successfully"}

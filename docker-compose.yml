@@ -1,0 +1,155 @@
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: career_compass
+      MYSQL_USER: career_user
+      MYSQL_PASSWORD: career_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Batch 5.4 — Broker/Backend لـ Celery (المهام المجدولة: التنبيهات البريدية الأسبوعية)
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENV: development
+      JWT_SECRET_KEY: change-this-to-a-long-random-secret-in-production
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DB: career_compass
+      USE_SQLITE_FALLBACK: "0"
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: career_compass
+      USE_MONGOMOCK: "0"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_BASE_URL: "http://localhost:3000"
+      # اضبط EMAIL_NOTIFICATIONS_ENABLED=1 وبيانات SMTP_* الحقيقية عند توفرها لتفعيل الإرسال الفعلي
+      EMAIL_NOTIFICATIONS_ENABLED: "0"
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_USE_TLS: "1"
+      SMTP_FROM_EMAIL: "no-reply@career-compass.app"
+      SMTP_FROM_NAME: "Career Compass"
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_uploads:/app/uploads
+
+  # Batch 5.4 — Worker: ينفّذ مهمة إرسال التنبيهات الأسبوعية عند جدولتها من celery-beat
+  celery-worker:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command: celery -A app.celery_app worker --loglevel=info
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENV: development
+      JWT_SECRET_KEY: change-this-to-a-long-random-secret-in-production
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DB: career_compass
+      USE_SQLITE_FALLBACK: "0"
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: career_compass
+      USE_MONGOMOCK: "0"
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_BASE_URL: "http://localhost:3000"
+      EMAIL_NOTIFICATIONS_ENABLED: "0"
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_USE_TLS: "1"
+      SMTP_FROM_EMAIL: "no-reply@career-compass.app"
+      SMTP_FROM_NAME: "Career Compass"
+    volumes:
+      - backend_uploads:/app/uploads
+
+  # Batch 5.4 — Beat: المجدوِل الذي يُطلق المهمة الأسبوعية بالتوقيت المضبوط في WEEKLY_EMAIL_*
+  celery-beat:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command: celery -A app.celery_app beat --loglevel=info
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      ENV: development
+      JWT_SECRET_KEY: change-this-to-a-long-random-secret-in-production
+      REDIS_URL: redis://redis:6379/0
+      WEEKLY_EMAIL_DAY_OF_WEEK: monday
+      WEEKLY_EMAIL_HOUR: "8"
+      WEEKLY_EMAIL_MINUTE: "0"
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  mysql_data:
+  mongo_data:
+  redis_data:
+  backend_uploads:

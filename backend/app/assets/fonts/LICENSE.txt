@@ -1,0 +1,4 @@
+Amiri font — copyright 2010-2022 The Amiri Project Authors (https://github.com/aliftype/amiri)
+Licensed under the SIL Open Font License, Version 1.1 (https://scripts.sil.org/OFL)
+Distributed via the Google Fonts repository (https://github.com/google/fonts).
+Bundled here for Arabic PDF report rendering (backend/app/services/pdf_export.py).
