@@ -1,3 +1,4 @@
+
 # Career Compass 🚀
 
 Career Compass is an AI-driven career guidance platform that helps users discover their optimal career paths by intelligently analyzing their resumes (CVs).
@@ -57,3 +58,17 @@ The project is thoroughly tested using pytest.
 cd backend
 pytest tests/ -v
 `
+## ?? Production Deployment (Docker)
+The project includes a production-ready Docker Compose configuration.
+
+1. Ensure Docker and Docker Compose are installed on your server.
+2. Clone the repository and navigate to the project directory.
+3. Build and run the containers in detached mode:
+   `ash
+   docker compose -f docker-compose.prod.yml up -d --build
+   `
+4. Run the database seed script to populate initial questions and jobs:
+   `ash
+   docker exec career-compass-backend-1 python -c "from app.seed.seed_runner import run_seed; run_seed()"
+   `
+5. Ensure port 80 is open on your server firewall.
