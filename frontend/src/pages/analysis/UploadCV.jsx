@@ -120,6 +120,10 @@ export default function UploadCV() {
                 onChange={(e) => validateAndSetFile(e.target.files?.[0])}
               />
               <p className="text-xs text-slate-400">الحد الأقصى لحجم الملف: {MAX_SIZE_MB} ميجابايت. صيغة PDF فقط.</p>
+              <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 py-1 px-3 rounded-full border border-blue-200 font-medium">
+                <span>💼</span>
+                <span>يدعم استيراد ملفات PDF المُصدَّرة من <b>LinkedIn</b> (Save to PDF)</span>
+              </div>
             </>
           ) : (
             <div className="flex w-full items-center justify-between gap-3 rounded-xl bg-white p-4 shadow-sm">

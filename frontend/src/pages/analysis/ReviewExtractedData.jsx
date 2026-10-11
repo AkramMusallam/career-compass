@@ -351,6 +351,13 @@ export default function ReviewExtractedData() {
         </div>
       )}
 
+      {extractedData?.is_linkedin && (
+        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-xs font-bold shadow-sm">
+          <span className="text-base">💼</span>
+          <span>تم التعرّف على الملف كملف شخصي مُصدَّر من <b>LinkedIn</b>، وجرى استخراج المهارات والخبرات بنجاح.</span>
+        </div>
+      )}
+
       <SkillsSection skills={skills} setSkills={setSkills} />
       <ProjectsSection projects={projects} setProjects={setProjects} />
       <EducationSection education={education} setEducation={setEducation} />

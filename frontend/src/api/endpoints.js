@@ -107,14 +107,28 @@ export const updateBenchmarkOptIn = (optedIn) =>
 // Batch 4.3: Badges / إنجازات
 // ============================================================
 export const getProfileBadges = () => apiClient.get("/profile/badges");
+
 // ============================================================
 // Phase 1: ATS Score & Cover Letter
 // ============================================================
 export const getAtsScore = (extractionId) => apiClient.get(`/extract/${extractionId}/ats-score`);
-export const generateCoverLetter = (extractionId, jobDescription) => apiClient.post(`/extract/${extractionId}/cover-letter`, { job_description: jobDescription });
+export const generateCoverLetter = (extractionId, jobDescription) =>
+  apiClient.post(`/extract/${extractionId}/cover-letter`, { job_description: jobDescription });
 
 // ============================================================
-// Phase 3: AI Mock Interview
+// Phase 3 & Epic 4: AI Mock Interview & Evaluation
 // ============================================================
-export const startInterview = (analysisId, jobTitle) => apiClient.post("/interview/start", { analysis_id: analysisId, job_title: jobTitle });
-export const chatInterview = (sessionId, message) => apiClient.post("/interview/chat", { session_id: sessionId, message });
+export const startInterview = (analysisId, jobTitle) =>
+  apiClient.post("/interview/start", { analysis_id: analysisId, job_title: jobTitle });
+export const chatInterview = (sessionId, message) =>
+  apiClient.post("/interview/chat", { session_id: sessionId, message });
+export const getInterviewSession = (sessionId) =>
+  apiClient.get(`/interview/${sessionId}`);
+export const evaluateInterview = (sessionId) =>
+  apiClient.post(`/interview/${sessionId}/evaluate`);
+
+// ============================================================
+// Epic 6 Feature 6.5: Real Job Matching
+// ============================================================
+export const getMatchedJobs = (analysisId) =>
+  apiClient.get("/jobs/matched", { params: { analysis_id: analysisId } });

@@ -68,6 +68,7 @@ def extract(payload: ExtractRequest, current_user: User = Depends(get_current_us
     extracted = extract_cv_data(upload["path"])
     extraction_id = str(uuid.uuid4())
 
+    is_linkedin = getattr(extracted, "is_linkedin", False)
     document = {
         "extraction_id": extraction_id,
         "user_id": current_user.id,
@@ -76,6 +77,7 @@ def extract(payload: ExtractRequest, current_user: User = Depends(get_current_us
         "projects": [p.__dict__ for p in extracted.projects],
         "education": [e.__dict__ for e in extracted.education],
         "experience": [e.__dict__ for e in extracted.experience],
+        "is_linkedin": is_linkedin,
         "status": "extracted",
         "created_at": datetime.now(timezone.utc),
     }
@@ -87,6 +89,7 @@ def extract(payload: ExtractRequest, current_user: User = Depends(get_current_us
         projects=[p.__dict__ for p in extracted.projects],
         education=[e.__dict__ for e in extracted.education],
         experience=[e.__dict__ for e in extracted.experience],
+        is_linkedin=is_linkedin,
     )
 
 

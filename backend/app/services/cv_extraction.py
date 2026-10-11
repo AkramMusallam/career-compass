@@ -110,6 +110,7 @@ class ExtractedCVData:
     projects: list
     education: list
     experience: list
+    is_linkedin: bool = False
 
 
 def _read_pdf_text(file_path: str | Path) -> str:
@@ -255,7 +256,10 @@ def _extract_experience(block_lines: list[str]) -> list[ExtractedExperience]:
 import json
 import logging
 import ollama
-import openai
+try:
+    import openai
+except ImportError:
+    openai = None
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -264,7 +268,7 @@ logger = logging.getLogger(__name__)
 def call_llm(prompt: str, system_prompt: str, is_json: bool = False) -> str:
     """Wrapper to call OpenAI if configured, otherwise fallback to Ollama."""
     # Try OpenAI first
-    if settings.OPENAI_API_KEY:
+    if settings.OPENAI_API_KEY and openai is not None:
         try:
             client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
             kwargs = {
@@ -333,14 +337,46 @@ CV Text:
         return None
 
 
+
+def is_linkedin_profile(text: str) -> bool:
+    """Epic 6 Feature 6.3: Detect if text comes from an exported LinkedIn PDF profile."""
+    if not text:
+        return False
+    lowered = text.lower()
+    has_contact = "contact" in lowered or "linkedin.com/in" in lowered
+    has_top_skills = "top skills" in lowered
+    has_experience = "experience" in lowered or "education" in lowered
+    return (has_contact and has_experience) or (has_top_skills and has_experience)
+
+
+def extract_linkedin_top_skills(text: str) -> list[str]:
+    """Extract skills directly from LinkedIn's 'Top Skills' block."""
+    m = re.search(
+        r"top\s+skills\s*[\r\n]+(.*?)(?=(?:[\r\n]+\s*(?:languages|certifications|summary|experience|education)\b)|\Z)",
+        text,
+        re.IGNORECASE | re.DOTALL,
+    )
+    extracted = []
+    if m:
+        block = m.group(1)
+        for line in block.splitlines():
+            s = line.strip("•-*► \t\r\n")
+            if s and len(s) < 45 and not s.lower().startswith("page "):
+                extracted.append(s)
+    return extracted
+
 def extract_cv_data(file_path: str | Path) -> ExtractedCVData:
-    """Entry point for local AI/Heuristic English-only extraction."""
+    """Entry point for local AI/Heuristic English and Arabic extraction with LinkedIn profile support."""
     raw_text = _read_pdf_text(file_path)
     full_text = clean_text(raw_text)
+    is_linkedin = is_linkedin_profile(full_text)
+    if is_linkedin:
+        logger.info("LinkedIn Profile PDF export detected; applying specialized LinkedIn heuristics.")
     
     # 1. Try Local AI Model First (Ollama)
     ai_result = _extract_with_ollama(full_text)
     if ai_result:
+        ai_result.is_linkedin = is_linkedin
         logger.info("Successfully extracted CV data using local AI (Ollama).")
         return ai_result
         
@@ -357,11 +393,23 @@ def extract_cv_data(file_path: str | Path) -> ExtractedCVData:
         return lines[start:end]
 
     skills = _extract_skills(full_text)
+    if is_linkedin:
+        li_skills = extract_linkedin_top_skills(full_text)
+        for s in li_skills:
+            if s not in skills:
+                skills.append(s)
+
     projects = _extract_projects(section_lines("projects"))
     education = _extract_education(section_lines("education"))
     experience = _extract_experience(section_lines("experience"))
 
-    return ExtractedCVData(skills=skills, projects=projects, education=education, experience=experience)
+    return ExtractedCVData(
+        skills=skills,
+        projects=projects,
+        education=education,
+        experience=experience,
+        is_linkedin=is_linkedin
+    )
 
 def evaluate_ats_score(file_path: str | Path) -> dict:
     raw_text = _read_pdf_text(file_path)

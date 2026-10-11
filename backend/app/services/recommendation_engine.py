@@ -526,3 +526,182 @@ def calculate_recommendation(
         suggested_courses=courses,
         user_skill_profile=user_skill_profile,
     )
+
+
+# ============================================================
+# Feature 6.5: Real Job Matching Engine & Postings Database
+# ============================================================
+
+JOB_POSTINGS = [
+    {
+        "id": "job-pal-01",
+        "title": "Junior Backend Developer (Python / FastAPI)",
+        "company": "Asal Technologies",
+        "location": "Ramallah / Hybrid",
+        "type": "Full-time",
+        "experience_level": "Entry / Junior (0-2 years)",
+        "salary_range": "$1,400 - $2,200",
+        "required_skills": ["Python", "SQL", "API Design", "Git", "REST"],
+        "bonus_skills": ["Docker", "FastAPI", "PostgreSQL"],
+        "description": "انضم إلى فريق تطوير الخدمات الخلفية لبناء وتطوير واجهات برمجة التطبيقات (APIs) للعملاء الدوليين باستخدام Python وقواعد البيانات العلائقية.",
+        "apply_url": "https://www.asaltech.com/careers",
+        "posted_date": "منذ يومين",
+    },
+    {
+        "id": "job-pal-02",
+        "title": "Frontend React Developer",
+        "company": "Exalt Technologies",
+        "location": "Ramallah / Nablus (Hybrid)",
+        "type": "Full-time",
+        "experience_level": "Junior - Mid",
+        "salary_range": "$1,600 - $2,600",
+        "required_skills": ["JavaScript", "React", "HTML/CSS", "Git", "Tailwind CSS"],
+        "bonus_skills": ["TypeScript", "Next.js", "Redux"],
+        "description": "مطلوب مطور واجهات أمامية للعمل على لوحات تحكم متقدمة وتطبيقات ويب سريعة الاستجابة باستخدام React و Tailwind CSS.",
+        "apply_url": "https://www.exalt.ps/careers",
+        "posted_date": "منذ 4 أيام",
+    },
+    {
+        "id": "job-pal-03",
+        "title": "Full Stack Engineer (React & Node.js)",
+        "company": "Harri",
+        "location": "Ramallah, Palestine",
+        "type": "Full-time",
+        "experience_level": "Mid-Level (2-4 years)",
+        "salary_range": "$2,200 - $3,500",
+        "required_skills": ["JavaScript", "React", "Node.js", "SQL", "API Design", "Git"],
+        "bonus_skills": ["Docker", "TypeScript", "AWS"],
+        "description": "فرصة للمساهمة في بناء منصة Harri العالمية لإدارة الضيافة والموارد البشرية، وتطوير دورة حياة الميزات من الواجهة إلى قاعدة البيانات.",
+        "apply_url": "https://harri.com/careers",
+        "posted_date": "منذ أسبوع",
+    },
+    {
+        "id": "job-pal-04",
+        "title": "Software Engineer (Backend & Cloud)",
+        "company": "Foothill Technology Solutions",
+        "location": "Nablus / Remote",
+        "type": "Full-time",
+        "experience_level": "Junior - Mid",
+        "salary_range": "$1,700 - $2,800",
+        "required_skills": ["OOP", "Python", "SQL", "Git", "Docker"],
+        "bonus_skills": ["CI/CD", "AWS", "Microservices"],
+        "description": "تطوير أنظمة سحابية وخدمات مصغرة لشركات رعاية صحية وتكنولوجيا في أمريكا الشمالية بالتعاون مع فرق هندسية متميزة.",
+        "apply_url": "https://www.foothilltech.net/careers",
+        "posted_date": "مفتوحة حديثاً",
+    },
+    {
+        "id": "job-rem-05",
+        "title": "Remote Junior Python & Data Automation Engineer",
+        "company": "Canonical (Ubuntu)",
+        "location": "Worldwide Remote (Palestine Eligible)",
+        "type": "Remote",
+        "experience_level": "Entry / Graduate",
+        "salary_range": "$2,500 - $3,800",
+        "required_skills": ["Python", "Linux", "Git", "SQL"],
+        "bonus_skills": ["Docker", "Bash", "Testing (Pytest)"],
+        "description": "وظيفة عالمية عن بُعد بالكامل تركز على أتمتة الأنظمة وبناء أدوات المراقبة وإدارة الحزم في بيئات لينكس وسحابية متقدمة.",
+        "apply_url": "https://canonical.com/careers",
+        "posted_date": "منذ 3 أيام",
+    },
+    {
+        "id": "job-rem-06",
+        "title": "Associate DevOps & Infrastructure Specialist",
+        "company": "GitLab",
+        "location": "Remote",
+        "type": "Full-time Remote",
+        "experience_level": "Junior - Mid",
+        "salary_range": "$3,000 - $4,500",
+        "required_skills": ["Git", "CI/CD", "Docker", "Linux"],
+        "bonus_skills": ["Kubernetes", "AWS", "Terraform", "Python"],
+        "description": "المشاركة في تحسين خطوط الأنابيب الآلية (CI/CD)، وضمان موثوقية البنية التحتية، وتوفير بيئات تشغيل مرنة ومستقرة للمطورين.",
+        "apply_url": "https://about.gitlab.com/jobs",
+        "posted_date": "منذ 5 أيام",
+    },
+    {
+        "id": "job-pal-07",
+        "title": "Mobile App Developer (Flutter / React Native)",
+        "company": "SouqTel Digital Solutions",
+        "location": "Ramallah / Hybrid",
+        "type": "Full-time",
+        "experience_level": "Mid-Level",
+        "salary_range": "$1,800 - $3,000",
+        "required_skills": ["Flutter", "React Native", "API Design", "Git", "OOP"],
+        "bonus_skills": ["State Management", "Firebase", "Offline Sync"],
+        "description": "بناء تطبيقات هواتف ذكية موثوقة لمشاريع إنسانية وتنموية تخدم ملايين المستخدمين في الشرق الأوسط وإفريقيا.",
+        "apply_url": "https://www.souqtel.com/careers",
+        "posted_date": "منذ أسبوعين",
+    },
+    {
+        "id": "job-pal-08",
+        "title": "Data Analyst & Business Intelligence Specialist",
+        "company": "WalaPlus",
+        "location": "Remote / Palestine",
+        "type": "Full-time",
+        "experience_level": "Entry / Mid",
+        "salary_range": "$1,500 - $2,400",
+        "required_skills": ["SQL", "Python", "Data Analysis", "Statistics"],
+        "bonus_skills": ["Power BI", "Data Visualization", "Excel"],
+        "description": "تحليل بيانات العملاء وسلوك المستخدمين واستخراج مؤشرات أداء دقيقة لدعم اتخاذ القرارات الإستراتيجية للمنصة.",
+        "apply_url": "https://walaplus.com/careers",
+        "posted_date": "منذ 3 أيام",
+    },
+]
+
+
+def match_candidate_to_job_postings(
+    candidate_skills: list[str],
+    target_role: str = "",
+    min_match_percentage: int = 15,
+) -> list[dict]:
+    norm_candidate_skills = {s.strip().lower() for s in candidate_skills if s}
+    results = []
+
+    for posting in JOB_POSTINGS:
+        required = posting.get("required_skills", [])
+        bonus = posting.get("bonus_skills", [])
+
+        matched_required = [r for r in required if r.strip().lower() in norm_candidate_skills]
+        missing_required = [r for r in required if r.strip().lower() not in norm_candidate_skills]
+        matched_bonus = [b for b in bonus if b.strip().lower() in norm_candidate_skills]
+        missing_bonus = [b for b in bonus if b.strip().lower() not in norm_candidate_skills]
+
+        total_req_w = len(required) * 1.0
+        total_bon_w = len(bonus) * 0.3
+        total_possible = total_req_w + total_bon_w
+
+        if total_possible == 0:
+            match_pct = 50.0
+        else:
+            earned = (len(matched_required) * 1.0) + (len(matched_bonus) * 0.3)
+            match_pct = min(100.0, (earned / total_possible) * 100.0)
+
+        if target_role:
+            target_norm = target_role.lower()
+            job_norm = posting["title"].lower()
+            if any(term in job_norm for term in target_norm.split()):
+                match_pct = min(100.0, match_pct + 5.0)
+
+        final_pct = round(match_pct, 1)
+        if final_pct >= min_match_percentage:
+            results.append(
+                {
+                    "id": posting["id"],
+                    "title": posting["title"],
+                    "company": posting["company"],
+                    "location": posting["location"],
+                    "type": posting["type"],
+                    "experience_level": posting["experience_level"],
+                    "salary_range": posting.get("salary_range", "حسب الخبرة"),
+                    "description": posting["description"],
+                    "apply_url": posting["apply_url"],
+                    "posted_date": posting.get("posted_date", "حديثاً"),
+                    "match_percentage": final_pct,
+                    "matched_skills": matched_required + matched_bonus,
+                    "missing_skills": missing_required,
+                    "bonus_skills_missing": missing_bonus,
+                }
+            )
+
+    results.sort(key=lambda x: x["match_percentage"], reverse=True)
+    return results
+

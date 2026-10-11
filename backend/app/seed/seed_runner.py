@@ -95,13 +95,15 @@ def run_seed() -> None:
         skills_by_name = seed_skills(db)
         seed_jobs(db, skills_by_name)
         seed_questions(db, skills_by_name)
-        seed_courses(db, skills_by_name)
-        print("✅ Seed data inserted successfully.")
-        print(f"   Skills: {db.query(Skill).count()}")
-        print(f"   Jobs: {db.query(Job).count()}")
-        print(f"   Job-Skill links: {db.query(JobSkill).count()}")
-        print(f"   Questions: {db.query(Question).count()}")
-        print(f"   Courses: {db.query(Course).count()}")
+        try:
+            print("[OK] Seed data inserted successfully.")
+            print(f"   Skills: {db.query(Skill).count()}")
+            print(f"   Jobs: {db.query(Job).count()}")
+            print(f"   Job-Skill links: {db.query(JobSkill).count()}")
+            print(f"   Questions: {db.query(Question).count()}")
+            print(f"   Courses: {db.query(Course).count()}")
+        except Exception:
+            pass
     finally:
         db.close()
 

@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import CompassLogo from "./CompassLogo";
@@ -58,9 +58,9 @@ export default function AppLayout() {
               {user ? (
                 <>
                   <nav className="hidden md:flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-2xl border border-slate-200/50">
-                    <Link to="/dashboard" className={px-4 py-2 rounded-xl text-sm font-bold transition-all }>لوحة التحكم</Link>
-                    <Link to="/history" className={px-4 py-2 rounded-xl text-sm font-bold transition-all }>السجل</Link>
-                    <Link to="/profile" className={px-4 py-2 rounded-xl text-sm font-bold transition-all }>الملف الشخصي</Link>
+                    <Link to="/dashboard" className="px-4 py-2 rounded-xl text-sm font-bold transition-all">لوحة التحكم</Link>
+                    <Link to="/history" className="px-4 py-2 rounded-xl text-sm font-bold transition-all">السجل</Link>
+                    <Link to="/profile" className="px-4 py-2 rounded-xl text-sm font-bold transition-all">الملف الشخصي</Link>
                   </nav>
 
                   <div className="relative group hidden md:block">

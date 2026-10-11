@@ -23,14 +23,12 @@ celery_app = Celery(
     "career_compass",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.tasks"],
+    include=["app.worker.tasks", "app.tasks"],
 )
 
 celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
-    # يُفعَّل فقط في بيئة الاختبار (CELERY_TASK_ALWAYS_EAGER=1) لتشغيل المهام مباشرة داخل نفس
-    # العملية دون الحاجة لخادم Redis أو Worker حقيقيين — انظر tests/test_celery_app.py.
     task_always_eager=settings.CELERY_TASK_ALWAYS_EAGER,
     task_eager_propagates=True,
     task_track_started=True,
@@ -40,7 +38,7 @@ celery_app.conf.update(
 # جدولة المهمة الأسبوعية الوحيدة الحالية (الدفعة 5.3 / B5.4-B5.5)
 celery_app.conf.beat_schedule = {
     "weekly-roadmap-progress-email": {
-        "task": "app.tasks.send_weekly_progress_emails_task",
+        "task": "app.worker.tasks.send_weekly_progress_emails_task",
         "schedule": crontab(
             day_of_week=settings.WEEKLY_EMAIL_DAY_OF_WEEK,
             hour=settings.WEEKLY_EMAIL_HOUR,

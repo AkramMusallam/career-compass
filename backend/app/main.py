@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.api.routes import analyze, assessment, auth, benchmark, cv, history, profile, settings_router, shared, interview
+from app.api.routes import analyze, assessment, auth, benchmark, cv, history, profile, settings_router, shared, interview, jobs_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("career_compass")
@@ -86,3 +86,4 @@ app.include_router(settings_router.router)
 app.include_router(shared.router)
 app.include_router(benchmark.router)
 app.include_router(interview.router)
+app.include_router(jobs_router.router)

@@ -115,6 +115,7 @@ class ExtractResponse(BaseModel):
     projects: List[ProjectItem]
     education: List[EducationItem]
     experience: List[ExperienceItem]
+    is_linkedin: bool = False
 
 
 # ============================================================
