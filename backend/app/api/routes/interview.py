@@ -94,7 +94,7 @@ def _call_llm_for_text(messages: list, system_instruction: str = "") -> str:
             )
             return resp.choices[0].message.content or ""
         else:
-            response = ollama.chat(model="llama3.2", messages=full_messages)
+            response = ollama.chat(model=getattr(settings, "OLLAMA_MODEL", "career-model"), messages=full_messages)
             return response["message"]["content"]
     except Exception as e:
         logger.warning("LLM call failed: %s", e)
@@ -291,7 +291,7 @@ Scores must be integers between 1 and 10. Do not wrap in markdown or backticks. 
             raw_json_str = resp.choices[0].message.content or ""
         else:
             response = ollama.chat(
-                model="llama3.2",
+                model=getattr(settings, "OLLAMA_MODEL", "career-model"),
                 messages=[{"role": "user", "content": eval_prompt}],
                 format="json",
             )

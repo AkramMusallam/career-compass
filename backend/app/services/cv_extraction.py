@@ -290,7 +290,7 @@ def call_llm(prompt: str, system_prompt: str, is_json: bool = False) -> str:
     # Fallback to Ollama
     try:
         kwargs = {
-            "model": "llama3.2",
+            "model": getattr(settings, "OLLAMA_MODEL", "career-model"),
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}

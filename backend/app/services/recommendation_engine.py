@@ -362,6 +362,7 @@ def build_skill_gap(top_job: Optional[JobMatchResult]) -> dict[str, list[str]]:
 import ollama
 import json
 import logging
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -383,7 +384,7 @@ Return ONLY a valid JSON array with 3 objects. Format exactly like this:
 ]
 """
         try:
-            response = ollama.chat(model='llama3.2', messages=[
+            response = ollama.chat(model=getattr(settings, "OLLAMA_MODEL", "career-model"), messages=[
                 {'role': 'system', 'content': 'You are a career advisor API that strictly outputs JSON arrays.'},
                 {'role': 'user', 'content': prompt}
             ], format='json')

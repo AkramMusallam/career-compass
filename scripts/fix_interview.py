@@ -1,4 +1,4 @@
-﻿import os
+import os
 import re
 
 with open("backend/app/api/routes/interview.py", "r", encoding="utf-8") as f:
@@ -21,7 +21,7 @@ new_logic = '''
             )
             ai_reply = resp.choices[0].message.content
         else:
-            response = ollama.chat(model='llama3.2', messages=initial_messages)
+            response = ollama.chat(model='career-model', messages=initial_messages)
             ai_reply = response['message']['content']
     except Exception as e:
 '''
@@ -29,7 +29,7 @@ new_logic = '''
 if "openai.OpenAI" not in content:
     content = content.replace('''
     try:
-        response = ollama.chat(model='llama3.2', messages=initial_messages)
+        response = ollama.chat(model='career-model', messages=initial_messages)
         ai_reply = response['message']['content']
     except Exception as e:''', new_logic)
 
@@ -46,7 +46,7 @@ new_chat_logic = '''
             )
             ai_reply = resp.choices[0].message.content
         else:
-            response = ollama.chat(model='llama3.2', messages=messages)
+            response = ollama.chat(model='career-model', messages=messages)
             ai_reply = response['message']['content']
     except Exception as e:
 '''
@@ -54,7 +54,7 @@ new_chat_logic = '''
 if "openai.OpenAI" in new_logic and "client = openai.OpenAI" not in content[content.find("chat_interview"):]:
     content = content.replace('''
     try:
-        response = ollama.chat(model='llama3.2', messages=messages)
+        response = ollama.chat(model='career-model', messages=messages)
         ai_reply = response['message']['content']
     except Exception as e:''', new_chat_logic)
 

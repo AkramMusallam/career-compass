@@ -56,13 +56,14 @@ class Settings:
 
     # ---- AI Engines ----
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "career-model")
 
     # ---- رفع الملفات ----
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     MAX_UPLOAD_MB: int = int(os.getenv("MAX_UPLOAD_MB", "5"))
 
     # ---- CORS ----
-    CORS_ORIGINS: list = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+    CORS_ORIGINS: list = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,https://scarce-drove-amendable.ngrok-free.dev").split(",")
 
     # ---- Batch 5.4: مهام مجدولة (Celery + Redis) ----
     # قرار هندسي: Celery + Redis بدل APScheduler لأنها أنسب للإنتاج الحقيقي (Worker منفصل

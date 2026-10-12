@@ -13,7 +13,7 @@ $frontendDir = Join-Path $scriptDir "frontend"
 # 1. Start Ollama (in background or new window)
 Write-Host "Ensuring Ollama local AI is running..." -ForegroundColor Yellow
 try {
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "ollama run llama3.2"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "ollama run career-model"
 } catch {
     Write-Host "Ollama could not be launched directly." -ForegroundColor Yellow
 }

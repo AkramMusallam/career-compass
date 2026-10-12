@@ -1,4 +1,4 @@
-﻿import os
+import os
 import re
 
 with open("backend/app/services/cv_extraction.py", "r", encoding="utf-8") as f:
@@ -36,7 +36,7 @@ def call_llm(prompt: str, system_prompt: str, is_json: bool = False) -> str:
     # Fallback to Ollama
     try:
         kwargs = {
-            "model": "llama3.2",
+            "model": "career-model",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}

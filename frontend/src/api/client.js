@@ -1,15 +1,20 @@
 import axios from "axios";
 
-// في التطوير المحلي: Vite يوجّه /api إلى الباك إند (انظر vite.config.js).
-// في الإنتاج: يمكن ضبط VITE_API_BASE_URL لتوجيه الطلبات مباشرة لعنوان الباك إند المنشور.
-const baseURL = import.meta.env.VITE_API_BASE_URL || "/api";
+// عنوان الـ API: يدعم VITE_API_BASE_URL مع إزالة أي شرطة مائلة لاحقة (trailing slash) تلقائياً
+const rawBaseURL = import.meta.env.VITE_API_BASE_URL || "https://scarce-drove-amendable.ngrok-free.dev";
+const baseURL = rawBaseURL.replace(/\/+$/, "");
 
 const apiClient = axios.create({
   baseURL,
   timeout: 30000,
+  headers: {
+    "ngrok-skip-browser-warning": "69420",
+  },
 });
 
 apiClient.interceptors.request.use((config) => {
+  // تجاوز شاشة التحذير في ngrok المجاني لكل الطلبات
+  config.headers["ngrok-skip-browser-warning"] = "69420";
   const token = localStorage.getItem("access_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

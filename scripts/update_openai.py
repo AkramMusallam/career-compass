@@ -1,4 +1,4 @@
-﻿import re
+import re
 
 with open('backend/app/services/cv_extraction.py', 'r', encoding='utf-8') as f:
     content = f.read()
@@ -21,7 +21,7 @@ llm_code = '''
             data = json.loads(resp.choices[0].message.content)
         else:
             # Fallback to Ollama
-            response = ollama.chat(model='llama3.2', messages=[
+            response = ollama.chat(model='career-model', messages=[
                 {'role': 'system', 'content': 'You are a precise data extraction API that only outputs valid JSON.'},
                 {'role': 'user', 'content': prompt}
             ], format='json')
