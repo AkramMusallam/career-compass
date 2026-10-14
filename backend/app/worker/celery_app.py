@@ -38,7 +38,7 @@ celery_app.conf.update(
 # جدولة المهمة الأسبوعية الوحيدة الحالية (الدفعة 5.3 / B5.4-B5.5)
 celery_app.conf.beat_schedule = {
     "weekly-roadmap-progress-email": {
-        "task": "app.worker.tasks.send_weekly_progress_emails_task",
+        "task": "app.tasks.send_weekly_progress_emails_task",
         "schedule": crontab(
             day_of_week=settings.WEEKLY_EMAIL_DAY_OF_WEEK,
             hour=settings.WEEKLY_EMAIL_HOUR,

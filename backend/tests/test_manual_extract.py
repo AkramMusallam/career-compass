@@ -41,7 +41,8 @@ def test_manual_extract_accepts_prefilled_data_and_matches_extract_response_shap
     data = resp.json()
 
     # نفس بنية استجابة /extract تماماً (نفس المفاتيح)
-    assert set(data.keys()) == {"extraction_id", "skills", "projects", "education", "experience"}
+    assert set(data.keys()) == {"extraction_id", "skills", "projects", "education", "experience", "is_linkedin"}
+    assert data["is_linkedin"] is False
     assert data["skills"] == payload["skills"]
     assert data["projects"][0]["title"] == "Personal Portfolio"
     assert data["education"][0]["year"] == 2023

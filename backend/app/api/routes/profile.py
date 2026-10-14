@@ -23,7 +23,7 @@ def get_profile(current_user: User = Depends(get_current_user)):
     highest = 0.0
     top_doc = analysis_results_collection.find_one({"user_id": current_user.id}, sort=[("career_score", -1)])
     if top_doc:
-        highest = top_doc["career_score"]
+        highest = top_doc.get("career_score", 0.0)
 
     return ProfileResponse(
         id=str(current_user.id),

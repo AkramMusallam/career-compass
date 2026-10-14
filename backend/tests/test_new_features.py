@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import pytest
 from app.main import app
 from app.core.mongo import mongo_db
 from unittest.mock import patch
@@ -11,28 +12,41 @@ from app.services.cv_extraction import (
     ExtractedCVData,
 )
 from app.services.recommendation_engine import match_candidate_to_job_postings
+from app.core.security import get_current_user
 
-client = TestClient(app)
+# Dedicated id so the fake user's Mongo docs never mix with users created by other tests.
+FAKE_USER_ID = 987654
 
 
 async def override_get_current_user():
-    user = User(id=1, email="test@example.com")
+    user = User(id=FAKE_USER_ID, email="test@example.com", full_name="Test User")
     return user
 
 
-from app.core.security import get_current_user
+@pytest.fixture()
+def client():
+    """Override auth only for the duration of this test, then restore the real dependency."""
+    from app.core.config import settings
 
-app.dependency_overrides[get_current_user] = override_get_current_user
+    app.dependency_overrides[get_current_user] = override_get_current_user
+    try:
+        # Force the Ollama code path (mocked below) without leaking the change to other tests.
+        with patch.object(settings, "OPENAI_API_KEY", ""), TestClient(app) as c:
+            yield c
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        for coll in ("analysis_results", "extractions", "uploads", "interview_sessions"):
+            mongo_db[coll].delete_many({"user_id": FAKE_USER_ID})
 
 
-def test_new_endpoints():
+def test_new_endpoints(client):
     analysis_id = "test-analysis-" + str(uuid.uuid4())
     extraction_id = "test-extract-" + str(uuid.uuid4())
 
     mongo_db["analysis_results"].insert_one(
         {
             "analysis_id": analysis_id,
-            "user_id": 1,
+            "user_id": FAKE_USER_ID,
             "skills": ["Python", "SQL", "Git", "API Design", "Docker"],
             "job_match": {"top_job": "Backend Developer"},
             "created_at": datetime.datetime.now(datetime.timezone.utc),
@@ -42,7 +56,7 @@ def test_new_endpoints():
     mongo_db["extractions"].insert_one(
         {
             "extraction_id": extraction_id,
-            "user_id": 1,
+            "user_id": FAKE_USER_ID,
             "file_id": "file123",
         }
     )
@@ -50,7 +64,7 @@ def test_new_endpoints():
     mongo_db["uploads"].insert_one(
         {
             "file_id": "file123",
-            "user_id": 1,
+            "user_id": FAKE_USER_ID,
             "path": "dummy_path.pdf",
         }
     )
@@ -74,9 +88,6 @@ def test_new_endpoints():
     session_id = None
     with patch("ollama.chat") as mock_ollama:
         mock_ollama.return_value = {"message": {"content": "Hello, let's start."}}
-        from app.core.config import settings
-
-        settings.OPENAI_API_KEY = ""
         resp = client.post(
             "/interview/start",
             json={"analysis_id": analysis_id, "job_title": "Backend Developer"},
@@ -163,6 +174,3 @@ def test_new_endpoints():
     assert "apply_url" in api_jobs_data["jobs"][0]
 
     print("All tests passed successfully! 🚀")
-
-
-test_new_endpoints()

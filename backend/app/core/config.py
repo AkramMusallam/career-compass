@@ -20,12 +20,14 @@ class Settings:
 
     # ---- الأمان / JWT ----
     # Ensure JWT_SECRET_KEY is explicitly set in production, or fallback to dev secret.
+    # The insecure fallback is only allowed for explicit development/testing environments,
+    # so a typo or a different ENV value (e.g. "prod", "staging") can never silently use it.
     JWT_SECRET_KEY: str = os.getenv(
-        "JWT_SECRET_KEY", 
-        "CHANGE_ME_IN_PRODUCTION_SECRET_KEY" if os.getenv("ENV", "development") != "production" else ""
+        "JWT_SECRET_KEY",
+        "CHANGE_ME_IN_PRODUCTION_SECRET_KEY" if ENV in ("development", "testing") else "",
     )
-    if not JWT_SECRET_KEY and ENV == "production":
-        raise ValueError("JWT_SECRET_KEY must be set in production environment")
+    if not JWT_SECRET_KEY:
+        raise ValueError(f"JWT_SECRET_KEY must be set when ENV={ENV!r}")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 ساعة
 
@@ -63,7 +65,7 @@ class Settings:
     MAX_UPLOAD_MB: int = int(os.getenv("MAX_UPLOAD_MB", "5"))
 
     # ---- CORS ----
-    CORS_ORIGINS: list = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,https://scarce-drove-amendable.ngrok-free.dev").split(",")
+    CORS_ORIGINS: list = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
 
     # ---- Batch 5.4: مهام مجدولة (Celery + Redis) ----
     # قرار هندسي: Celery + Redis بدل APScheduler لأنها أنسب للإنتاج الحقيقي (Worker منفصل
