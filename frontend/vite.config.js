@@ -7,14 +7,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // أي طلب لمسار API خلال التطوير المحلي يُوجَّه تلقائياً إلى الباك إند على ngrok
+      // أي طلب لمسار API خلال التطوير المحلي يُوجَّه تلقائياً إلى الباك إند المحلي
       "/api": {
-        target: "https://scarce-drove-amendable.ngrok-free.dev",
+        target: "http://localhost:8000",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
-        headers: {
-          "ngrok-skip-browser-warning": "69420",
-        },
       },
     },
   },
