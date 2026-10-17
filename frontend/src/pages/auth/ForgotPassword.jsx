@@ -13,7 +13,7 @@ export default function ForgotPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email) return;
-    
+
     setStatus("loading");
     try {
       await requestPasswordReset({ email });
@@ -26,32 +26,42 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12">
-      <div className="w-full max-w-md text-center">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
+      <div className="pointer-events-none absolute -top-24 right-1/4 h-80 w-80 rounded-full bg-indigo-500/10 blur-[100px]" />
+      <div className="pointer-events-none absolute bottom-10 left-1/4 h-80 w-80 rounded-full bg-emerald-500/10 blur-[100px]" />
+
+      <div className="relative z-10 w-full max-w-md">
         <div className="mb-8 flex justify-center">
-          <CompassLogo size={48} />
+          <Link to="/login">
+            <CompassLogo size={46} />
+          </Link>
         </div>
-        <div className="card">
-          <h1 className="mb-2 text-xl font-black text-slate-800">استعادة كلمة المرور</h1>
-          
+
+        <div className="card p-8 sm:p-10">
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-2xl border border-primary-100">
+              🔐
+            </div>
+            <h1 className="text-2xl font-black text-slate-900">استعادة كلمة المرور</h1>
+            <p className="mt-1.5 text-sm font-medium text-slate-500">
+              أدخل بريدك الإلكتروني وسنرسل لك رابطاً آمناً لإعادة تعيين كلمة المرور
+            </p>
+          </div>
+
           {status === "success" ? (
-            <div className="mb-6">
-              <div className="alert-banner-success mb-4 text-start">{message}</div>
-              <Link to="/login" className="btn-primary inline-flex mt-2">
+            <div className="space-y-5 text-center">
+              <div className="alert-banner-success text-start">{message}</div>
+              <Link to="/login" className="btn-primary w-full">
                 العودة لتسجيل الدخول
               </Link>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="text-start">
-              <p className="mb-6 text-sm text-slate-500 text-center">
-                أدخل بريدك الإلكتروني وسنرسل لك رابطاً لإعادة تعيين كلمة المرور.
-              </p>
-              
+            <form onSubmit={handleSubmit} className="space-y-5 text-start">
               {status === "error" && (
-                <div className="alert-banner-error mb-4">{message}</div>
+                <div className="alert-banner-error">{message}</div>
               )}
 
-              <div className="mb-6">
+              <div>
                 <label htmlFor="email" className="label-text">
                   البريد الإلكتروني
                 </label>
@@ -69,15 +79,18 @@ export default function ForgotPassword() {
 
               <button
                 type="submit"
-                className="btn-primary w-full mb-4"
+                className="btn-primary w-full py-3.5"
                 disabled={status === "loading" || !email}
               >
                 {status === "loading" ? "جاري الإرسال..." : "إرسال رابط الاستعادة"}
               </button>
 
-              <div className="text-center">
-                <Link to="/login" className="text-sm font-semibold text-primary hover:underline">
-                  العودة لتسجيل الدخول
+              <div className="pt-2 text-center">
+                <Link
+                  to="/login"
+                  className="text-sm font-extrabold text-primary-600 hover:text-primary-800 hover:underline"
+                >
+                  ← العودة لتسجيل الدخول
                 </Link>
               </div>
             </form>

@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { chatInterview, getInterviewSession, evaluateInterview } from "../../api/endpoints";
+import {
+  chatInterview,
+  getInterviewSession,
+  evaluateInterview,
+} from "../../api/endpoints";
 import { getErrorMessage } from "../../api/client";
 
 export default function Interview() {
@@ -18,7 +22,6 @@ export default function Interview() {
 
   const messagesEndRef = useRef(null);
 
-  // Fetch session details on mount
   useEffect(() => {
     let isMounted = true;
     getInterviewSession(sessionId)
@@ -74,7 +77,11 @@ export default function Interview() {
       return;
     }
 
-    if (!window.confirm("هل تريد إنهاء المقابلة وطلب تقييم الذكاء الاصطناعي الشامل لإجاباتك؟")) {
+    if (
+      !window.confirm(
+        "هل تريد إنهاء المقابلة وطلب تقييم الذكاء الاصطناعي الشامل لإجاباتك؟"
+      )
+    ) {
       return;
     }
 
@@ -92,47 +99,59 @@ export default function Interview() {
 
   if (initialLoading) {
     return (
-      <div className="max-w-3xl mx-auto py-12 text-center">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent" />
-        <p className="mt-3 text-sm font-bold text-slate-500">جاري تحميل جلسة المقابلة...</p>
+      <div className="max-w-3xl mx-auto py-16 text-center">
+        <div className="inline-block h-9 w-9 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent" />
+        <p className="mt-3 text-sm font-bold text-slate-500">
+          جاري تجهيز استوديو المقابلة الذكية...
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col h-[85vh]">
-      {/* Header */}
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-4 pb-3 border-b border-slate-200">
+    <div className="max-w-5xl mx-auto flex flex-col h-[84vh] animate-fade-in-up">
+      {/* Studio Header */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-slate-950 px-6 py-4 text-white shadow-xl border border-slate-800">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-slate-800">محاكي المقابلات التقنية (AI Mock Interview)</h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-xl">🎙️</span>
+            <h1 className="text-lg sm:text-xl font-black tracking-tight">
+              استوديو المقابلات التقنية الذكي
+            </h1>
             {sessionStatus === "completed" ? (
-              <span className="bg-green-100 text-green-700 text-xs px-2.5 py-1 rounded-full font-bold">
+              <span className="rounded-full bg-emerald-500/20 border border-emerald-400/30 px-3 py-0.5 text-xs font-extrabold text-emerald-300">
                 ✓ مكتملة ومقيّمة
               </span>
             ) : (
-              <span className="bg-blue-100 text-blue-700 text-xs px-2.5 py-1 rounded-full font-bold">
-                ● جارية الآن
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 px-3 py-0.5 text-xs font-extrabold text-indigo-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>جلسة مباشرة</span>
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            الموقع المستهدف: <span className="font-bold text-slate-700">{jobTitle}</span>
+          <p className="text-xs text-slate-400 mt-1">
+            الدور الوظيفي المستهدف:{" "}
+            <span className="font-bold text-white">{jobTitle}</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {sessionStatus !== "completed" && (
             <button
               onClick={handleFinishAndEvaluate}
               disabled={evaluating || loading}
-              className="btn-primary bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-2"
+              className="btn-secondary !py-2 !px-4 !text-xs"
             >
-              {evaluating ? "جاري التقييم..." : "🏁 إنهاء المقابلة والحصول على التقييم"}
+              {evaluating
+                ? "جاري إصدار التقييم..."
+                : "🏁 إنهاء المقابلة وإصدار التقييم"}
             </button>
           )}
-          <button onClick={() => navigate(-1)} className="btn-outline text-xs px-3 py-2">
-            العودة
+          <button
+            onClick={() => navigate(-1)}
+            className="rounded-xl border border-white/15 bg-white/10 px-3.5 py-2 text-xs font-bold text-white hover:bg-white/20 transition"
+          >
+            العودة ←
           </button>
         </div>
       </div>
@@ -140,11 +159,13 @@ export default function Interview() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
         {/* Chat Stream */}
-        <div className="flex-1 bg-slate-50 p-4 rounded-2xl border border-slate-200 overflow-y-auto flex flex-col gap-3">
+        <div className="flex-1 bg-white/85 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 shadow-sm overflow-y-auto flex flex-col gap-4">
           {messages.length === 0 && (
-            <div className="text-center text-slate-400 my-auto py-10">
-              <span className="text-3xl block mb-2">💬</span>
-              أرسل رسالة ترحيب لبدء محاكاة المقابلة التقنية...
+            <div className="text-center text-slate-400 my-auto py-12">
+              <span className="text-4xl block mb-3">💬</span>
+              <p className="font-bold text-slate-600">
+                أرسل رسالة ترحيب لبدء محاكاة المقابلة التقنية...
+              </p>
             </div>
           )}
 
@@ -153,16 +174,18 @@ export default function Interview() {
             return (
               <div
                 key={i}
-                className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
+                className={`flex flex-col ${
+                  isUser ? "items-end" : "items-start"
+                }`}
               >
-                <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">
-                  {isUser ? "أنت (المرشح)" : "المُحاور الذكي"}
+                <span className="text-[11px] font-extrabold text-slate-400 mb-1 px-1.5">
+                  {isUser ? "👤 أنت (المرشح)" : "🤖 المُحاور الذكي"}
                 </span>
                 <div
-                  className={`p-3.5 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-line shadow-sm ${
+                  className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-line shadow-sm ${
                     isUser
-                      ? "bg-primary text-white rounded-br-none"
-                      : "bg-white text-slate-800 border border-slate-200 rounded-bl-none"
+                      ? "bg-gradient-to-l from-indigo-600 to-violet-600 text-white rounded-br-none shadow-indigo-500/15"
+                      : "bg-slate-50 text-slate-800 border border-slate-200/90 rounded-bl-none"
                   }`}
                 >
                   {msg.content}
@@ -173,9 +196,11 @@ export default function Interview() {
 
           {loading && (
             <div className="flex flex-col items-start">
-              <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">المُحاور الذكي</span>
-              <div className="p-3.5 rounded-2xl bg-white border border-slate-200 text-slate-500 rounded-bl-none animate-pulse text-sm">
-                المُحاور يكتب سؤاله التالي...
+              <span className="text-[11px] font-extrabold text-slate-400 mb-1 px-1.5">
+                🤖 المُحاور الذكي
+              </span>
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 rounded-bl-none animate-pulse text-sm font-semibold">
+                المُحاور يحلل إجابتك ويكتب السؤال التالي...
               </div>
             </div>
           )}
@@ -185,20 +210,22 @@ export default function Interview() {
 
         {/* Evaluation Panel (if completed) */}
         {evaluation && (
-          <div className="w-full md:w-96 bg-white p-5 rounded-2xl border border-slate-200 overflow-y-auto flex flex-col gap-4 shadow-sm">
-            <div className="text-center pb-3 border-b border-slate-100">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+          <div className="w-full md:w-96 bg-white/95 backdrop-blur-xl p-6 rounded-3xl border border-slate-200/90 overflow-y-auto flex flex-col gap-4 shadow-md">
+            <div className="text-center pb-4 border-b border-slate-100">
+              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
                 النتيجة الإجمالية للمقابلة
               </span>
               <div className="inline-flex items-baseline gap-1">
-                <span className="text-4xl font-black text-primary">{evaluation.final_score}</span>
+                <span className="text-4xl font-black text-indigo-600">
+                  {evaluation.final_score}
+                </span>
                 <span className="text-slate-400 font-bold">/ 10</span>
               </div>
-              <div className="mt-2 flex justify-center gap-3 text-xs">
-                <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">
-                  الجانب التقني: <b>{evaluation.technical_score}/10</b>
+              <div className="mt-3 flex justify-center gap-2.5 text-xs">
+                <span className="bg-indigo-50 text-indigo-800 border border-indigo-100 px-3 py-1 rounded-xl font-bold">
+                  التقني: <b>{evaluation.technical_score}/10</b>
                 </span>
-                <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">
+                <span className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-3 py-1 rounded-xl font-bold">
                   التواصل: <b>{evaluation.communication_score}/10</b>
                 </span>
               </div>
@@ -206,10 +233,10 @@ export default function Interview() {
 
             {/* Overall Feedback */}
             <div>
-              <h3 className="text-xs font-black text-slate-700 mb-1.5 flex items-center gap-1">
+              <h3 className="text-xs font-black text-slate-800 mb-1.5 flex items-center gap-1">
                 <span>💡</span> ملخص التقييم العام
               </h3>
-              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
                 {evaluation.overall_feedback}
               </p>
             </div>
@@ -220,7 +247,7 @@ export default function Interview() {
                 <h3 className="text-xs font-black text-emerald-700 mb-1.5 flex items-center gap-1">
                   <span>✨</span> نقاط القوة
                 </h3>
-                <ul className="space-y-1 text-xs text-slate-600">
+                <ul className="space-y-1.5 text-xs text-slate-600">
                   {evaluation.strengths.map((s, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
                       <span className="text-emerald-500 font-bold">✓</span>
@@ -232,33 +259,41 @@ export default function Interview() {
             )}
 
             {/* Technical Mistakes / Gaps */}
-            {evaluation.technical_mistakes && evaluation.technical_mistakes.length > 0 && (
-              <div>
-                <h3 className="text-xs font-black text-amber-700 mb-1.5 flex items-center gap-1">
-                  <span>⚠️</span> نقاط التحسين التقني
-                </h3>
-                <ul className="space-y-1 text-xs text-slate-600">
-                  {evaluation.technical_mistakes.map((m, idx) => (
-                    <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-amber-500 font-bold">•</span>
-                      <span>{m}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            {evaluation.technical_mistakes &&
+              evaluation.technical_mistakes.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-black text-amber-700 mb-1.5 flex items-center gap-1">
+                    <span>⚠️</span> نقاط التحسين التقني
+                  </h3>
+                  <ul className="space-y-1.5 text-xs text-slate-600">
+                    {evaluation.technical_mistakes.map((m, idx) => (
+                      <li key={idx} className="flex items-start gap-1.5">
+                        <span className="text-amber-500 font-bold">•</span>
+                        <span>{m}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
             {/* Model Answers */}
             {evaluation.model_answers && evaluation.model_answers.length > 0 && (
-              <div className="pt-2 border-t border-slate-100">
-                <h3 className="text-xs font-black text-primary mb-2 flex items-center gap-1">
+              <div className="pt-3 border-t border-slate-100">
+                <h3 className="text-xs font-black text-indigo-700 mb-2 flex items-center gap-1">
                   <span>🎯</span> الإجابات النموذجية المقترحة
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {evaluation.model_answers.map((ma, idx) => (
-                    <div key={idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
-                      <p className="font-bold text-slate-700 mb-1">س: {ma.question}</p>
-                      <p className="text-slate-600 leading-normal">ج: {ma.model_answer}</p>
+                    <div
+                      key={idx}
+                      className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 text-xs"
+                    >
+                      <p className="font-bold text-slate-800 mb-1">
+                        س: {ma.question}
+                      </p>
+                      <p className="text-slate-600 leading-relaxed">
+                        ج: {ma.model_answer}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -270,27 +305,27 @@ export default function Interview() {
 
       {/* Input Form */}
       {sessionStatus !== "completed" ? (
-        <form onSubmit={sendMessage} className="flex gap-2 mt-3">
+        <form onSubmit={sendMessage} className="flex gap-2.5 mt-3">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="اكتب إجابتك هنا بوضوح واضغط إرسال..."
-            className="input-field flex-1 text-sm py-2.5"
+            placeholder="اكتب إجابتك التقنية هنا بوضوح واضغط إرسال..."
+            className="input-field flex-1 text-sm py-3.5"
             disabled={loading || evaluating}
             autoFocus
           />
           <button
             type="submit"
-            className="btn-primary whitespace-nowrap px-6"
+            className="btn-primary whitespace-nowrap px-7"
             disabled={loading || evaluating || !input.trim()}
           >
-            إرسال الإجابة
+            إرسال الإجابة ←
           </button>
         </form>
       ) : (
-        <div className="mt-3 p-3 bg-slate-100 rounded-xl text-center text-xs font-bold text-slate-500">
-          تم إنهاء وتقييم هذه المقابلة بنجاح. يمكنك العودة لصفحة النتائج أو بدء مقابلة جديدة.
+        <div className="mt-3 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-center text-xs font-extrabold text-emerald-800">
+          تم إنهاء وتقييم هذه المقابلة بنجاح. يمكنك مراجعة التقرير الجانبي أو العودة لصفحة النتائج.
         </div>
       )}
     </div>

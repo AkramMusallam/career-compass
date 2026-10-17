@@ -38,10 +38,13 @@ export default function Profile() {
   useEffect(() => {
     getProfileBadges()
       .then((res) => setBadges(res.data.badges))
-      .catch(() => setBadges([])); // فشل تحميل الإنجازات ليس حرجاً — نتجاهله بصمت
+      .catch(() => setBadges([]));
   }, []);
 
-  const isDirty = profile && fullName.trim() !== profile.full_name && fullName.trim().length >= 2;
+  const isDirty =
+    profile &&
+    fullName.trim() !== profile.full_name &&
+    fullName.trim().length >= 2;
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -61,7 +64,7 @@ export default function Profile() {
   };
 
   if (status === "loading") {
-    return <div className="card mx-auto h-64 max-w-2xl animate-pulse" />;
+    return <div className="card mx-auto h-64 max-w-3xl animate-pulse" />;
   }
 
   if (status === "error") {
@@ -78,52 +81,78 @@ export default function Profile() {
   const initial = profile.full_name?.trim()?.charAt(0)?.toUpperCase() || "?";
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div className="card flex flex-col items-center gap-3 text-center">
-        <span className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-3xl font-black text-white">
-          {initial}
-        </span>
-        <div>
-          <p className="text-lg font-black text-slate-800">{profile.full_name}</p>
-          <p className="text-sm text-slate-500">{profile.email}</p>
+    <div className="mx-auto max-w-3xl space-y-6 animate-fade-in-up">
+      {/* Executive Profile Banner */}
+      <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-8 text-center text-white shadow-xl border border-slate-800">
+        <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-indigo-600/30 blur-[80px]" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-emerald-500/20 blur-[80px]" />
+
+        <div className="relative z-10 flex flex-col items-center gap-3">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-500 via-violet-600 to-emerald-500 text-3xl font-black text-white shadow-xl shadow-indigo-500/30 ring-4 ring-white/10">
+            {initial}
+          </div>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight">{profile.full_name}</h1>
+            <p className="text-sm font-medium text-slate-400" dir="ltr">
+              {profile.email}
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 text-center">
-        <div className="card">
-          <p className="text-2xl font-black text-primary">{profile.total_analyses}</p>
-          <p className="text-xs font-bold text-slate-500">عدد التحليلات</p>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+        <div className="card !p-5">
+          <p className="text-3xl font-black text-primary-600">{profile.total_analyses}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">إجمالي التحليلات</p>
         </div>
-        <div className="card">
-          <p className="text-2xl font-black text-secondary">{Math.round(profile.highest_career_score)}</p>
-          <p className="text-xs font-bold text-slate-500">أعلى Career Score</p>
+        <div className="card !p-5">
+          <p className="text-3xl font-black text-emerald-600">
+            {Math.round(profile.highest_career_score)}
+          </p>
+          <p className="mt-1 text-xs font-bold text-slate-500">أعلى Career Score</p>
         </div>
-        <div className="card">
-          <p className="text-sm font-black text-slate-700">
+        <div className="card !p-5 flex flex-col justify-center">
+          <p className="text-base font-black text-slate-800">
             {new Date(profile.created_at).toLocaleDateString("ar-EG")}
           </p>
-          <p className="text-xs font-bold text-slate-500">تاريخ الانضمام</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">تاريخ الانضمام</p>
         </div>
       </div>
 
+      {/* Achievements / Badges */}
       {badges.length > 0 && (
         <div className="card">
-          <h2 className="mb-4 font-black text-slate-800">الإنجازات</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-black text-slate-900">🏅 أوسمة الإنجاز المهني</h2>
+            <span className="text-xs font-bold text-slate-400">
+              {badges.filter((b) => b.achieved).length} من {badges.length} مكتمل
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             {badges.map((badge) => (
               <div
                 key={badge.id}
                 title={badge.description}
-                className={`flex flex-col items-center gap-1 rounded-2xl p-4 text-center ${
-                  badge.achieved ? "bg-secondary-50" : "bg-slate-50 opacity-50"
+                className={`flex flex-col items-center gap-2 rounded-2xl border p-5 text-center transition-all ${
+                  badge.achieved
+                    ? "border-emerald-200 bg-emerald-50/60 shadow-sm"
+                    : "border-slate-200/60 bg-slate-50/60 opacity-55"
                 }`}
               >
                 <span className="text-3xl" aria-hidden="true">
                   {BADGE_ICONS[badge.id] || "🏅"}
                 </span>
-                <p className="text-xs font-bold text-slate-700">{badge.title}</p>
+                <p className="text-xs font-black text-slate-800">{badge.title}</p>
+                {badge.description && (
+                  <p className="text-[11px] font-medium text-slate-500">
+                    {badge.description}
+                  </p>
+                )}
                 {badge.achieved && badge.achieved_at && (
-                  <p className="text-[10px] text-slate-400">{new Date(badge.achieved_at).toLocaleDateString("ar-EG")}</p>
+                  <span className="mt-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                    ✓ {new Date(badge.achieved_at).toLocaleDateString("ar-EG")}
+                  </span>
                 )}
               </div>
             ))}
@@ -131,8 +160,9 @@ export default function Profile() {
         </div>
       )}
 
+      {/* Edit Profile Form */}
       <form onSubmit={handleSave} className="card">
-        <h2 className="mb-4 font-black text-slate-800">تعديل البيانات الشخصية</h2>
+        <h2 className="mb-5 text-lg font-black text-slate-900">تعديل البيانات الشخصية</h2>
 
         {errorMessage && (
           <div className="alert-banner-error mb-4" role="alert">
@@ -155,8 +185,17 @@ export default function Profile() {
 
         <div className="mb-6">
           <label className="label-text">البريد الإلكتروني</label>
-          <input type="email" className="input-field bg-slate-100" value={profile.email} disabled readOnly />
-          <p className="mt-1 text-xs text-slate-400">تغيير البريد الإلكتروني يتطلب تحققاً إضافياً</p>
+          <input
+            type="email"
+            className="input-field bg-slate-100/80 text-slate-500 cursor-not-allowed"
+            value={profile.email}
+            disabled
+            readOnly
+            dir="ltr"
+          />
+          <p className="mt-1.5 text-xs font-medium text-slate-400">
+            البريد الإلكتروني مرتبط بهوية الحساب ولا يمكن تغييره حالياً
+          </p>
         </div>
 
         <button type="submit" className="btn-primary" disabled={!isDirty || isSaving}>

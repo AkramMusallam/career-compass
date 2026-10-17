@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;500;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Tajawal:wght@400;500;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -9,7 +9,12 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 font-sans antialiased bg-hero-pattern;
+  @apply bg-[#F8FAFC] text-slate-800 font-sans antialiased selection:bg-primary-600 selection:text-white;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.08) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+  background-attachment: fixed;
 }
 
 ::-webkit-scrollbar {
@@ -20,10 +25,10 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded-full;
+  @apply bg-slate-300/80 rounded-full;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-primary-400;
+  @apply bg-primary-500;
 }
 
 :focus-visible {
@@ -33,41 +38,45 @@ body {
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary-600 to-secondary-500 px-6 py-3 font-bold text-white shadow-lg shadow-primary-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary-500/40 hover:from-primary-500 hover:to-secondary-400 focus-visible:ring-4 focus-visible:ring-primary-200 disabled:cursor-not-allowed disabled:bg-none disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none disabled:transform-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary-600 via-indigo-600 to-secondary-600 px-6 py-3 font-bold text-white shadow-lg shadow-primary-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary-600/35 hover:brightness-105 active:translate-y-0 focus-visible:ring-4 focus-visible:ring-primary-200 disabled:cursor-not-allowed disabled:bg-none disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:transform-none;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-3 font-bold text-white shadow-lg shadow-slate-900/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:from-slate-700 hover:to-slate-600 focus-visible:ring-4 focus-visible:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-3 font-bold text-white shadow-lg shadow-slate-900/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:from-slate-800 hover:to-slate-700 active:translate-y-0 focus-visible:ring-4 focus-visible:ring-slate-200 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none;
   }
   .btn-outline {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white/80 backdrop-blur-sm px-6 py-3 font-bold text-slate-700 transition-all hover:border-primary-500 hover:text-primary-600 hover:shadow-lg hover:shadow-primary-500/10 hover:-translate-y-0.5 focus-visible:ring-4 focus-visible:ring-primary-100;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200/90 bg-white/90 backdrop-blur-sm px-6 py-3 font-bold text-slate-700 shadow-sm transition-all duration-200 hover:border-primary-400 hover:bg-primary-50/40 hover:text-primary-700 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 focus-visible:ring-4 focus-visible:ring-primary-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:transform-none;
   }
-  
+
   .input-field {
-    @apply w-full rounded-2xl border-2 border-slate-200 bg-white/90 backdrop-blur-sm px-5 py-3 text-slate-900 transition-all hover:border-slate-300 focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/10;
+    @apply w-full rounded-2xl border border-slate-200/90 bg-slate-50/60 backdrop-blur-sm px-4 py-3 text-slate-900 font-medium placeholder:text-slate-400 shadow-inner shadow-slate-900/[0.02] transition-all duration-200 hover:border-slate-300 hover:bg-white focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-500/15;
   }
-  
+
   .card {
-    @apply rounded-3xl border border-slate-100 bg-white/80 backdrop-blur-md p-8 shadow-glass transition-all hover:shadow-xl hover:-translate-y-1 duration-300;
+    @apply rounded-3xl border border-slate-200/75 bg-white/90 backdrop-blur-xl p-6 sm:p-8 shadow-[0_12px_36px_-12px_rgba(15,23,42,0.06)] transition-all duration-300;
   }
-  
+
   .label-text {
     @apply mb-2 block text-sm font-bold text-slate-700;
   }
-  
+
   .error-text {
-    @apply mt-1.5 text-sm font-semibold text-danger flex items-center gap-1;
+    @apply mt-1.5 text-xs font-bold text-danger flex items-center gap-1.5;
   }
-  
+
   .alert-banner-error {
-    @apply flex items-start gap-3 rounded-2xl border border-danger-100 bg-danger-50 px-5 py-4 text-sm font-semibold text-danger shadow-sm;
+    @apply flex items-start gap-3 rounded-2xl border border-red-200/80 bg-gradient-to-r from-red-50 to-rose-50/60 px-5 py-4 text-sm font-bold text-red-700 shadow-sm;
   }
-  
+
+  .alert-banner-success {
+    @apply flex items-start gap-3 rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50 to-teal-50/60 px-5 py-4 text-sm font-bold text-emerald-800 shadow-sm;
+  }
+
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-primary-50 to-secondary-50 px-4 py-1.5 text-sm font-bold text-primary-700 border border-primary-100 shadow-sm;
+    @apply inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-primary-50/90 to-secondary-50/90 px-3.5 py-1 text-xs font-bold text-primary-700 border border-primary-200/60 shadow-sm;
   }
 
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-secondary-500;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 via-indigo-500 to-secondary-600;
   }
 }
 
