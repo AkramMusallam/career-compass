@@ -47,6 +47,7 @@ services:
       - ollama_data:/root/.ollama
 
   backend:
+    image: career-compass-backend:latest
     build:
       context: ./backend
     restart: unless-stopped
@@ -80,8 +81,7 @@ services:
       - backend_uploads:/app/uploads
 
   celery-worker:
-    build:
-      context: ./backend
+    image: career-compass-backend:latest
     restart: unless-stopped
     command: celery -A app.worker.celery_app worker --loglevel=info
     depends_on:
@@ -112,8 +112,7 @@ services:
       - backend_uploads:/app/uploads
 
   celery-beat:
-    build:
-      context: ./backend
+    image: career-compass-backend:latest
     restart: unless-stopped
     command: celery -A app.worker.celery_app beat --loglevel=info
     depends_on:
