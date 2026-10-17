@@ -530,19 +530,19 @@ export default function Results() {
   return (
     <div className="mx-auto max-w-5xl space-y-6 animate-fade-in-up">
       {/* أ) Executive Career Score Hero */}
-      <section className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-8 sm:p-10 text-white shadow-2xl border border-slate-800">
-        <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-indigo-600/30 blur-[100px]" />
-        <div className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-emerald-500/20 blur-[100px]" />
+      <section className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-indigo-50/95 via-white/95 to-emerald-50/85 p-8 sm:p-10 shadow-[0_20px_50px_-15px_rgba(79,70,229,0.12)] border border-indigo-100/90 backdrop-blur-xl">
+        <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-indigo-400/20 blur-[100px]" />
+        <div className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-emerald-400/15 blur-[100px]" />
 
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex-1 text-center md:text-right">
-            <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-3.5 py-1 text-xs font-bold text-indigo-300">
+            <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-200/80 bg-white/85 px-3.5 py-1 text-xs font-extrabold text-indigo-700 shadow-sm">
               <span>✨</span>
               <span>التقرير التنفيذي للجاهزية المهنية</span>
             </span>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-3">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 mb-3">
               ملفك المهني{" "}
-              <span className="text-emerald-400">
+              <span className="text-gradient">
                 {analysis.career_score >= 70
                   ? "قوي ومنافس"
                   : analysis.career_score >= 40
@@ -552,26 +552,26 @@ export default function Results() {
               ومتوافق مع {analysis.top_jobs.length} مسارات وظيفية
             </h1>
             {analysis.top_jobs[0] && (
-              <p className="text-sm sm:text-base text-slate-300 font-medium">
+              <p className="text-sm sm:text-base text-slate-600 font-medium">
                 أعلى مسار موصى به لك حالياً:{" "}
-                <b className="text-white">{analysis.top_jobs[0].job_title}</b>{" "}
+                <b className="text-slate-900">{analysis.top_jobs[0].job_title}</b>{" "}
                 بنسبة توافق{" "}
-                <b className="text-emerald-400">
+                <b className="text-emerald-600">
                   {Math.round(analysis.top_jobs[0].match_percentage)}%
                 </b>
               </p>
             )}
 
             {benchmark && benchmark.average_career_score !== null && (
-              <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-slate-300">
+              <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-indigo-100 bg-white/80 px-4 py-2 text-xs font-bold text-slate-600 shadow-sm">
                 <span>
                   متوسط الأقران: {Math.round(benchmark.average_career_score)} (من{" "}
                   {benchmark.sample_size} تحليل)
                 </span>
                 {analysis.career_score >= benchmark.average_career_score ? (
-                  <span className="text-emerald-400">— أنت أعلى من المتوسط ▲</span>
+                  <span className="text-emerald-600 font-extrabold">— أنت أعلى من المتوسط ▲</span>
                 ) : (
-                  <span className="text-amber-400">— أنت أقل من المتوسط ▼</span>
+                  <span className="text-amber-600 font-extrabold">— أنت أقل من المتوسط ▼</span>
                 )}
               </div>
             )}
@@ -581,25 +581,25 @@ export default function Results() {
                 type="button"
                 onClick={handleDownloadPdf}
                 disabled={isDownloadingPdf}
-                className="rounded-xl bg-white px-4 py-2.5 text-xs font-black text-slate-900 shadow-md transition hover:bg-indigo-50 disabled:opacity-50"
+                className="btn-primary !py-2.5 !px-5 !text-xs"
               >
                 {isDownloadingPdf ? "جاري التصدير..." : "📥 تحميل التقرير PDF"}
               </button>
               <button
                 type="button"
                 onClick={() => setShowShareModal(true)}
-                className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/20"
+                className="btn-outline !py-2.5 !px-5 !text-xs"
               >
                 🔗 {shareToken ? "إدارة رابط المشاركة" : "مشاركة التقرير"}
               </button>
             </div>
           </div>
 
-          <div className="shrink-0 rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl">
+          <div className="shrink-0 rounded-3xl border border-indigo-100/90 bg-white/90 p-6 shadow-lg shadow-indigo-500/5 backdrop-blur-xl">
             <CircularProgress
               value={analysis.career_score}
               size={170}
-              dark={true}
+              dark={false}
               label="مؤشر Career Score"
             />
           </div>

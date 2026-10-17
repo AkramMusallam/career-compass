@@ -37,22 +37,37 @@ export default function Register() {
   const strength = getPasswordStrength(password);
 
   const errors = {
-    fullName: fullName.trim().length < 2 ? "الاسم يجب أن يحتوي على حرفين على الأقل" : "",
-    email: !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "صيغة البريد الإلكتروني غير صحيحة" : "",
+    fullName:
+      fullName.trim().length < 2
+        ? "الاسم يجب أن يحتوي على حرفين على الأقل"
+        : "",
+    email: !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ? "صيغة البريد الإلكتروني غير صحيحة"
+      : "",
     password:
-      password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)
+      password.length < 8 ||
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/[0-9]/.test(password)
         ? "8 أحرف على الأقل، تحتوي حرفاً كبيراً وصغيراً ورقماً"
         : "",
-    confirmPassword: confirmPassword !== password ? "كلمتا المرور غير متطابقتين" : "",
+    confirmPassword:
+      confirmPassword !== password ? "كلمتا المرور غير متطابقتين" : "",
   };
 
   const isValid = Object.values(errors).every((e) => !e) && agreedToTerms;
 
-  const handleBlur = (field) => setTouched((prev) => ({ ...prev, [field]: true }));
+  const handleBlur = (field) =>
+    setTouched((prev) => ({ ...prev, [field]: true }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setTouched({ fullName: true, email: true, password: true, confirmPassword: true });
+    setTouched({
+      fullName: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+    });
     if (!isValid) return;
 
     setIsLoading(true);
@@ -63,14 +78,16 @@ export default function Register() {
       showToast("تم إنشاء الحساب بنجاح، مرحباً بك!");
       navigate("/dashboard", { replace: true });
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "تعذر إنشاء الحساب، حاول مرة أخرى"));
+      setErrorMessage(
+        getErrorMessage(error, "تعذر إنشاء الحساب، حاول مرة أخرى")
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-12 bg-[#F8FAFC]">
+    <div className="min-h-screen grid lg:grid-cols-12">
       {/* Right Side (RTL): Registration Form */}
       <div className="lg:col-span-6 xl:col-span-5 flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-14">
         <div className="w-full max-w-md mx-auto">
@@ -80,7 +97,9 @@ export default function Register() {
           </div>
 
           <div className="card !p-7 sm:!p-9">
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mb-1.5">إنشاء حساب جديد</h1>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mb-1.5">
+              إنشاء حساب جديد
+            </h1>
             <p className="mb-6 text-sm font-medium text-slate-500">
               ابدأ رحلتك نحو المسار المهني الأنسب خلال دقائق معدودة
             </p>
@@ -108,7 +127,9 @@ export default function Register() {
                   onChange={(e) => setFullName(e.target.value)}
                   onBlur={() => handleBlur("fullName")}
                 />
-                {touched.fullName && errors.fullName && <p className="error-text">{errors.fullName}</p>}
+                {touched.fullName && errors.fullName && (
+                  <p className="error-text">{errors.fullName}</p>
+                )}
               </div>
 
               <div>
@@ -127,7 +148,9 @@ export default function Register() {
                   onChange={(e) => setEmail(e.target.value)}
                   onBlur={() => handleBlur("email")}
                 />
-                {touched.email && errors.email && <p className="error-text">{errors.email}</p>}
+                {touched.email && errors.email && (
+                  <p className="error-text">{errors.email}</p>
+                )}
               </div>
 
               <div>
@@ -154,10 +177,14 @@ export default function Register() {
                         style={{ width: `${(strength.score / 4) * 100}%` }}
                       />
                     </div>
-                    <span className="text-xs font-bold text-slate-500">{strength.label}</span>
+                    <span className="text-xs font-bold text-slate-500">
+                      {strength.label}
+                    </span>
                   </div>
                 )}
-                {touched.password && errors.password && <p className="error-text">{errors.password}</p>}
+                {touched.password && errors.password && (
+                  <p className="error-text">{errors.password}</p>
+                )}
               </div>
 
               <div>
@@ -188,10 +215,17 @@ export default function Register() {
                   checked={agreedToTerms}
                   onChange={(e) => setAgreedToTerms(e.target.checked)}
                 />
-                <span>أوافق على الشروط والأحكام وسياسة الخصوصية الخاصة بمنصة Career Compass</span>
+                <span>
+                  أوافق على الشروط والأحكام وسياسة الخصوصية الخاصة بمنصة Career
+                  Compass
+                </span>
               </label>
 
-              <button type="submit" className="btn-primary w-full py-3.5 text-base" disabled={!isValid || isLoading}>
+              <button
+                type="submit"
+                className="btn-primary w-full py-3.5 text-base"
+                disabled={!isValid || isLoading}
+              >
                 {isLoading ? <Spinner /> : "إنشاء حساب والبدء الآن ←"}
               </button>
             </form>
@@ -199,7 +233,10 @@ export default function Register() {
             <div className="mt-6 pt-5 border-t border-slate-100 text-center">
               <p className="text-sm font-medium text-slate-500">
                 لديك حساب بالفعل؟{" "}
-                <Link to="/login" className="font-black text-primary-600 hover:text-primary-700 hover:underline">
+                <Link
+                  to="/login"
+                  className="font-black text-primary-600 hover:text-primary-700 hover:underline"
+                >
                   تسجيل الدخول
                 </Link>
               </p>
@@ -208,51 +245,65 @@ export default function Register() {
         </div>
       </div>
 
-      {/* Left Side (RTL): Luxury Dark Showcase Panel */}
-      <div className="hidden lg:flex lg:col-span-6 xl:col-span-7 relative overflow-hidden bg-slate-950 p-12 xl:p-16 flex-col justify-between text-white">
-        <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-primary-600/35 blur-[110px]" />
-        <div className="pointer-events-none absolute top-1/3 right-0 h-96 w-96 rounded-full bg-secondary-600/30 blur-[120px]" />
-        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-emerald-500/20 blur-[110px]" />
+      {/* Left Side (RTL): Luminous Pastel & Indigo Aurora Showcase Panel */}
+      <div className="hidden lg:flex lg:col-span-6 xl:col-span-7 relative overflow-hidden bg-gradient-to-br from-indigo-50 via-violet-50/70 to-emerald-50/80 border-r border-indigo-100/80 p-12 xl:p-16 flex-col justify-between">
+        <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-indigo-400/20 blur-[100px]" />
+        <div className="pointer-events-none absolute top-1/3 right-0 h-96 w-96 rounded-full bg-violet-400/15 blur-[110px]" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-emerald-400/20 blur-[100px]" />
 
         <div className="relative z-10">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 backdrop-blur-md px-4 py-1.5 text-xs font-bold text-emerald-300">
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 backdrop-blur-md px-4 py-1.5 text-xs font-extrabold text-emerald-700 shadow-sm">
             ✨ خطوتك الأولى نحو مستقبل مهني أقوى
           </span>
-          <h2 className="mt-6 text-4xl xl:text-5xl font-black leading-tight text-white max-w-2xl">
+          <h2 className="mt-6 text-4xl xl:text-5xl font-black leading-tight text-slate-900 max-w-2xl">
             انتقل من التشتت المهني إلى{" "}
-            <span className="bg-gradient-to-r from-indigo-400 via-purple-300 to-emerald-300 bg-clip-text text-transparent">
-              خارطة طريق واضحة
-            </span>
+            <span className="text-gradient">خارطة طريق واضحة</span>
           </h2>
-          <p className="mt-4 text-base text-slate-300/90 max-w-xl leading-relaxed">
+          <p className="mt-4 text-base font-medium text-slate-600 max-w-xl leading-relaxed">
             في 3 خطوات فقط: ارفع سيرتك الذاتية أو أدخل مهاراتك يدوياً، أجب عن أسئلة التقييم الذكية، واحصل على تقرير شامل مع فرص عمل حقيقية.
           </p>
         </div>
 
         <div className="relative z-10 space-y-4 my-8 max-w-xl">
           {[
-            { step: "01", title: "استخراج ذكي وتقييم ATS", desc: "قراءة فورية لملفات PDF وLinkedIn بالعربية والإنجليزية مع قياس توافق ATS." },
-            { step: "02", title: "تحليل البصمة المهنية وفجوة المهارات", desc: "تحديد أفضل 5 مسارات وظيفية مناسبة لك وتصنيف المهارات الناقصة حسب الأولوية." },
-            { step: "03", title: "خارطة تعلم + مقابلات تجريبية بالذكاء الاصطناعي", desc: "خطة عملية لمدة 3 أشهر مع كورسات مقترحة ومحاكي مقابلات تفاعلي." },
+            {
+              step: "01",
+              title: "استخراج ذكي وتقييم ATS",
+              desc: "قراءة فورية لملفات PDF وLinkedIn بالعربية والإنجليزية مع قياس توافق ATS.",
+            },
+            {
+              step: "02",
+              title: "تحليل البصمة المهنية وفجوة المهارات",
+              desc: "تحديد أفضل 5 مسارات وظيفية مناسبة لك وتصنيف المهارات الناقصة حسب الأولوية.",
+            },
+            {
+              step: "03",
+              title: "خارطة تعلم + مقابلات تجريبية بالذكاء الاصطناعي",
+              desc: "خطة عملية لمدة 3 أشهر مع كورسات مقترحة ومحاكي مقابلات تفاعلي.",
+            },
           ].map((item) => (
             <div
               key={item.step}
-              className="flex items-start gap-4 rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5"
+              className="flex items-start gap-4 rounded-3xl border border-white/90 bg-white/75 backdrop-blur-xl p-5 shadow-md shadow-indigo-500/5"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-secondary-600 text-xs font-black text-white shadow-md">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-xs font-black text-white shadow-md shadow-indigo-500/20">
                 {item.step}
               </span>
               <div>
-                <h3 className="font-black text-white text-base">{item.title}</h3>
-                <p className="mt-1 text-xs text-slate-300/80 leading-relaxed">{item.desc}</p>
+                <h3 className="font-black text-slate-900 text-base">
+                  {item.title}
+                </h3>
+                <p className="mt-1 text-xs font-medium text-slate-500 leading-relaxed">
+                  {item.desc}
+                </p>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="relative z-10 flex items-center justify-between text-xs text-slate-400 border-t border-white/10 pt-6">
+        <div className="relative z-10 flex items-center justify-between text-xs font-semibold text-slate-500 border-t border-indigo-200/60 pt-6">
           <span>حماية كاملة للبيانات وخصوصية تامة</span>
-          <span className="font-bold text-emerald-400">✓ مجاني بالكامل</span>
+          <span className="font-black text-emerald-700">✓ مجاني بالكامل</span>
         </div>
       </div>
     </div>

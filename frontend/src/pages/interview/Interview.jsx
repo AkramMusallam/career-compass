@@ -111,27 +111,27 @@ export default function Interview() {
   return (
     <div className="max-w-5xl mx-auto flex flex-col h-[84vh] animate-fade-in-up">
       {/* Studio Header */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-slate-950 px-6 py-4 text-white shadow-xl border border-slate-800">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-gradient-to-l from-indigo-50/95 via-white/95 to-emerald-50/85 px-6 py-4 shadow-md shadow-indigo-500/5 border border-indigo-100/90 backdrop-blur-xl">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-xl">🎙️</span>
-            <h1 className="text-lg sm:text-xl font-black tracking-tight">
+            <h1 className="text-lg sm:text-xl font-black tracking-tight text-slate-900">
               استوديو المقابلات التقنية الذكي
             </h1>
             {sessionStatus === "completed" ? (
-              <span className="rounded-full bg-emerald-500/20 border border-emerald-400/30 px-3 py-0.5 text-xs font-extrabold text-emerald-300">
+              <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-0.5 text-xs font-extrabold text-emerald-700">
                 ✓ مكتملة ومقيّمة
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 px-3 py-0.5 text-xs font-extrabold text-indigo-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-0.5 text-xs font-extrabold text-indigo-700">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>جلسة مباشرة</span>
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             الدور الوظيفي المستهدف:{" "}
-            <span className="font-bold text-white">{jobTitle}</span>
+            <span className="font-extrabold text-indigo-700">{jobTitle}</span>
           </p>
         </div>
 
@@ -149,7 +149,7 @@ export default function Interview() {
           )}
           <button
             onClick={() => navigate(-1)}
-            className="rounded-xl border border-white/15 bg-white/10 px-3.5 py-2 text-xs font-bold text-white hover:bg-white/20 transition"
+            className="btn-outline !py-2 !px-3.5 !text-xs"
           >
             العودة ←
           </button>

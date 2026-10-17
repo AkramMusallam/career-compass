@@ -83,17 +83,17 @@ export default function Profile() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 animate-fade-in-up">
       {/* Executive Profile Banner */}
-      <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-8 text-center text-white shadow-xl border border-slate-800">
-        <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-indigo-600/30 blur-[80px]" />
-        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-emerald-500/20 blur-[80px]" />
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-indigo-50/95 via-white/95 to-emerald-50/85 p-8 text-center shadow-[0_20px_50px_-15px_rgba(79,70,229,0.12)] border border-indigo-100/90 backdrop-blur-xl">
+        <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-indigo-400/20 blur-[80px]" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-emerald-400/15 blur-[80px]" />
 
         <div className="relative z-10 flex flex-col items-center gap-3">
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-500 via-violet-600 to-emerald-500 text-3xl font-black text-white shadow-xl shadow-indigo-500/30 ring-4 ring-white/10">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-600 via-violet-600 to-emerald-500 text-3xl font-black text-white shadow-xl shadow-indigo-500/25 ring-4 ring-white">
             {initial}
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight">{profile.full_name}</h1>
-            <p className="text-sm font-medium text-slate-400" dir="ltr">
+            <h1 className="text-2xl font-black tracking-tight text-slate-900">{profile.full_name}</h1>
+            <p className="text-sm font-medium text-slate-500" dir="ltr">
               {profile.email}
             </p>
           </div>

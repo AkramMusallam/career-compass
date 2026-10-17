@@ -46,49 +46,38 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 animate-fade-in-up">
       {/* Executive Hero Banner */}
-      <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-8 sm:p-12 shadow-2xl border border-slate-800/80">
-        <div className="pointer-events-none absolute -top-24 -right-24 h-96 w-96 rounded-full bg-indigo-600/30 blur-[100px]" />
-        <div className="pointer-events-none absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-emerald-500/20 blur-[100px]" />
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.06]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 2px 2px, rgba(255,255,255,0.9) 1px, transparent 0)",
-            backgroundSize: "28px 28px",
-          }}
-        />
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-indigo-50/95 via-white/95 to-emerald-50/85 p-8 sm:p-12 shadow-[0_20px_50px_-15px_rgba(79,70,229,0.12)] border border-indigo-100/90 backdrop-blur-xl">
+        <div className="pointer-events-none absolute -top-24 -right-24 h-96 w-96 rounded-full bg-indigo-400/20 blur-[100px]" />
+        <div className="pointer-events-none absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-emerald-400/15 blur-[100px]" />
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
           <div className="max-w-2xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-3.5 py-1.5 text-xs font-bold text-indigo-300 backdrop-blur-md">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-200/80 bg-white/85 px-3.5 py-1.5 text-xs font-extrabold text-indigo-700 shadow-sm backdrop-blur-md">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>مُحرك الذكاء الاصطناعي المهني نشط الآن</span>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight leading-tight">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 mb-4 tracking-tight leading-tight">
               أهلاً بعودتك،{" "}
-              <span className="bg-gradient-to-l from-indigo-300 via-violet-200 to-emerald-300 bg-clip-text text-transparent">
-                {displayName}
-              </span>{" "}
-              👋
+              <span className="text-gradient">{displayName}</span> 👋
             </h1>
 
-            <p className="text-base sm:text-lg text-slate-300 font-medium leading-relaxed">
+            <p className="text-base sm:text-lg text-slate-600 font-medium leading-relaxed">
               منصتك الذكية لتحليل السيرة الذاتية، قياس توافق ATS، استكشاف بصمتك المهنية{" "}
-              <span className="text-white font-bold">Career DNA</span>، ومحاكاة المقابلات التقنية الحية.
+              <span className="text-indigo-700 font-extrabold">Career DNA</span>، ومحاكاة المقابلات التقنية الحية.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3.5">
               <Link
                 to="/analysis/upload"
-                className="inline-flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-l from-indigo-500 via-indigo-600 to-violet-600 px-7 py-4 text-sm sm:text-base font-black text-white shadow-xl shadow-indigo-500/25 transition-all hover:-translate-y-0.5 hover:shadow-indigo-500/40"
+                className="btn-primary !px-7 !py-4 !text-sm sm:!text-base"
               >
                 <span>✨</span>
                 <span>بدء تحليل سيرة ذاتية جديد</span>
               </Link>
               <Link
                 to="/history"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 backdrop-blur-md px-6 py-4 text-sm sm:text-base font-bold text-white border border-white/15 transition-all hover:bg-white/15"
+                className="btn-outline !px-6 !py-4 !text-sm sm:!text-base"
               >
                 <span>📂</span>
                 <span>سجل التحليلات والمقارنة</span>
@@ -97,20 +86,20 @@ export default function Dashboard() {
           </div>
 
           {/* Right Highlight Card inside Hero */}
-          <div className="lg:w-72 shrink-0 rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-xl text-center">
+          <div className="lg:w-72 shrink-0 rounded-3xl border border-indigo-100/90 bg-white/85 p-6 shadow-lg shadow-indigo-500/5 backdrop-blur-xl text-center">
             <p className="text-xs font-bold text-slate-400 mb-2">أعلى مؤشر جاهزية مسجّل</p>
             <div className="my-2 flex items-baseline justify-center gap-1">
-              <span className="text-5xl font-black text-white tracking-tight">
+              <span className="text-5xl font-black text-gradient tracking-tight">
                 {loadingStats ? "—" : highestScore}
               </span>
               <span className="text-sm font-bold text-slate-400">/ 100</span>
             </div>
-            <span className="mt-2 inline-block rounded-full bg-emerald-500/15 border border-emerald-400/30 px-3 py-1 text-xs font-bold text-emerald-300">
+            <span className="mt-2 inline-block rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-extrabold text-emerald-700">
               {readiness.text}
             </span>
-            <p className="mt-4 pt-4 border-t border-white/10 text-[11px] text-slate-400 font-medium">
+            <p className="mt-4 pt-4 border-t border-slate-100 text-[11px] text-slate-500 font-semibold">
               إجمالي الجلسات التحليلية:{" "}
-              <b className="text-white">{loadingStats ? "..." : totalAnalyses}</b>
+              <b className="text-slate-900">{loadingStats ? "..." : totalAnalyses}</b>
             </p>
           </div>
         </div>
