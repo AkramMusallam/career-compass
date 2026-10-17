@@ -10,7 +10,7 @@ import ollama
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from app.core.mongo import analysis_results_collection, mongo_db
+from app.core.mongo import analysis_results_collection, extractions_collection, mongo_db
 from app.core.security import get_current_user
 from app.models.mysql_models import User
 
@@ -107,8 +107,29 @@ def start_interview(payload: InterviewStartRequest, current_user: User = Depends
     if not analysis:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
 
-    skills = analysis.get("skills", [])
-    missing_skills = [s.get("skill") for s in analysis.get("skill_gaps", []) if isinstance(s, dict)]
+    skills: list[str] = list(analysis.get("skills") or [])
+    if not skills and analysis.get("extraction_id"):
+        extraction = extractions_collection.find_one(
+            {"extraction_id": analysis["extraction_id"], "user_id": current_user.id}
+        )
+        if extraction and extraction.get("skills"):
+            skills = list(extraction["skills"])
+    if not skills:
+        skills = list(analysis.get("strengths") or [])
+
+    skill_gap_obj = analysis.get("skill_gap")
+    if isinstance(skill_gap_obj, dict):
+        missing_skills = (
+            list(skill_gap_obj.get("critical") or [])
+            + list(skill_gap_obj.get("recommended") or [])
+            + list(skill_gap_obj.get("nice_to_have") or [])
+        )
+    else:
+        missing_skills = [
+            s.get("skill") if isinstance(s, dict) else str(s)
+            for s in (analysis.get("skill_gaps") or [])
+            if s
+        ]
     cv_summary = f"Acquired Skills: {skills}. Identified Skill Gaps: {missing_skills}."
 
     system_prompt = (

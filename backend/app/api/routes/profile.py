@@ -58,6 +58,17 @@ def get_profile_badges(current_user: User = Depends(get_current_user)):
     return BadgesResponse(badges=[BadgeOut(**b) for b in badges])
 
 
+from pathlib import Path
+from app.core.mongo import (
+    analysis_results_collection,
+    assessments_collection,
+    extractions_collection,
+    feedback_collection,
+    mongo_db,
+    uploads_collection,
+)
+
+
 @router.delete("/profile", response_model=dict)
 def delete_account(
     background_tasks: BackgroundTasks,
@@ -66,12 +77,31 @@ def delete_account(
 ):
     user_email = current_user.email
     user_name = current_user.full_name
-    
-    # Delete all associated analyses in MongoDB
-    analysis_results_collection.delete_many({"user_id": current_user.id})
+    user_id = current_user.id
+
+    # Remove uploaded PDF files from disk before deleting upload records
+    for upload_doc in uploads_collection.find({"user_id": user_id}):
+        file_path = upload_doc.get("path")
+        if file_path:
+            try:
+                Path(file_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    # Delete all associated user data in MongoDB
+    for coll in (
+        analysis_results_collection,
+        uploads_collection,
+        extractions_collection,
+        assessments_collection,
+        feedback_collection,
+        mongo_db["interviews"],
+    ):
+        coll.delete_many({"user_id": user_id})
+
     # Delete the user in MySQL
     db.delete(current_user)
     db.commit()
-    
+
     background_tasks.add_task(send_account_deletion_email, user_email, user_name)
     return {"detail": "Account deleted successfully"}

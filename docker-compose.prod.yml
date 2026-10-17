@@ -76,7 +76,7 @@ services:
       FRONTEND_BASE_URL: "http://129.159.143.77"
       # ربط الباك إند بحاوية ollama
       OLLAMA_HOST: "http://ollama:11434"
-          volumes:
+    volumes:
       - backend_uploads:/app/uploads
 
   celery-worker:

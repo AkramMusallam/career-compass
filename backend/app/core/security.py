@@ -54,7 +54,7 @@ def create_access_token(subject: str, extra_claims: Optional[dict] = None) -> st
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_reset_token(subject: str) -> str:
+def create_reset_token(subject: str, password_hash: Optional[str] = None) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=15)
     to_encode = {
@@ -64,6 +64,8 @@ def create_reset_token(subject: str) -> str:
         "exp": expire,
         "jti": str(uuid.uuid4()),
     }
+    if password_hash:
+        to_encode["pwh"] = password_hash[-12:]
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 

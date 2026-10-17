@@ -81,6 +81,7 @@ def analyze(payload: AnalyzeRequest, db: Session = Depends(get_db), current_user
         "suggested_courses": result.suggested_courses,
         "extraction_id": payload.extraction_id,
         "assessment_id": payload.assessment_id,
+        "skills": profile_input.skills,
         "completed_skills": [],  # Batch 2.2 — Skill Checklist تفاعلي على الـ Roadmap
         "share_token": None,  # Batch 4.1 — لا يوجد رابط مشاركة حتى يطلبه المستخدم صراحة
     }

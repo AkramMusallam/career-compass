@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // عنوان الـ API: يدعم VITE_API_BASE_URL مع إزالة أي شرطة مائلة لاحقة (trailing slash) تلقائياً
-const rawBaseURL = import.meta.env.VITE_API_BASE_URL || "https://scarce-drove-amendable.ngrok-free.dev";
+const rawBaseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const baseURL = rawBaseURL.replace(/\/+$/, "");
 
 const apiClient = axios.create({

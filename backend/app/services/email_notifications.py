@@ -286,7 +286,7 @@ def send_registration_welcome_email(to_email: str, user_name: str) -> bool:
       <p style="margin: 0; font-size: 14px; color: #334155;"><b>الخطوة القادمة:</b> قم برفع سيرتك الذاتية للبدء فوراً في تحليل مهاراتك وتلقي النصائح المخصصة لك.</p>
     </div>
     <div style="text-align: center; margin: 32px 0;">
-      <a href="{settings.FRONTEND_BASE_URL}/upload" style="background: {PRIMARY_COLOR}; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">ارفع سيرتك الذاتية الآن</a>
+      <a href="{settings.FRONTEND_BASE_URL.rstrip('/')}/analysis/upload" style="background: {PRIMARY_COLOR}; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">ارفع سيرتك الذاتية الآن</a>
     </div>
   </div>
 </div>'''

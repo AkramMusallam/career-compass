@@ -95,6 +95,7 @@ def run_seed() -> None:
         skills_by_name = seed_skills(db)
         seed_jobs(db, skills_by_name)
         seed_questions(db, skills_by_name)
+        seed_courses(db, skills_by_name)
         try:
             print("[OK] Seed data inserted successfully.")
             print(f"   Skills: {db.query(Skill).count()}")

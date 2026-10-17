@@ -51,35 +51,63 @@ from pathlib import Path
 
 import pdfplumber
 
-from app.seed.skills_data import SKILLS
+from app.seed.skills_data import ARABIC_SKILL_SYNONYMS, SKILLS
 
 SKILL_NAMES = list(SKILLS.keys())
 
-# English-only section headers
+# English and Arabic section headers (Batch 5.2)
 SECTION_PATTERNS = {
-    "skills": r"(skills|technical skills|core skills|key skills|competencies)",
-    "projects": r"(projects|personal projects|academic projects|selected projects)",
-    "education": r"(education|academic background|educational background|qualifications)",
-    "experience": r"(experience|work experience|employment|professional experience|work history)",
+    "skills": (
+        r"(skills|technical skills|core skills|key skills|competencies"
+        r"|المهارات|المهارات التقنية|المهارات الفنية|المهارات الأساسية|الكفاءات)"
+    ),
+    "projects": (
+        r"(projects|personal projects|academic projects|selected projects"
+        r"|المشاريع|المشاريع الشخصية|المشاريع الأكاديمية|المشاريع العملية|أبرز المشاريع)"
+    ),
+    "education": (
+        r"(education|academic background|educational background|qualifications"
+        r"|التعليم|المؤهلات العلمية|الخلفية الأكاديمية|المؤهل العلمي|الدراسة)"
+    ),
+    "experience": (
+        r"(experience|work experience|employment|professional experience|work history"
+        r"|الخبرة|الخبرات|الخبرة العملية|الخبرات العملية|التاريخ الوظيفي|الخبرة المهنية)"
+    ),
 }
+
+_ARABIC_INDIC_MAP = str.maketrans(
+    "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹",
+    "01234567890123456789",
+)
+_BIDI_CONTROL_RE = re.compile(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+
+
+def normalize_digits(text: str) -> str:
+    """يحوّل الأرقام الهندية (٠-٩) والفارسية (۰-۹) إلى أرقام لاتينية (0-9) ويزيل محارف التحكم Bidi."""
+    if not text:
+        return text
+    return _BIDI_CONTROL_RE.sub("", text.translate(_ARABIC_INDIC_MAP))
+
 
 YEAR_RE = re.compile(r"(19|20)\d{2}")
 DATE_RANGE_RE = re.compile(
-    r"(?P<start>(19|20)\d{2}|[A-Za-z]{3,12}\.?\s+(19|20)\d{2})"
-    r"\s*(?:-|–|—|to)\s*"
-    r"(?P<end>present|current|now|(19|20)\d{2}|[A-Za-z]{3,12}\.?\s+(19|20)\d{2})",
+    r"(?P<start>(19|20)\d{2}|[A-Za-z\u0600-\u06FF]{3,12}\.?\s+(19|20)\d{2})"
+    r"\s*(?:-|–|—|to|إلى|الى|حتى)\s*"
+    r"(?P<end>present|current|now|حتى الآن|الآن|الحالي|(19|20)\d{2}|[A-Za-z\u0600-\u06FF]{3,12}\.?\s+(19|20)\d{2})",
     re.IGNORECASE,
 )
 MONTH_NAMES_RE = re.compile(
-    r"jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec",
+    r"jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec"
+    r"|يناير|فبراير|مارس|أبريل|ابريل|مايو|يونيو|يوليو|أغسطس|اغسطس|سبتمبر|أكتوبر|اكتوبر|نوفمبر|ديسمبر",
     re.IGNORECASE,
 )
 
+
 def clean_text(text: str) -> str:
-    """Basic text cleanup for English CVs."""
+    """Text cleanup and digit/bidi normalization for English and Arabic CVs."""
     if not text:
         return text
-    return text.strip()
+    return normalize_digits(text).strip()
 
 
 @dataclass
@@ -143,12 +171,18 @@ def _find_section_bounds(lines: list[str]) -> dict[str, tuple[int, int]]:
 
 def _extract_skills(full_text: str) -> list[str]:
     lowered = full_text.lower()
-    found = []
+    found: list[str] = []
     for skill in SKILL_NAMES:
         # Match with word boundaries
         pattern = r"(?<![a-zA-Z0-9])" + re.escape(skill.lower()) + r"(?![a-zA-Z0-9])"
         if re.search(pattern, lowered):
             found.append(skill)
+
+    # Batch 5.3 — فحص المرادفات العربية وإرجاع الاسم الكنسي الإنجليزي دون تكرار
+    for ar_term, canonical_skill in ARABIC_SKILL_SYNONYMS.items():
+        if canonical_skill not in found and ar_term in full_text:
+            found.append(canonical_skill)
+
     return found
 
 
@@ -158,7 +192,7 @@ def _duration_to_months(start: str, end: str) -> int:
         return int(m.group()) if m else None
 
     start_year = parse_year(start)
-    if re.search(r"present|current|now", end, re.IGNORECASE):
+    if re.search(r"present|current|now|حتى الآن|الآن|الحالي", end, re.IGNORECASE):
         import datetime
 
         end_year = datetime.date.today().year
@@ -174,7 +208,7 @@ def _extract_projects(block_lines: list[str]) -> list[ExtractedProject]:
     projects: list[ExtractedProject] = []
     current: ExtractedProject | None = None
     for raw in block_lines:
-        line = raw.strip("•-*► 	")
+        line = raw.strip("•-*► \t")
         if not line:
             continue
         is_bullet = raw.strip().startswith(("•", "-", "*", "►"))
@@ -199,21 +233,21 @@ def _extract_projects(block_lines: list[str]) -> list[ExtractedProject]:
 
 def _extract_education(block_lines: list[str]) -> list[ExtractedEducation]:
     education: list[ExtractedEducation] = []
-    degree_keywords = r"(bachelor|master|phd|b\.?sc|m\.?sc|diploma)"
+    degree_keywords = r"(bachelor|master|phd|b\.?sc|m\.?sc|diploma|بكالوريوس|ماجستير|دكتوراه|دبلوم|إجازة|اجازة)"
     buffer = " ".join(l.strip() for l in block_lines if l.strip())
     
     for line in block_lines:
-        clean = line.strip("•-*► 	")
+        clean = line.strip("•-*► \t")
         if not clean:
             continue
         year_match = YEAR_RE.search(clean)
         year = int(year_match.group()) if year_match else None
         degree_match = re.search(degree_keywords, clean, re.IGNORECASE)
         
-        degree = degree_match.group(0) if degree_match else re.split(r"[,]", clean, maxsplit=1)[0][:80]
+        degree = degree_match.group(0) if degree_match else re.split(r"[,،]", clean, maxsplit=1)[0][:80]
         institution = clean
         if degree_match:
-            institution = clean[degree_match.end():].strip(" ,-|") or clean
+            institution = clean[degree_match.end():].strip(" ,،-|") or clean
         education.append(ExtractedEducation(degree=degree.strip() or "Degree", institution=institution[:150], year=year))
 
     if not education and buffer:
@@ -228,18 +262,18 @@ def _extract_experience(block_lines: list[str]) -> list[ExtractedExperience]:
     experience: list[ExtractedExperience] = []
     current: ExtractedExperience | None = None
     for raw in block_lines:
-        line = raw.strip("•-*► 	")
+        line = raw.strip("•-*► \t")
         if not line:
             continue
         is_bullet = raw.strip().startswith(("•", "-", "*", "►"))
         date_match = DATE_RANGE_RE.search(line)
 
-        if not is_bullet and (date_match or (len(line) < 100 and (current is None or "," in line or "-" in line))):
+        if not is_bullet and (date_match or (len(line) < 100 and (current is None or "," in line or "،" in line or "-" in line))):
             if current:
                 experience.append(current)
             months = _duration_to_months(date_match.group("start"), date_match.group("end")) if date_match else 0
             
-            title_company = re.split(r"[-|,]", line, maxsplit=1)
+            title_company = re.split(r"[-|,،]", line, maxsplit=1)
             title = title_company[0].strip() or "Role"
             company = title_company[1].strip() if len(title_company) > 1 and title_company[1] else ""
             current = ExtractedExperience(title=title[:150], company=company[:150], duration_months=months)
@@ -411,9 +445,19 @@ def extract_cv_data(file_path: str | Path) -> ExtractedCVData:
         is_linkedin=is_linkedin
     )
 
+def _resolve_cv_text(file_path_or_text: str | Path) -> str:
+    """Reads PDF text if a valid file path is passed, otherwise treats input as synthesized CV text."""
+    try:
+        path_obj = Path(str(file_path_or_text))
+        if path_obj.is_file():
+            return clean_text(_read_pdf_text(path_obj))
+    except Exception:
+        pass
+    return clean_text(str(file_path_or_text))
+
+
 def evaluate_ats_score(file_path: str | Path) -> dict:
-    raw_text = _read_pdf_text(file_path)
-    full_text = clean_text(raw_text)
+    full_text = _resolve_cv_text(file_path)
     prompt = f"""
 You are an expert ATS (Applicant Tracking System). Evaluate the following CV text.
 Return ONLY a valid JSON object matching exactly this structure:
@@ -427,16 +471,36 @@ CV Text:
 """
     try:
         content = call_llm(prompt, 'You are a precise JSON-only ATS evaluator.', is_json=True)
-        import json
         data = json.loads(content)
         return {"score": data.get("score", 0), "feedback": data.get("feedback", [])}
     except Exception as e:
-        logger.warning(f"Ollama ATS evaluation failed: {e}")
-        return {"score": 50, "feedback": ["Could not evaluate due to AI engine error."]}
+        logger.warning(f"Ollama ATS evaluation failed ({e}), using rule-based ATS evaluator.")
+        skills = _extract_skills(full_text)
+        bounds = _find_section_bounds(full_text.splitlines())
+        score = 50
+        feedback: list[str] = []
+        if len(skills) >= 5:
+            score += 20
+            feedback.append(f"تضمنت السيرة الذاتية {len(skills)} مهارة تقنية قياسية متوافقة مع أنظمة ATS.")
+        elif skills:
+            score += 10
+            feedback.append("يُنصح بإضافة المزيد من الكلمات المفتاحية التقنية لرفع نسبة التطابق في أنظمة ATS.")
+        else:
+            feedback.append("لم يتم رصد مهارات تقنية واضحة؛ أضف قسماً صريحاً للمهارات التقنية (Technical Skills).")
+
+        for sec, label in (("experience", "الخبرة العملية"), ("education", "التعليم"), ("projects", "المشاريع")):
+            if sec in bounds:
+                score += 10
+            else:
+                feedback.append(f"يُفضل إضافة عنوان واضح لقسم {label} لتسهيل قراءة الملف آلياً.")
+
+        if not feedback:
+            feedback.append("تنسيق السيرة الذاتية واضح ومتوافق جيداً مع معايير الفرز الآلي (ATS).")
+        return {"score": min(95, score), "feedback": feedback}
+
 
 def generate_cover_letter(file_path: str | Path, job_description: str) -> str:
-    raw_text = _read_pdf_text(file_path)
-    full_text = clean_text(raw_text)
+    full_text = _resolve_cv_text(file_path)
     prompt = f"""
 You are an expert career coach. Write a professional, tailored cover letter for the following job description based on the candidate's CV.
 Return ONLY the cover letter text, no markdown, no intro or outro.
@@ -451,5 +515,18 @@ Candidate CV:
         content = call_llm(prompt, 'You are a professional cover letter writer.', is_json=False)
         return content.strip()
     except Exception as e:
-        logger.warning(f"Ollama Cover Letter generation failed: {e}")
-        return "Could not generate cover letter due to AI engine error."
+        logger.warning(f"Ollama Cover Letter generation failed ({e}), using structured template.")
+        skills = _extract_skills(full_text)
+        skills_str = ", ".join(skills[:6]) if skills else "software engineering, problem-solving, and modern development tools"
+        return (
+            f"Dear Hiring Manager,\n\n"
+            f"I am writing to express my strong interest in the position ({job_description[:120]}). "
+            f"With a solid technical foundation in {skills_str}, I am confident in my ability to contribute "
+            f"effectively to your engineering team and deliver high-quality solutions.\n\n"
+            f"Throughout my academic and practical experience, I have focused on building reliable applications, "
+            f"collaborating across teams, and continuously expanding my technical toolkit to align with industry best practices. "
+            f"The requirements of this role closely match my background and career goals.\n\n"
+            f"Thank you for your time and consideration. I look forward to the opportunity to discuss how my skills "
+            f"and experience can benefit your organization.\n\n"
+            f"Sincerely,\nCandidate"
+        )

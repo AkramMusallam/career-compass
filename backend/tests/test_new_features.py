@@ -35,7 +35,7 @@ def client():
             yield c
     finally:
         app.dependency_overrides.pop(get_current_user, None)
-        for coll in ("analysis_results", "extractions", "uploads", "interview_sessions"):
+        for coll in ("analysis_results", "extractions", "uploads", "interviews", "interview_sessions"):
             mongo_db[coll].delete_many({"user_id": FAKE_USER_ID})
 
 

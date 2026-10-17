@@ -17,13 +17,13 @@ import ShareModal from "../../components/features/ShareModal";
 import { useAnalysisFlow } from "../../context/AnalysisContext";
 import { useToast } from "../../context/ToastContext";
 
-function JobCard({ job, isTop }) {
+function JobCard({ job, isTop, onGenerateCoverLetter, onStartInterview, isStartingInterview }) {
   const [expanded, setExpanded] = useState(isTop);
 
   return (
     <div className={`rounded-2xl border-2 p-4 ${isTop ? "border-secondary bg-secondary-50" : "border-slate-200"}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex-1">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex-1 min-w-[200px]">
           <div className="flex items-center gap-2">
             <p className="font-black text-slate-800">{job.job_title}</p>
             {isTop && <span className="chip !bg-secondary-100 !text-secondary-600">الأنسب لك</span>}
@@ -37,13 +37,34 @@ function JobCard({ job, isTop }) {
           <p className="mt-1 text-xs font-bold text-slate-500">نسبة التوافق {Math.round(job.match_percentage)}%</p>
           {job.explanation && <p className="mt-2 text-sm font-semibold text-slate-600">{job.explanation}</p>}
         </div>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-bold text-slate-600 hover:bg-slate-50"
-        >
-          {expanded ? "إخفاء" : "عرض التفاصيل"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {onGenerateCoverLetter && (
+            <button
+              type="button"
+              onClick={() => onGenerateCoverLetter(job.job_title)}
+              className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary-100"
+            >
+              📝 خطاب تغطية
+            </button>
+          )}
+          {onStartInterview && (
+            <button
+              type="button"
+              disabled={isStartingInterview}
+              onClick={() => onStartInterview(job.job_title)}
+              className="rounded-lg border border-secondary-200 bg-white px-3 py-1.5 text-xs font-bold text-secondary-600 hover:bg-secondary-50 disabled:opacity-50"
+            >
+              🎙️ محاكاة مقابلة
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-bold text-slate-600 hover:bg-slate-50"
+          >
+            {expanded ? "إخفاء" : "عرض التفاصيل"}
+          </button>
+        </div>
       </div>
 
       {expanded && (
@@ -461,7 +482,14 @@ const [coverLetterJob, setCoverLetterJob] = useState(null);
         <h2 className="mb-3 font-black text-slate-800">أفضل 5 وظائف مناسبة</h2>
         <div className="space-y-3">
           {analysis.top_jobs.map((job, index) => (
-            <JobCard key={job.job_title} job={job} isTop={index === 0} />
+            <JobCard
+              key={job.job_title}
+              job={job}
+              isTop={index === 0}
+              onGenerateCoverLetter={handleGenerateCoverLetter}
+              onStartInterview={handleStartInterview}
+              isStartingInterview={isStartingInterview}
+            />
           ))}
         </div>
       </section>
@@ -670,7 +698,14 @@ const [coverLetterJob, setCoverLetterJob] = useState(null);
               </div>
             )}
             <div className="mt-4 flex justify-end">
-              <button type="button" className="btn-primary" onClick={() => { navigator.clipboard.writeText(coverLetterText); alert('تم النسخ!'); }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  navigator.clipboard.writeText(coverLetterText);
+                  showToast("تم نسخ خطاب التغطية بنجاح");
+                }}
+              >
                 📋 نسخ النص
               </button>
             </div>

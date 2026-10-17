@@ -153,29 +153,63 @@ def confirm_extraction(payload: ExtractConfirmRequest, current_user: User = Depe
     )
     return ExtractConfirmResponse(extraction_id=payload.extraction_id, status="confirmed")
 
+from app.core.mongo import analysis_results_collection
 from app.schemas.schemas import ATSScoreResponse, CoverLetterRequest, CoverLetterResponse
 from app.services.cv_extraction import evaluate_ats_score, generate_cover_letter
 
+
+def _resolve_extraction_source(id_or_analysis_id: str, user_id: int) -> str | None:
+    """Returns either the uploaded PDF path or a synthesized CV text from extraction/analysis."""
+    extraction = extractions_collection.find_one({"extraction_id": id_or_analysis_id, "user_id": user_id})
+    analysis = None
+    if not extraction:
+        analysis = analysis_results_collection.find_one({"analysis_id": id_or_analysis_id, "user_id": user_id})
+        if analysis and analysis.get("extraction_id"):
+            extraction = extractions_collection.find_one(
+                {"extraction_id": analysis["extraction_id"], "user_id": user_id}
+            )
+
+    if extraction and extraction.get("file_id"):
+        upload = uploads_collection.find_one({"file_id": extraction["file_id"]})
+        if upload and upload.get("path"):
+            return upload["path"]
+
+    target = extraction or analysis
+    if not target:
+        return None
+
+    parts: list[str] = []
+    skills = target.get("skills") or target.get("strengths") or []
+    if skills:
+        parts.append("Skills\n" + ", ".join(str(s) for s in skills))
+    for section_key, header in (("experience", "Experience"), ("projects", "Projects"), ("education", "Education")):
+        items = target.get(section_key) or []
+        if items:
+            lines = [header]
+            for item in items:
+                if isinstance(item, dict):
+                    lines.append(" - ".join(str(v) for v in item.values() if v))
+                else:
+                    lines.append(str(item))
+            parts.append("\n".join(lines))
+    return "\n\n".join(parts) if parts else "Skills\nSoftware Engineering"
+
+
 @router.get("/extract/{extraction_id}/ats-score", response_model=ATSScoreResponse)
 def get_ats_score(extraction_id: str, current_user: User = Depends(get_current_user)):
-    extraction = extractions_collection.find_one({"extraction_id": extraction_id, "user_id": current_user.id})
-    if not extraction or not extraction.get("file_id"):
+    source = _resolve_extraction_source(extraction_id, current_user.id)
+    if not source:
         raise HTTPException(status_code=404, detail="Extraction or file not found")
-    upload = uploads_collection.find_one({"file_id": extraction["file_id"]})
-    if not upload:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    result = evaluate_ats_score(upload["path"])
+
+    result = evaluate_ats_score(source)
     return ATSScoreResponse(**result)
+
 
 @router.post("/extract/{extraction_id}/cover-letter", response_model=CoverLetterResponse)
 def create_cover_letter(extraction_id: str, payload: CoverLetterRequest, current_user: User = Depends(get_current_user)):
-    extraction = extractions_collection.find_one({"extraction_id": extraction_id, "user_id": current_user.id})
-    if not extraction or not extraction.get("file_id"):
+    source = _resolve_extraction_source(extraction_id, current_user.id)
+    if not source:
         raise HTTPException(status_code=404, detail="Extraction or file not found")
-    upload = uploads_collection.find_one({"file_id": extraction["file_id"]})
-    if not upload:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    letter = generate_cover_letter(upload["path"], payload.job_description)
+
+    letter = generate_cover_letter(source, payload.job_description)
     return CoverLetterResponse(cover_letter=letter)

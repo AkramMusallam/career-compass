@@ -46,7 +46,7 @@ jobs:
         USE_MONGOMOCK: "1"
         EMAIL_NOTIFICATIONS_ENABLED: "0"
         JWT_SECRET_KEY: "test-secret-key-for-github-actions-only"
-        ENV: "test"
+        ENV: "testing"
       run: |
         pytest tests/ -v
 

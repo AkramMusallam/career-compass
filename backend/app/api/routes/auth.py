@@ -67,7 +67,7 @@ def forgot_password(payload: ForgotPasswordRequest, background_tasks: Background
         # For security reasons, don't reveal that the user does not exist.
         return {"detail": "If an account with that email exists, a password reset link has been sent."}
 
-    token = create_reset_token(subject=str(user.id))
+    token = create_reset_token(subject=str(user.id), password_hash=user.hashed_password)
     background_tasks.add_task(send_password_reset_email, user.email, user.full_name, token)
     
     return {"detail": "If an account with that email exists, a password reset link has been sent."}
@@ -85,6 +85,9 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         user = db.query(User).filter(User.id == int(user_id)).first()
         if not user:
             raise ValueError("User not found")
+
+        if "pwh" in token_data and token_data["pwh"] != (user.hashed_password or "")[-12:]:
+            raise ValueError("Reset token has already been used")
 
         # Update the password
         user.hashed_password = hash_password(payload.new_password)

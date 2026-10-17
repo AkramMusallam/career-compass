@@ -358,6 +358,7 @@ export default function ReviewExtractedData() {
         </div>
       )}
 
+      <AtsScoreSection extractionId={extractionId} />
       <SkillsSection skills={skills} setSkills={setSkills} />
       <ProjectsSection projects={projects} setProjects={setProjects} />
       <EducationSection education={education} setEducation={setEducation} />

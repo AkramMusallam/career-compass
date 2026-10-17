@@ -153,6 +153,93 @@ SKILLS: dict[str, tuple[str, str]] = {
 # انظر _extract_skills في cv_extraction.py حيث تُفحص المرادفات العربية في مسار منفصل تماماً
 # عن فحص أسماء SKILLS الإنجليزية الأصلي، دون أي تعديل على سلوكه القائم (لتفادي أي أثر جانبي
 # على الاختبارات القائمة لمطابقة المهارات الإنجليزية).
+ARABIC_SKILL_SYNONYMS: dict[str, str] = {
+    "بايثون": "Python",
+    "جافاسكريبت": "JavaScript",
+    "جافا سكريبت": "JavaScript",
+    "تايب سكريبت": "TypeScript",
+    "جافا": "Java",
+    "سي بلس بلس": "C++",
+    "سي شارب": "C#",
+    "بي إتش بي": "PHP",
+    "بي اتش بي": "PHP",
+    "سويفت": "Swift",
+    "كوتلن": "Kotlin",
+    "دارت": "Dart",
+    "ريأكت": "React",
+    "رياكت": "React",
+    "فيو": "Vue.js",
+    "أنجولار": "Angular",
+    "انجولار": "Angular",
+    "فلاتر": "Flutter",
+    "تصميم واجهات المستخدم": "UI Design",
+    "تصميم واجهات": "UI Design",
+    "تجربة المستخدم": "UX Research",
+    "أبحاث تجربة المستخدم": "UX Research",
+    "فيجما": "Figma",
+    "النماذج الأولية": "Prototyping",
+    "نود جي إس": "Node.js",
+    "دجانغو": "Django",
+    "جانغو": "Django",
+    "فلاسك": "Flask",
+    "فاست اي بي اي": "FastAPI",
+    "سبرينغ بوت": "Spring Boot",
+    "تصميم واجهات برمجة التطبيقات": "API Design",
+    "الخدمات المصغرة": "Microservices",
+    "قواعد البيانات": "SQL",
+    "إس كيو إل": "SQL",
+    "ماي إس كيو إل": "MySQL",
+    "بوستجري إس كيو إل": "PostgreSQL",
+    "مونغو دي بي": "MongoDB",
+    "تحليل البيانات": "Data Analysis",
+    "تصور البيانات": "Data Visualization",
+    "إكسل": "Excel",
+    "اكسل": "Excel",
+    "باور بي آي": "Power BI",
+    "تابلو": "Tableau",
+    "الإحصاء": "Statistics",
+    "احصاء": "Statistics",
+    "مستودعات البيانات": "Data Warehousing",
+    "نمذجة البيانات": "Data Modeling",
+    "تعلم الآلة": "Machine Learning",
+    "التعلم الآلي": "Machine Learning",
+    "التعلم العميق": "Deep Learning",
+    "معالجة اللغات الطبيعية": "NLP",
+    "معالجة اللغة الطبيعية": "NLP",
+    "الرؤية الحاسوبية": "Computer Vision",
+    "دوكر": "Docker",
+    "كوبرنيتس": "Kubernetes",
+    "التكامل المستمر": "CI/CD",
+    "الحوسبة السحابية": "Cloud Architecture",
+    "إدارة لينكس": "Linux Administration",
+    "لينكس": "Linux Administration",
+    "أساسيات الشبكات": "Networking Fundamentals",
+    "أمن الشبكات": "Network Security",
+    "إدارة قواعد البيانات": "Database Administration",
+    "الأمن السيبراني": "Cybersecurity Fundamentals",
+    "اختبار الاختراق": "Penetration Testing",
+    "الاختراق الأخلاقي": "Ethical Hacking",
+    "التشفير": "Cryptography",
+    "تقييم المخاطر": "Risk Assessment",
+    "الاختبار اليدوي": "Manual Testing",
+    "أتمتة الاختبارات": "Test Automation",
+    "تصميم الأنظمة": "System Design",
+    "البرمجة الكائنية": "OOP",
+    "البرمجة غرضية التوجه": "OOP",
+    "أنماط التصميم": "Design Patterns",
+    "أجايل": "Agile/Scrum",
+    "سكرم": "Agile/Scrum",
+    "الأنظمة المدمجة": "Embedded C",
+    "إنترنت الأشياء": "IoT Protocols (MQTT)",
+    "بلوكتشين": "Blockchain Fundamentals",
+    "العقود الذكية": "Smart Contracts",
+    "جمع المتطلبات": "Requirements Gathering",
+    "تحليل الأعمال": "Business Process Modeling",
+    "إدارة أصحاب المصلحة": "Stakeholder Management",
+    "الكتابة التقنية": "Technical Writing",
+    "الدعم الفني": "Customer Support",
+    "حل المشكلات التقنية": "Troubleshooting",
+}
 
 
 # ============================================================
@@ -170,10 +257,11 @@ def normalize_skill_name(raw_name: str) -> str | None:
     cleaned = raw_name.strip()
     if not cleaned:
         return None
-    lower_clean = cleaned.lower()
-    for canonical in SKILLS:
-        if canonical.lower() == lower_clean:
-            return canonical
+    canonical = _SKILLS_CASE_INSENSITIVE_LOOKUP.get(cleaned.lower())
+    if canonical:
+        return canonical
+    if cleaned in ARABIC_SKILL_SYNONYMS:
+        return ARABIC_SKILL_SYNONYMS[cleaned]
     return cleaned
 
 

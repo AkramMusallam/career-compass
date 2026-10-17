@@ -24,7 +24,7 @@ Start-Process powershell -WorkingDirectory $backendDir -ArgumentList "-NoExit", 
 
 # 3. Start Frontend in a new window
 Write-Host "Starting Frontend..." -ForegroundColor Yellow
-Start-Process powershell -WorkingDirectory $frontendDir -ArgumentList "-NoExit", "-Command", "npm run dev"
+Start-Process powershell -WorkingDirectory $frontendDir -ArgumentList "-NoExit", "-Command", "`$env:VITE_API_BASE_URL='http://localhost:8000'; npm run dev"
 
 Start-Sleep -Seconds 2
 try {
