@@ -7,8 +7,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import ollama
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from app.core.mongo import analysis_results_collection, extractions_collection, mongo_db
 from app.core.security import get_current_user
@@ -29,6 +30,27 @@ class InterviewStartRequest(BaseModel):
 class InterviewMessage(BaseModel):
     role: str
     content: str
+    voice_feedback: Optional[Dict[str, Any]] = None
+
+
+class VoiceFeedbackModel(BaseModel):
+    transcript: str
+    clarity_score: int
+    pace_score: int
+    confidence_score: int
+    words_per_minute: int
+    pace_label: str
+    filler_words_count: int = 0
+    feedback_summary: str
+    tips: List[str] = []
+
+
+class InterviewVoiceResponse(BaseModel):
+    session_id: str
+    status: str
+    transcript: str
+    voice_feedback: VoiceFeedbackModel
+    messages: List[InterviewMessage]
 
 
 class InterviewStartResponse(BaseModel):
@@ -94,8 +116,9 @@ def _call_llm_for_text(messages: list, system_instruction: str = "") -> str:
             )
             return resp.choices[0].message.content or ""
         else:
-            response = ollama.chat(model=getattr(settings, "OLLAMA_MODEL", "career-model"), messages=full_messages)
-            return response["message"]["content"]
+            from app.services.llm_client import ollama_chat
+
+            return ollama_chat(full_messages, max_tokens=400)
     except Exception as e:
         logger.warning("LLM call failed: %s", e)
         raise e
@@ -229,6 +252,184 @@ def chat_interview(payload: InterviewChatRequest, current_user: User = Depends(g
     )
 
 
+def _transcribe_audio_with_whisper(audio_bytes: bytes, filename: str, content_type: str, transcript_hint: str = "") -> str:
+    """Phase 2 (Section 7.1): Transcribes candidate audio via OpenAI Whisper with graceful local fallback."""
+    from app.core.config import settings
+
+    if audio_bytes and settings.OPENAI_API_KEY:
+        try:
+            import openai
+
+            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=(filename or "interview_answer.webm", audio_bytes, content_type or "audio/webm"),
+            )
+            text = getattr(transcription, "text", None) or (
+                transcription.get("text") if isinstance(transcription, dict) else ""
+            )
+            if text and str(text).strip():
+                return str(text).strip()
+        except Exception as exc:
+            logger.warning("OpenAI Whisper transcription failed (%s), falling back to transcript_hint.", exc)
+
+    if transcript_hint and transcript_hint.strip():
+        return transcript_hint.strip()
+
+    return ""
+
+
+def _analyze_vocal_delivery(transcript: str, duration_seconds: float, job_title: str) -> VoiceFeedbackModel:
+    """Phase 2 (Section 7.1): Evaluates speech clarity, pace (WPM), and vocal confidence."""
+    words = [w for w in transcript.split() if w.strip()]
+    word_count = len(words)
+    effective_duration = duration_seconds if duration_seconds and duration_seconds > 1.0 else max(4.0, word_count * 0.45)
+    wpm = int(round((word_count / effective_duration) * 60)) if word_count > 0 else 0
+
+    filler_tokens = {"um", "uh", "er", "ah", "like", "يعني", "امم", "اممم", "اه", "آه", "ممم"}
+    filler_count = sum(1 for w in words if w.lower().strip(".,!?،؛") in filler_tokens)
+
+    # Pace scoring (ideal range: 110–160 WPM)
+    if 105 <= wpm <= 165:
+        pace_score = 9
+        pace_label = "سرعة متوازنة ومثالية"
+    elif 85 <= wpm < 105:
+        pace_score = 7
+        pace_label = "هادئة وواضحة"
+    elif 165 < wpm <= 195:
+        pace_score = 7
+        pace_label = "سريعة قليلاً"
+    elif wpm < 85:
+        pace_score = 6
+        pace_label = "بطيئة نسبياً"
+    else:
+        pace_score = 6
+        pace_label = "سريعة جداً"
+
+    # Clarity & confidence heuristics + optional AI refinement
+    clarity_base = 8 if word_count >= 12 else 7
+    if filler_count == 0 and word_count >= 15:
+        clarity_score = 9
+    else:
+        clarity_score = max(5, min(10, clarity_base - min(3, filler_count)))
+
+    confidence_score = min(10, max(5, int(round((clarity_score + pace_score) / 2)) + (1 if word_count >= 20 and filler_count <= 1 else 0)))
+
+    tips: list[str] = []
+    if filler_count > 1:
+        tips.append("حاول تقليل كلمات التردد والحشو واستبدالها بوقفات قصيرة واثقة.")
+    if wpm > 165:
+        tips.append("تمهّل قليلاً عند شرح المصطلحات التقنية لمنح المحاور وقتاً لاستيعاب التفاصيل.")
+    elif wpm < 85 and word_count > 0:
+        tips.append("ارفع وتيرة الحديث قليلاً لإظهار الحماس والثقة بالمعلومة.")
+    if word_count < 15:
+        tips.append("دعّم إجابتك الصوتية بمثال عملي موجز (منهجية STAR) لرفع درجة الإقناع.")
+    if not tips:
+        tips.append("نبرة واضحة وإيقاع متوازن؛ استمر في ربط المفاهيم التقنية بالنتائج العملية.")
+
+    feedback_summary = (
+        f"أداء صوتي متميز بسرعة إلقاء {wpm} كلمة/دقيقة ({pace_label})، "
+        f"مع وضوح نطق {clarity_score}/10 وثقة صوتية {confidence_score}/10."
+    )
+
+    return VoiceFeedbackModel(
+        transcript=transcript,
+        clarity_score=clarity_score,
+        pace_score=pace_score,
+        confidence_score=confidence_score,
+        words_per_minute=wpm,
+        pace_label=pace_label,
+        filler_words_count=filler_count,
+        feedback_summary=feedback_summary,
+        tips=tips,
+    )
+
+
+@router.post("/interview/{session_id}/voice", response_model=InterviewVoiceResponse)
+async def voice_interview_turn(
+    session_id: str,
+    file: Optional[UploadFile] = File(default=None),
+    duration_seconds: float = Form(default=0.0),
+    transcript_hint: str = Form(default=""),
+    current_user: User = Depends(get_current_user),
+):
+    """Phase 2 (Section 7.1): Voice & Audio Mock Interviews.
+
+    Accepts recorded candidate audio (transcribed via OpenAI Whisper or browser speech recognition fallback),
+    evaluates speech clarity, pace, and vocal confidence, and advances the interview conversation.
+    """
+    session = interviews_collection.find_one({"session_id": session_id, "user_id": current_user.id})
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interview session not found")
+
+    if session.get("status") == "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This interview session has already been completed and evaluated.",
+        )
+
+    audio_bytes = b""
+    filename = "speech.webm"
+    content_type = "audio/webm"
+    if file is not None:
+        audio_bytes = await file.read()
+        filename = file.filename or filename
+        content_type = file.content_type or content_type
+
+    transcript = await run_in_threadpool(
+        _transcribe_audio_with_whisper,
+        audio_bytes=audio_bytes,
+        filename=filename,
+        content_type=content_type,
+        transcript_hint=transcript_hint,
+    )
+    if not transcript:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="لم نتمكن من استخراج نص واضح من التسجيل الصوتي، يرجى التحدث بوضوح والمحاولة مجدداً.",
+        )
+
+    job_title = session.get("job_title", "Software Engineer")
+    voice_feedback = _analyze_vocal_delivery(
+        transcript=transcript,
+        duration_seconds=duration_seconds,
+        job_title=job_title,
+    )
+
+    messages = session.get("messages", [])
+    messages.append(
+        {
+            "role": "user",
+            "content": transcript,
+            "voice_feedback": voice_feedback.model_dump(),
+        }
+    )
+
+    try:
+        # استدعاء متزامن وبطيء: نشغّله في threadpool حتى لا يجمّد event loop ويؤخر باقي المستخدمين
+        ai_reply = await run_in_threadpool(
+            _call_llm_for_text,
+            [{"role": m["role"], "content": m["content"]} for m in messages],
+        )
+    except Exception:
+        ai_reply = "شكراً لإجابتك الصوتية الواضحة. دعنا ننتقل للسؤال التالي: كيف تتعامل مع تحسين الأداء وتصحيح الأخطاء في بيئة الإنتاج؟"
+
+    messages.append({"role": "assistant", "content": ai_reply})
+
+    interviews_collection.update_one(
+        {"session_id": session_id},
+        {"$set": {"messages": messages, "updated_at": datetime.now(timezone.utc)}},
+    )
+
+    return InterviewVoiceResponse(
+        session_id=session_id,
+        status="in_progress",
+        transcript=transcript,
+        voice_feedback=voice_feedback,
+        messages=[InterviewMessage(**m) for m in messages if m["role"] != "system"],
+    )
+
+
 @router.post("/interview/{session_id}/evaluate", response_model=InterviewEvaluationResponse)
 def evaluate_interview(session_id: str, current_user: User = Depends(get_current_user)):
     """Epic 4 Feature 4.2: Evaluates candidate answers, scores out of 10, highlights errors and provides model answers."""
@@ -311,12 +512,13 @@ Scores must be integers between 1 and 10. Do not wrap in markdown or backticks. 
             )
             raw_json_str = resp.choices[0].message.content or ""
         else:
-            response = ollama.chat(
-                model=getattr(settings, "OLLAMA_MODEL", "career-model"),
-                messages=[{"role": "user", "content": eval_prompt}],
-                format="json",
+            from app.services.llm_client import ollama_chat
+
+            raw_json_str = ollama_chat(
+                [{"role": "user", "content": eval_prompt}],
+                json_mode=True,
+                temperature=0.3,
             )
-            raw_json_str = response["message"]["content"]
 
         clean_str = raw_json_str.strip()
         if clean_str.startswith("```json"):

@@ -14,6 +14,7 @@ Batch 5.5 — خدمة البريد الإلكتروني (SMTP) لإرسال ت�
 """
 from __future__ import annotations
 
+import html
 import logging
 import smtplib
 from dataclasses import dataclass
@@ -94,17 +95,19 @@ def _progress_sentence(summary: WeeklySummary) -> str:
 def render_weekly_email_html(summary: WeeklySummary) -> str:
     """يبني نسخة HTML بسيطة ومتجاوبة للإيميل، بنفس ألوان هوية المنصة، باتجاه RTL كامل."""
     results_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/results/{summary.analysis_id}"
-    progress_note = _progress_sentence(summary)
+    progress_note = html.escape(_progress_sentence(summary))
+    safe_name = html.escape(summary.user_name)
+    safe_job = html.escape(summary.top_job_title)
     return f"""<div dir="rtl" style="font-family: Arial, Tahoma, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B;">
   <div style="background: {PRIMARY_COLOR}; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
     <h1 style="color: #ffffff; margin: 0; font-size: 20px;">Career Compass</h1>
   </div>
   <div style="border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px; padding: 24px;">
-    <p style="font-size: 16px;">مرحباً {summary.user_name}،</p>
+    <p style="font-size: 16px;">مرحباً {safe_name}،</p>
     <p style="font-size: 14px; line-height: 1.8;">هذا تذكيرك الأسبوعي بحالة تقدّمك المهني على Career Compass:</p>
     <div style="background: #F8FAFC; border-radius: 10px; padding: 16px; margin: 16px 0;">
       <p style="margin: 4px 0; font-size: 14px;"><b>Career Score الحالي:</b> {round(summary.career_score)}/100</p>
-      <p style="margin: 4px 0; font-size: 14px;"><b>أفضل وظيفة مطابقة:</b> {summary.top_job_title}</p>
+      <p style="margin: 4px 0; font-size: 14px;"><b>أفضل وظيفة مطابقة:</b> {safe_job}</p>
       <p style="margin: 4px 0; font-size: 14px; color: {SECONDARY_COLOR};"><b>تقدّم خطة التعلم:</b> {progress_note}</p>
     </div>
     <div style="text-align: center; margin: 24px 0;">
@@ -165,13 +168,14 @@ def send_password_reset_email(to_email: str, user_name: str, token: str) -> bool
     """Send a password reset link to the user."""
     reset_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/reset-password/{token}"
     subject = "استعادة كلمة المرور - Career Compass"
+    safe_name = html.escape(user_name)
     
     html_body = f"""<div dir="rtl" style="font-family: Arial, Tahoma, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B;">
   <div style="background: {PRIMARY_COLOR}; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
     <h1 style="color: #ffffff; margin: 0; font-size: 20px;">Career Compass</h1>
   </div>
   <div style="border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px; padding: 24px;">
-    <p style="font-size: 16px;">مرحباً {user_name}،</p>
+    <p style="font-size: 16px;">مرحباً {safe_name}،</p>
     <p style="font-size: 14px; line-height: 1.8;">لقد طلبنا استعادة كلمة المرور لحسابك. يمكنك تعيين كلمة مرور جديدة من خلال الضغط على الزر أدناه:</p>
     <div style="text-align: center; margin: 24px 0;">
       <a href="{reset_url}" style="background: {SECONDARY_COLOR}; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">تعيين كلمة مرور جديدة</a>
@@ -228,13 +232,16 @@ def send_weekly_progress_emails(db: Session) -> dict:
 
 
 def send_login_welcome_email(to_email: str, user_name: str) -> bool:
+    if not settings.EMAIL_NOTIFICATIONS_ENABLED:
+        return False
+    safe_name = html.escape(user_name)
     subject = "Welcome Back to Career Compass! 🚀"
     html_body = f'''<div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
   <div style="background: linear-gradient(135deg, {PRIMARY_COLOR}, #3b82f6); padding: 30px 20px; text-align: center;">
     <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">Career Compass</h1>
   </div>
   <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px;">
-    <h2 style="margin-top: 0; color: #0F172A; font-size: 20px;">مرحباً بعودتك، {user_name}! 👋</h2>
+    <h2 style="margin-top: 0; color: #0F172A; font-size: 20px;">مرحباً بعودتك، {safe_name}! 👋</h2>
     <p style="font-size: 16px; line-height: 1.6; color: #475569;">سعداء جداً برؤيتك مجدداً في المنصة. هل أنت مستعد لإكمال رحلتك المهنية وتحقيق أهدافك اليوم؟</p>
     <div style="background: #F8FAFC; border-left: 4px solid {PRIMARY_COLOR}; padding: 16px; margin: 24px 0; border-radius: 4px;">
       <p style="margin: 0; font-size: 14px; color: #334155;">💡 <b>تلميح:</b> لا تنسَ تفقد خطة العمل (Roadmap) الخاصة بك وتحديث مهاراتك باستمرار للحصول على توصيات أفضل.</p>
@@ -252,13 +259,16 @@ def send_login_welcome_email(to_email: str, user_name: str) -> bool:
 
 
 def send_account_deletion_email(to_email: str, user_name: str) -> bool:
+    if not settings.EMAIL_NOTIFICATIONS_ENABLED:
+        return False
+    safe_name = html.escape(user_name)
     subject = "وداعاً من Career Compass 😢"
     html_body = f'''<div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
   <div style="background: #ef4444; padding: 30px 20px; text-align: center;">
     <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">Career Compass</h1>
   </div>
   <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px;">
-    <h2 style="margin-top: 0; color: #0F172A; font-size: 20px;">وداعاً، {user_name} 💔</h2>
+    <h2 style="margin-top: 0; color: #0F172A; font-size: 20px;">وداعاً، {safe_name} 💔</h2>
     <p style="font-size: 16px; line-height: 1.6; color: #475569;">لقد تم حذف حسابك وجميع بياناتك، بما في ذلك سيرتك الذاتية وخططك المهنية، من خوادمنا بشكل نهائي بناءً على طلبك.</p>
     <p style="font-size: 16px; line-height: 1.6; color: #475569;">نحن حزينون جداً لمغادرتك، ونتمنى لك كل التوفيق والنجاح في مسيرتك المهنية القادمة.</p>
     <div style="background: #F8FAFC; border-left: 4px solid #ef4444; padding: 16px; margin: 24px 0; border-radius: 4px;">
@@ -274,13 +284,16 @@ def send_account_deletion_email(to_email: str, user_name: str) -> bool:
 
 
 def send_registration_welcome_email(to_email: str, user_name: str) -> bool:
+    if not settings.EMAIL_NOTIFICATIONS_ENABLED:
+        return False
+    safe_name = html.escape(user_name)
     subject = "مرحباً بك في Career Compass! 🎉"
     html_body = f'''<div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
   <div style="background: linear-gradient(135deg, {PRIMARY_COLOR}, #10b981); padding: 30px 20px; text-align: center;">
     <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold;">Career Compass</h1>
   </div>
   <div style="background: #ffffff; padding: 32px 24px; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px;">
-    <h2 style="margin-top: 0; color: #0F172A; font-size: 20px;">أهلاً بك يا {user_name} في بداية رحلتك! 🚀</h2>
+    <h2 style="margin-top: 0; color: #0F172A; font-size: 20px;">أهلاً بك يا {safe_name} في بداية رحلتك! 🚀</h2>
     <p style="font-size: 16px; line-height: 1.6; color: #475569;">نحن سعداء جداً بانضمامك إلى منصتنا. لقد اتخذت للتو خطوة ممتازة نحو استكشاف مسارك المهني بفضل الذكاء الاصطناعي.</p>
     <div style="background: #F8FAFC; border-left: 4px solid {PRIMARY_COLOR}; padding: 16px; margin: 24px 0; border-radius: 4px;">
       <p style="margin: 0; font-size: 14px; color: #334155;"><b>الخطوة القادمة:</b> قم برفع سيرتك الذاتية للبدء فوراً في تحليل مهاراتك وتلقي النصائح المخصصة لك.</p>

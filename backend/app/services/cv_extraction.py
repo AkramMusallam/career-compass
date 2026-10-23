@@ -323,18 +323,15 @@ def call_llm(prompt: str, system_prompt: str, is_json: bool = False) -> str:
 
     # Fallback to Ollama
     try:
-        kwargs = {
-            "model": getattr(settings, "OLLAMA_MODEL", "career-model"),
-            "messages": [
+        from app.services.llm_client import ollama_chat
+
+        return ollama_chat(
+            [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
-            ]
-        }
-        if is_json:
-            kwargs["format"] = "json"
-            
-        response = ollama.chat(**kwargs)
-        return response['message']['content']
+                {"role": "user", "content": prompt},
+            ],
+            json_mode=is_json,
+        )
     except Exception as e:
         logger.warning(f"Ollama local extraction failed: {e}")
         raise e
@@ -343,7 +340,7 @@ def call_llm(prompt: str, system_prompt: str, is_json: bool = False) -> str:
 def _extract_with_ollama(full_text: str) -> ExtractedCVData | None:
     """Uses a local Ollama model to intelligently extract CV data."""
     prompt = f"""
-You are an expert HR data extractor. Extract the following information from the provided English CV text.
+You are an expert HR data extractor. Extract the following information from the provided CV text.
 Return ONLY a valid JSON object matching exactly this structure, with no markdown formatting or extra text:
 {{
   "skills": ["Skill 1", "Skill 2"],
@@ -356,15 +353,50 @@ CV Text:
 {full_text}
 """
     try:
+        from app.seed.skills_data import normalize_and_dedupe_skills
+
         content = call_llm(prompt, 'You are a precise data extraction API that only outputs valid JSON.', is_json=True)
         data = json.loads(content)
-        
-        # Convert dictionaries to dataclass instances
+        if not isinstance(data, dict):
+            return None
+
+        raw_skills = [str(s) for s in (data.get("skills") or []) if s]
+        skills = normalize_and_dedupe_skills(raw_skills)
+
+        projects = [
+            ExtractedProject(
+                title=str(p.get("title") or "Project"),
+                description=str(p.get("description") or ""),
+                technologies=[str(t) for t in (p.get("technologies") or []) if t],
+            )
+            for p in (data.get("projects") or [])
+            if isinstance(p, dict) and p.get("title")
+        ]
+        education = [
+            ExtractedEducation(
+                degree=str(e.get("degree") or "Degree"),
+                institution=str(e.get("institution") or ""),
+                year=int(e["year"]) if isinstance(e.get("year"), (int, float)) else None,
+            )
+            for e in (data.get("education") or [])
+            if isinstance(e, dict) and (e.get("degree") or e.get("institution"))
+        ]
+        experience = [
+            ExtractedExperience(
+                title=str(e.get("title") or "Role"),
+                company=str(e.get("company") or ""),
+                duration_months=int(e.get("duration_months") or 0) if isinstance(e.get("duration_months"), (int, float)) else 0,
+                description=str(e.get("description") or ""),
+            )
+            for e in (data.get("experience") or [])
+            if isinstance(e, dict) and e.get("title")
+        ]
+
         return ExtractedCVData(
-            skills=data.get('skills', []),
-            projects=[ExtractedProject(**p) for p in data.get('projects', [])],
-            education=[ExtractedEducation(**e) for e in data.get('education', [])],
-            experience=[ExtractedExperience(**e) for e in data.get('experience', [])]
+            skills=skills,
+            projects=projects,
+            education=education,
+            experience=experience,
         )
     except Exception as e:
         logger.warning(f"Ollama local extraction failed (maybe model not running?): {e}")
@@ -446,11 +478,13 @@ def extract_cv_data(file_path: str | Path) -> ExtractedCVData:
     )
 
 def _resolve_cv_text(file_path_or_text: str | Path) -> str:
-    """Reads PDF text if a valid file path is passed, otherwise treats input as synthesized CV text."""
+    """Reads PDF text if a valid file path inside UPLOAD_DIR (or existing .pdf file) is passed, otherwise treats input as synthesized CV text."""
     try:
-        path_obj = Path(str(file_path_or_text))
-        if path_obj.is_file():
-            return clean_text(_read_pdf_text(path_obj))
+        raw = str(file_path_or_text)
+        if "\n" not in raw and len(raw) < 260 and raw.lower().endswith(".pdf"):
+            path_obj = Path(raw)
+            if path_obj.is_file():
+                return clean_text(_read_pdf_text(path_obj))
     except Exception:
         pass
     return clean_text(str(file_path_or_text))

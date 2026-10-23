@@ -59,13 +59,27 @@ class Settings:
     # ---- AI Engines ----
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "career-model")
+    OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    # أقصى مدة انتظار لطلب واحد للنموذج (ثوانٍ) — بعدها نرجع للمنطق الاحتياطي بدل تعليق الطلب
+    OLLAMA_TIMEOUT: float = float(os.getenv("OLLAMA_TIMEOUT", "90"))
+    # إبقاء النموذج محمّلاً في الذاكرة لتجنب زمن التحميل البارد (cold start) مع كل طلب
+    OLLAMA_KEEP_ALIVE: str = os.getenv("OLLAMA_KEEP_ALIVE", "24h")
+    OLLAMA_NUM_CTX: int = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
+    OLLAMA_WARMUP: bool = os.getenv("OLLAMA_WARMUP", "1") == "1"
 
     # ---- رفع الملفات ----
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     MAX_UPLOAD_MB: int = int(os.getenv("MAX_UPLOAD_MB", "5"))
 
     # ---- CORS ----
-    CORS_ORIGINS: list = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+    CORS_ORIGINS: list = [
+        origin.strip().strip('"').strip("'")
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
+        ).split(",")
+        if origin.strip()
+    ]
 
     # ---- Batch 5.4: مهام مجدولة (Celery + Redis) ----
     # قرار هندسي: Celery + Redis بدل APScheduler لأنها أنسب للإنتاج الحقيقي (Worker منفصل

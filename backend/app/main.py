@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.database import init_db
+from app.core.mongo import ensure_mongo_indexes
 from app.api.routes import analyze, assessment, auth, benchmark, cv, history, profile, settings_router, shared, interview, jobs_router
 
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +26,7 @@ logger = logging.getLogger("career_compass")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    ensure_mongo_indexes()
     if settings.ENV in ("development", "testing"):
         from app.seed.seed_runner import run_seed
 
@@ -32,6 +34,9 @@ async def lifespan(app: FastAPI):
             run_seed()
         except Exception:  # لا نُفشل الإقلاع بسبب مشكلة في التعبئة الأولية فقط
             logger.exception("Seed data insertion skipped due to an error")
+    from app.services.llm_client import warmup_model_async
+
+    warmup_model_async()
     yield
 
 
@@ -45,6 +50,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

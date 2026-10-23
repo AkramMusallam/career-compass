@@ -50,11 +50,13 @@ class ResetPasswordRequest(BaseModel):
 
     @field_validator("new_password")
     @classmethod
-    def validate_password(cls, v):
-        if not any(char.isdigit() for char in v):
-            raise ValueError("Password must contain at least one number")
-        if not any(char.isalpha() for char in v):
-            raise ValueError("Password must contain at least one letter")
+    def validate_password(cls, v: str) -> str:
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.islower() for c in v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one digit")
         return v
 
 
@@ -465,6 +467,53 @@ class CoverLetterRequest(BaseModel):
 
 class CoverLetterResponse(BaseModel):
     cover_letter: str
+
+
+# ============================================================
+# Phase 2: Celery Asynchronous PDF Worker & ATS CV Builder
+# ============================================================
+
+
+class AsyncExtractResponse(BaseModel):
+    task_id: str
+    status: str = "processing"
+
+
+class CVTaskStatusResponse(BaseModel):
+    task_id: str
+    status: str  # "processing" | "completed" | "failed"
+    extraction_id: Optional[str] = None
+    result: Optional[ExtractResponse] = None
+    error: Optional[str] = None
+
+
+class ATSResumeBuildRequest(BaseModel):
+    full_name: str = ""
+    target_role: str = ""
+    email: str = ""
+    phone: str = ""
+    location: str = ""
+    linkedin_url: str = ""
+    summary: str = ""
+    skills: List[str] = Field(default_factory=list)
+    experience: List[ExperienceItem] = Field(default_factory=list)
+    projects: List[ProjectItem] = Field(default_factory=list)
+    education: List[EducationItem] = Field(default_factory=list)
+
+
+class ATSResumeOptimizeResponse(BaseModel):
+    full_name: str
+    target_role: str
+    email: str
+    phone: str = ""
+    location: str = ""
+    linkedin_url: str = ""
+    summary: str
+    skills: List[str]
+    experience: List[ExperienceItem]
+    projects: List[ProjectItem]
+    education: List[EducationItem]
+
 
 class ErrorDetail(BaseModel):
     detail: str

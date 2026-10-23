@@ -132,3 +132,37 @@ export const evaluateInterview = (sessionId) =>
 // ============================================================
 export const getMatchedJobs = (analysisId) =>
   apiClient.get("/jobs/matched", { params: { analysis_id: analysisId } });
+
+// ============================================================
+// Phase 2 (Section 7.1): Celery Async CV Worker, Voice Interview, & ATS CV Builder
+// ============================================================
+export const startAsyncCVExtraction = (fileId) =>
+  apiClient.post("/extract/async", { file_id: fileId });
+
+export const getCVTaskStatus = (taskId) =>
+  apiClient.get(`/cv/status/${taskId}`);
+
+export const optimizeAtsResume = (extractionId, data = {}) =>
+  apiClient.post(`/extract/${extractionId}/ats-builder/optimize`, data);
+
+export const exportAtsResumePdf = (extractionId, data = {}) =>
+  apiClient.post(`/extract/${extractionId}/export-ats-pdf`, data, {
+    responseType: "blob",
+  });
+
+export const sendVoiceInterviewAnswer = (
+  sessionId,
+  audioBlob,
+  durationSeconds = 0,
+  transcriptHint = ""
+) => {
+  const formData = new FormData();
+  if (audioBlob) {
+    formData.append("file", audioBlob, "interview_answer.webm");
+  }
+  formData.append("duration_seconds", String(durationSeconds || 0));
+  formData.append("transcript_hint", transcriptHint || "");
+  return apiClient.post(`/interview/${sessionId}/voice`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};

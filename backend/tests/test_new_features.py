@@ -86,7 +86,7 @@ def test_new_endpoints(client):
 
     print("Testing Interview Start Endpoint...")
     session_id = None
-    with patch("ollama.chat") as mock_ollama:
+    with patch("ollama.Client.chat") as mock_ollama:
         mock_ollama.return_value = {"message": {"content": "Hello, let's start."}}
         resp = client.post(
             "/interview/start",
@@ -105,7 +105,7 @@ def test_new_endpoints(client):
     assert session_data["status"] == "in_progress"
 
     print("Testing Interview Chat Turn...")
-    with patch("ollama.chat") as mock_ollama:
+    with patch("ollama.Client.chat") as mock_ollama:
         mock_ollama.return_value = {
             "message": {"content": "Great! Next question: how do you design scalable APIs?"}
         }
@@ -118,8 +118,25 @@ def test_new_endpoints(client):
         )
         assert resp.status_code == 200, resp.text
 
+    print("Testing Voice & Audio Mock Interview Endpoint (Section 7.1)...")
+    voice_resp = client.post(
+        f"/interview/{session_id}/voice",
+        data={
+            "duration_seconds": "8.5",
+            "transcript_hint": "I have designed distributed systems using Python and FastAPI with asynchronous workers and Redis caching.",
+        },
+    )
+    assert voice_resp.status_code == 200, voice_resp.text
+    voice_data = voice_resp.json()
+    assert voice_data["session_id"] == session_id
+    assert "voice_feedback" in voice_data
+    assert voice_data["voice_feedback"]["clarity_score"] >= 6
+    assert voice_data["voice_feedback"]["confidence_score"] >= 5
+    assert voice_data["voice_feedback"]["words_per_minute"] > 0
+    assert "FastAPI" in voice_data["transcript"]
+
     print("Testing Interview Evaluation Endpoint (Epic 4)...")
-    with patch("ollama.chat") as mock_ollama:
+    with patch("ollama.Client.chat") as mock_ollama:
         mock_eval_json = '{"final_score": 8, "technical_score": 8, "communication_score": 9, "strengths": ["Clear communication"], "technical_mistakes": ["Omitted indexing"], "grammar_mistakes": [], "model_answers": [{"question": "Scalable APIs?", "model_answer": "Use caching, indexing, and connection pools."}], "overall_feedback": "Solid performance."}'
         mock_ollama.return_value = {"message": {"content": mock_eval_json}}
         resp = client.post(f"/interview/{session_id}/evaluate")
@@ -172,5 +189,65 @@ def test_new_endpoints(client):
     assert api_jobs_data["total"] > 0
     assert len(api_jobs_data["jobs"]) == api_jobs_data["total"]
     assert "apply_url" in api_jobs_data["jobs"][0]
+
+    print("Testing Celery Asynchronous PDF Worker (Section 7.1)...")
+    with patch("app.worker.tasks.extract_cv_data") as mock_extract:
+        mock_extract.return_value = ExtractedCVData(
+            skills=["Python", "FastAPI", "Docker"],
+            projects=[],
+            education=[],
+            experience=[],
+            is_linkedin=False,
+        )
+        resp = client.post("/extract/async", json={"file_id": "file123"})
+        assert resp.status_code == 200, resp.text
+        task_data = resp.json()
+        assert "task_id" in task_data
+        async_task_id = task_data["task_id"]
+
+        status_resp = client.get(f"/cv/status/{async_task_id}")
+        assert status_resp.status_code == 200, status_resp.text
+        status_data = status_resp.json()
+        assert status_data["task_id"] == async_task_id
+        assert status_data["status"] == "completed"
+        assert status_data["result"] is not None
+        assert "Python" in status_data["result"]["skills"]
+
+    print("Testing Full ATS CV Builder & Exporter (Section 7.1)...")
+    optimize_resp = client.post(
+        f"/extract/{extraction_id}/ats-builder/optimize",
+        json={
+            "full_name": "Test Candidate",
+            "target_role": "Backend Engineer",
+            "skills": ["Python", "FastAPI", "PostgreSQL", "Docker", "Redis"],
+        },
+    )
+    assert optimize_resp.status_code == 200, optimize_resp.text
+    opt_data = optimize_resp.json()
+    assert opt_data["full_name"] == "Test Candidate"
+    assert opt_data["target_role"] == "Backend Engineer"
+    assert len(opt_data["summary"]) > 20
+    assert "Python" in opt_data["skills"]
+
+    export_resp = client.post(
+        f"/extract/{extraction_id}/export-ats-pdf",
+        json={
+            "full_name": "Test Candidate",
+            "target_role": "Backend Engineer",
+            "summary": "Experienced engineer with a focus on high-throughput REST APIs.",
+            "skills": ["Python", "Docker"],
+            "experience": [
+                {
+                    "title": "Software Engineer",
+                    "company": "Tech Corp",
+                    "duration_months": 24,
+                    "description": "Architected microservices with FastAPI.",
+                }
+            ],
+        },
+    )
+    assert export_resp.status_code == 200, export_resp.text
+    assert export_resp.headers["content-type"] == "application/pdf"
+    assert export_resp.content.startswith(b"%PDF")
 
     print("All tests passed successfully! 🚀")

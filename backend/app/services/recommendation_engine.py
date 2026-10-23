@@ -384,15 +384,31 @@ Return ONLY a valid JSON array with 3 objects. Format exactly like this:
 ]
 """
         try:
-            response = ollama.chat(model=getattr(settings, "OLLAMA_MODEL", "career-model"), messages=[
+            from app.services.llm_client import ollama_chat
+            
+            ai_raw = json.loads(ollama_chat([
                 {'role': 'system', 'content': 'You are a career advisor API that strictly outputs JSON arrays.'},
                 {'role': 'user', 'content': prompt}
-            ], format='json')
-            
-            ai_roadmap = json.loads(response['message']['content'])
-            if isinstance(ai_roadmap, list) and len(ai_roadmap) > 0:
-                logger.info("Successfully generated AI personalized roadmap.")
-                return ai_roadmap
+            ], json_mode=True))
+            if isinstance(ai_raw, dict):
+                for val in ai_raw.values():
+                    if isinstance(val, list):
+                        ai_raw = val
+                        break
+            if isinstance(ai_raw, list) and len(ai_raw) > 0:
+                valid_roadmap = []
+                for idx, item in enumerate(ai_raw[:3], start=1):
+                    if isinstance(item, dict):
+                        valid_roadmap.append(
+                            {
+                                "month": int(item.get("month") or idx),
+                                "goals": [str(g) for g in (item.get("goals") or []) if g] or [f"Month {idx} learning goals"],
+                                "skills_to_learn": [str(s) for s in (item.get("skills_to_learn") or []) if s],
+                            }
+                        )
+                if valid_roadmap:
+                    logger.info("Successfully generated AI personalized roadmap.")
+                    return valid_roadmap
         except Exception as e:
             logger.warning(f"AI Roadmap generation failed, falling back to static roadmap: {e}")
 

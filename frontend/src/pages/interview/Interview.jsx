@@ -4,6 +4,7 @@ import {
   chatInterview,
   getInterviewSession,
   evaluateInterview,
+  sendVoiceInterviewAnswer,
 } from "../../api/endpoints";
 import { getErrorMessage } from "../../api/client";
 
@@ -20,7 +21,19 @@ export default function Interview() {
   const [sessionStatus, setSessionStatus] = useState("in_progress"); // in_progress | completed
   const [initialLoading, setInitialLoading] = useState(true);
 
+  // Phase 2 (Section 7.1): Voice & Audio Mock Interviews state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [latestVoiceFeedback, setLatestVoiceFeedback] = useState(null);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+
   const messagesEndRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recognitionRef = useRef(null);
+  const timerRef = useRef(null);
+  const recordingStartRef = useRef(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -29,7 +42,14 @@ export default function Interview() {
         if (!isMounted) return;
         setJobTitle(res.data.job_title || "الوظيفة المستهدفة");
         setSessionStatus(res.data.status || "in_progress");
-        setMessages(res.data.messages || []);
+        const loadedMessages = res.data.messages || [];
+        setMessages(loadedMessages);
+        const lastWithVoice = [...loadedMessages]
+          .reverse()
+          .find((m) => m.voice_feedback);
+        if (lastWithVoice?.voice_feedback) {
+          setLatestVoiceFeedback(lastWithVoice.voice_feedback);
+        }
         if (res.data.evaluation) {
           setEvaluation(res.data.evaluation);
         }
@@ -43,12 +63,29 @@ export default function Interview() {
 
     return () => {
       isMounted = false;
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
     };
   }, [sessionId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Optional Text-to-Speech for AI interviewer questions
+  const speakText = (text) => {
+    if (!ttsEnabled || !window.speechSynthesis || !text) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const hasArabic = /[\u0600-\u06FF]/.test(text);
+      utterance.lang = hasArabic ? "ar-SA" : "en-US";
+      utterance.rate = 1.0;
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      // Ignore TTS errors on unsupported browsers
+    }
+  };
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -61,10 +98,153 @@ export default function Interview() {
 
     try {
       const res = await chatInterview(sessionId, userMsg);
-      setMessages(res.data.messages);
+      const updated = res.data.messages || [];
+      setMessages(updated);
       setSessionStatus(res.data.status || "in_progress");
+      const lastMsg = updated[updated.length - 1];
+      if (lastMsg?.role === "assistant") {
+        speakText(lastMsg.content);
+      }
     } catch (err) {
       alert(getErrorMessage(err, "فشل إرسال الإجابة، يرجى المحاولة ثانية"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startVoiceRecording = async () => {
+    if (loading || evaluating || sessionStatus === "completed") return;
+    setLiveTranscript("");
+    setRecordingSeconds(0);
+    audioChunksRef.current = [];
+    recordingStartRef.current = Date.now();
+
+    // 1. Start Web Speech API live transcription if supported by browser
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "ar-SA";
+        recognition.onresult = (event) => {
+          let combined = "";
+          for (let i = 0; i < event.results.length; i++) {
+            combined += event.results[i][0].transcript + " ";
+          }
+          setLiveTranscript(combined.trim());
+        };
+        recognition.start();
+        recognitionRef.current = recognition;
+      } catch {
+        recognitionRef.current = null;
+      }
+    }
+
+    // 2. Start MediaRecorder for Whisper audio capture
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (ev) => {
+          if (ev.data && ev.data.size > 0) {
+            audioChunksRef.current.push(ev.data);
+          }
+        };
+        mediaRecorder.start();
+        mediaRecorderRef.current = mediaRecorder;
+      } catch {
+        mediaRecorderRef.current = null;
+      }
+    }
+
+    setIsRecording(true);
+    timerRef.current = setInterval(() => {
+      setRecordingSeconds(
+        Math.max(1, Math.round((Date.now() - recordingStartRef.current) / 1000))
+      );
+    }, 500);
+  };
+
+  const stopAndSubmitVoiceRecording = async () => {
+    if (!isRecording) return;
+    setIsRecording(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    const durationSec = Math.max(
+      2,
+      Math.round((Date.now() - recordingStartRef.current) / 1000)
+    );
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // ignore
+      }
+      recognitionRef.current = null;
+    }
+
+    let audioBlob = null;
+    if (mediaRecorderRef.current) {
+      await new Promise((resolve) => {
+        mediaRecorderRef.current.onstop = () => {
+          if (audioChunksRef.current.length > 0) {
+            audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+          }
+          mediaRecorderRef.current.stream
+            ?.getTracks()
+            .forEach((t) => t.stop());
+          resolve();
+        };
+        try {
+          mediaRecorderRef.current.stop();
+        } catch {
+          resolve();
+        }
+      });
+      mediaRecorderRef.current = null;
+    }
+
+    const transcriptHint = (liveTranscript || input).trim();
+    if (!audioBlob && !transcriptHint) {
+      alert(
+        "لم يتم التقاط صوت واضح. يرجى التأكد من تفعيل الميكروفون أو التحدث بوضوح."
+      );
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await sendVoiceInterviewAnswer(
+        sessionId,
+        audioBlob,
+        durationSec,
+        transcriptHint
+      );
+      const updated = res.data.messages || [];
+      setMessages(updated);
+      setSessionStatus(res.data.status || "in_progress");
+      if (res.data.voice_feedback) {
+        setLatestVoiceFeedback(res.data.voice_feedback);
+      }
+      setLiveTranscript("");
+      setInput("");
+      const lastMsg = updated[updated.length - 1];
+      if (lastMsg?.role === "assistant") {
+        speakText(lastMsg.content);
+      }
+    } catch (err) {
+      alert(
+        getErrorMessage(
+          err,
+          "تعذر معالجة الإجابة الصوتية، يرجى المحاولة مرة أخرى"
+        )
+      );
     } finally {
       setLoading(false);
     }
@@ -116,7 +296,7 @@ export default function Interview() {
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-xl">🎙️</span>
             <h1 className="text-lg sm:text-xl font-black tracking-tight text-slate-900">
-              استوديو المقابلات التقنية الذكي
+              استوديو المقابلات التقنية والصوتية الذكي
             </h1>
             {sessionStatus === "completed" ? (
               <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-0.5 text-xs font-extrabold text-emerald-700">
@@ -125,7 +305,7 @@ export default function Interview() {
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-0.5 text-xs font-extrabold text-indigo-700">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>جلسة مباشرة</span>
+                <span>جلسة مباشرة (نص + صوت AI)</span>
               </span>
             )}
           </div>
@@ -135,7 +315,20 @@ export default function Interview() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setTtsEnabled((v) => !v)}
+            className={`rounded-xl border px-3 py-2 text-xs font-extrabold transition ${
+              ttsEnabled
+                ? "border-indigo-300 bg-indigo-100 text-indigo-800"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+            title="تفعيل أو إيقاف قراءة أسئلة المحاور صوتياً"
+          >
+            {ttsEnabled ? "🔊 القراءة الصوتية مفعّلة" : "🔇 قراءة الأسئلة صوتياً"}
+          </button>
+
           {sessionStatus !== "completed" && (
             <button
               onClick={handleFinishAndEvaluate}
@@ -156,6 +349,41 @@ export default function Interview() {
         </div>
       </div>
 
+      {/* Latest Voice Delivery AI Feedback Banner */}
+      {latestVoiceFeedback && (
+        <div className="mb-3 rounded-2xl border border-indigo-200/80 bg-gradient-to-l from-indigo-50/90 via-white to-violet-50/80 px-5 py-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎧</span>
+              <div>
+                <p className="text-xs font-black text-indigo-950">
+                  تحليل الذكاء الاصطناعي للأداء الصوتي (Whisper & Vocal AI)
+                </p>
+                <p className="text-[11px] font-medium text-slate-600">
+                  {latestVoiceFeedback.feedback_summary}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-xl bg-white border border-indigo-200 px-2.5 py-1 font-extrabold text-indigo-700">
+                وضوح النطق: {latestVoiceFeedback.clarity_score}/10
+              </span>
+              <span className="rounded-xl bg-white border border-emerald-200 px-2.5 py-1 font-extrabold text-emerald-700">
+                السرعة: {latestVoiceFeedback.pace_score}/10 ({latestVoiceFeedback.words_per_minute} كلمة/د)
+              </span>
+              <span className="rounded-xl bg-white border border-violet-200 px-2.5 py-1 font-extrabold text-violet-700">
+                الثقة الصوتية: {latestVoiceFeedback.confidence_score}/10
+              </span>
+            </div>
+          </div>
+          {latestVoiceFeedback.tips?.length > 0 && (
+            <p className="mt-1.5 text-[11px] font-bold text-indigo-700">
+              💡 نصيحة الإلقاء: {latestVoiceFeedback.tips[0]}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
         {/* Chat Stream */}
@@ -164,7 +392,7 @@ export default function Interview() {
             <div className="text-center text-slate-400 my-auto py-12">
               <span className="text-4xl block mb-3">💬</span>
               <p className="font-bold text-slate-600">
-                أرسل رسالة ترحيب لبدء محاكاة المقابلة التقنية...
+                أرسل رسالة ترحيب أو سجّل إجابتك صوتياً لبدء محاكاة المقابلة التقنية...
               </p>
             </div>
           )}
@@ -178,8 +406,19 @@ export default function Interview() {
                   isUser ? "items-end" : "items-start"
                 }`}
               >
-                <span className="text-[11px] font-extrabold text-slate-400 mb-1 px-1.5">
-                  {isUser ? "👤 أنت (المرشح)" : "🤖 المُحاور الذكي"}
+                <span className="text-[11px] font-extrabold text-slate-400 mb-1 px-1.5 flex items-center gap-1">
+                  {isUser ? (
+                    <>
+                      <span>👤 أنت (المرشح)</span>
+                      {msg.voice_feedback && (
+                        <span className="rounded-full bg-indigo-100 text-indigo-700 px-2 py-0.2 text-[10px]">
+                          🎙️ إجابة صوتية
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    "🤖 المُحاور الذكي"
+                  )}
                 </span>
                 <div
                   className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-line shadow-sm ${
@@ -303,22 +542,65 @@ export default function Interview() {
         )}
       </div>
 
+      {/* Live Voice Recording Banner */}
+      {isRecording && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <span className="h-3 w-3 rounded-full bg-rose-600 animate-ping" />
+            <span className="font-black text-rose-800">
+              جاري التسجيل الصوتي ({recordingSeconds} ثانية)... تحدث بوضوح
+            </span>
+            {liveTranscript && (
+              <span className="text-slate-600 italic truncate max-w-md">
+                &ldquo;{liveTranscript}&rdquo;
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={stopAndSubmitVoiceRecording}
+            className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-extrabold text-white shadow-sm hover:bg-rose-700"
+          >
+            ⏹️ إيقاف وإرسال الإجابة الصوتية
+          </button>
+        </div>
+      )}
+
       {/* Input Form */}
       {sessionStatus !== "completed" ? (
         <form onSubmit={sendMessage} className="flex gap-2.5 mt-3">
+          <button
+            type="button"
+            onClick={
+              isRecording ? stopAndSubmitVoiceRecording : startVoiceRecording
+            }
+            disabled={loading || evaluating}
+            className={`rounded-2xl px-4 py-3.5 text-xs font-extrabold border transition shrink-0 flex items-center gap-1.5 ${
+              isRecording
+                ? "border-rose-300 bg-rose-600 text-white animate-pulse"
+                : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            }`}
+            title="الإجابة بالصوت وتحليل النطق والسرعة والثقة الصوتية"
+          >
+            <span>🎙️</span>
+            <span className="hidden sm:inline">
+              {isRecording ? "إرسال الصوت" : "إجابة صوتية"}
+            </span>
+          </button>
+
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="اكتب إجابتك التقنية هنا بوضوح واضغط إرسال..."
+            placeholder="اكتب إجابتك التقنية هنا أو اضغط (🎙️ إجابة صوتية) للتحدث مباشرة..."
             className="input-field flex-1 text-sm py-3.5"
-            disabled={loading || evaluating}
+            disabled={loading || evaluating || isRecording}
             autoFocus
           />
           <button
             type="submit"
             className="btn-primary whitespace-nowrap px-7"
-            disabled={loading || evaluating || !input.trim()}
+            disabled={loading || evaluating || isRecording || !input.trim()}
           >
             إرسال الإجابة ←
           </button>

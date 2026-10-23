@@ -19,6 +19,7 @@ import {
   updateRoadmapSkillProgress,
 } from "../../api/endpoints";
 import CircularProgress from "../../components/ui/CircularProgress";
+import AtsCvBuilderModal from "../../components/features/AtsCvBuilderModal";
 import FeedbackWidget from "../../components/features/FeedbackWidget";
 import ShareModal from "../../components/features/ShareModal";
 import { useAnalysisFlow } from "../../context/AnalysisContext";
@@ -348,6 +349,7 @@ export default function Results() {
   const [analysis, setAnalysis] = useState(location.state?.analysis || null);
   const [status, setStatus] = useState(analysis ? "loaded" : "loading");
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [showAtsBuilder, setShowAtsBuilder] = useState(false);
   const [completedSkills, setCompletedSkills] = useState(
     () => new Set(analysis?.completed_skills || [])
   );
@@ -584,6 +586,13 @@ export default function Results() {
                 className="btn-primary !py-2.5 !px-5 !text-xs"
               >
                 {isDownloadingPdf ? "جاري التصدير..." : "📥 تحميل التقرير PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAtsBuilder(true)}
+                className="btn-secondary !py-2.5 !px-5 !text-xs"
+              >
+                📄 بناء وتصدير سيرة ذاتية ATS
               </button>
               <button
                 type="button"
@@ -983,6 +992,15 @@ export default function Results() {
             </div>
           </div>
         </div>
+      )}
+
+      {showAtsBuilder && (
+        <AtsCvBuilderModal
+          extractionId={analysis.analysis_id || analysisId}
+          initialSkills={analysis.strengths || []}
+          defaultRole={analysis.top_jobs?.[0]?.job_title || ""}
+          onClose={() => setShowAtsBuilder(false)}
+        />
       )}
     </div>
   );

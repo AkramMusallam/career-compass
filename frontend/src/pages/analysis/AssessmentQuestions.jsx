@@ -101,7 +101,15 @@ export default function AssessmentQuestions() {
     getAssessmentQuestions()
       .then((res) => {
         if (!mounted) return;
-        setQuestions(res.data.questions);
+        const qs = res.data.questions || [];
+        setQuestions(qs);
+        const initialScaleAnswers = {};
+        for (const q of qs) {
+          if (q.type === "scale") {
+            initialScaleAnswers[q.id] = 3;
+          }
+        }
+        setAnswers((prev) => ({ ...initialScaleAnswers, ...prev }));
         setStatus("ready");
       })
       .catch(() => mounted && setStatus("error"));

@@ -6,7 +6,7 @@ const baseURL = rawBaseURL.replace(/\/+$/, "");
 
 const apiClient = axios.create({
   baseURL,
-  timeout: 30000,
+  timeout: 180000,
   headers: {
     "ngrok-skip-browser-warning": "69420",
   },

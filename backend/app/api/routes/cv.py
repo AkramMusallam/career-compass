@@ -213,3 +213,198 @@ def create_cover_letter(extraction_id: str, payload: CoverLetterRequest, current
 
     letter = generate_cover_letter(source, payload.job_description)
     return CoverLetterResponse(cover_letter=letter)
+
+
+# ============================================================
+# Phase 2 (Section 7.1): Celery Asynchronous PDF Worker
+# ============================================================
+import json
+from io import BytesIO
+from fastapi.responses import StreamingResponse
+from app.core.mongo import cv_tasks_collection
+from app.schemas.schemas import (
+    ATSResumeBuildRequest,
+    ATSResumeOptimizeResponse,
+    AsyncExtractResponse,
+    CVTaskStatusResponse,
+)
+from app.services.cv_extraction import call_llm
+from app.services.pdf_export import build_ats_resume_pdf
+from app.worker.tasks import parse_cv_task
+
+
+@router.post("/extract/async", response_model=AsyncExtractResponse)
+def extract_async(payload: ExtractRequest, current_user: User = Depends(get_current_user)):
+    """Phase 2 (Section 7.1): Dispatches CV parsing to Celery background worker (`parse_cv_task`).
+
+    Returns an immediate `task_id` that the client polls via `GET /cv/status/{task_id}`.
+    Falls back seamlessly to synchronous execution if Redis broker is not reachable in local dev.
+    """
+    upload = uploads_collection.find_one({"file_id": payload.file_id, "user_id": current_user.id})
+    if upload is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Uploaded file not found")
+
+    task_id = str(uuid.uuid4())
+    cv_tasks_collection.insert_one(
+        {
+            "task_id": task_id,
+            "user_id": current_user.id,
+            "file_id": payload.file_id,
+            "status": "processing",
+            "extraction_id": None,
+            "result": None,
+            "error": None,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+
+    try:
+        parse_cv_task.apply_async(args=[payload.file_id, current_user.id, task_id], task_id=task_id)
+    except Exception:
+        # Broker offline in local development: execute task directly so polling succeeds immediately
+        parse_cv_task(payload.file_id, current_user.id, task_id)
+
+    task_doc = cv_tasks_collection.find_one({"task_id": task_id, "user_id": current_user.id})
+    current_status = task_doc.get("status", "processing") if task_doc else "processing"
+    return AsyncExtractResponse(task_id=task_id, status=current_status)
+
+
+@router.get("/cv/status/{task_id}", response_model=CVTaskStatusResponse)
+def get_cv_task_status(task_id: str, current_user: User = Depends(get_current_user)):
+    """Phase 2 (Section 7.1): Polls the status of an asynchronous CV parsing task (`parse_cv_task`)."""
+    task_doc = cv_tasks_collection.find_one({"task_id": task_id, "user_id": current_user.id})
+    if task_doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CV task not found")
+
+    task_status = task_doc.get("status", "processing")
+    result_data = task_doc.get("result")
+    result_model = ExtractResponse(**result_data) if isinstance(result_data, dict) and result_data.get("extraction_id") else None
+
+    return CVTaskStatusResponse(
+        task_id=task_id,
+        status=task_status,
+        extraction_id=task_doc.get("extraction_id"),
+        result=result_model,
+        error=task_doc.get("error"),
+    )
+
+
+# ============================================================
+# Phase 2 (Section 7.1): Full ATS CV Builder & Exporter
+# ============================================================
+
+
+def _resolve_extraction_or_analysis_doc(id_or_analysis_id: str, user_id: int) -> tuple[dict | None, dict | None]:
+    extraction = extractions_collection.find_one({"extraction_id": id_or_analysis_id, "user_id": user_id})
+    analysis = None
+    if not extraction:
+        analysis = analysis_results_collection.find_one({"analysis_id": id_or_analysis_id, "user_id": user_id})
+        if analysis and analysis.get("extraction_id"):
+            extraction = extractions_collection.find_one(
+                {"extraction_id": analysis["extraction_id"], "user_id": user_id}
+            )
+    else:
+        analysis = analysis_results_collection.find_one({"extraction_id": id_or_analysis_id, "user_id": user_id})
+    return extraction, analysis
+
+
+@router.post("/extract/{extraction_id}/ats-builder/optimize", response_model=ATSResumeOptimizeResponse)
+def optimize_ats_resume(
+    extraction_id: str,
+    payload: ATSResumeBuildRequest | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Phase 2 (Section 7.1): Refines and optimizes candidate profile data for ATS resume building."""
+    extraction, analysis = _resolve_extraction_or_analysis_doc(extraction_id, current_user.id)
+    if not extraction and not analysis and payload is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Extraction or analysis not found")
+
+    source_doc = extraction or analysis or {}
+    full_name = (payload.full_name if payload and payload.full_name else "") or current_user.full_name or "Candidate"
+    email = (payload.email if payload and payload.email else "") or current_user.email or ""
+    phone = payload.phone if payload else ""
+    location = payload.location if payload else ""
+    linkedin_url = payload.linkedin_url if payload else ""
+
+    target_role = (payload.target_role if payload and payload.target_role else "")
+    if not target_role and analysis:
+        top_jobs = analysis.get("top_jobs") or []
+        if top_jobs and isinstance(top_jobs[0], dict):
+            target_role = top_jobs[0].get("job_title", "")
+        elif isinstance(analysis.get("job_match"), dict):
+            target_role = analysis["job_match"].get("top_job", "")
+    if not target_role:
+        target_role = "Software Engineer"
+
+    skills = (payload.skills if payload and payload.skills else None) or list(
+        source_doc.get("skills") or source_doc.get("strengths") or []
+    )
+    experience = (
+        [e.model_dump() for e in payload.experience]
+        if payload and payload.experience
+        else list(source_doc.get("experience") or [])
+    )
+    projects = (
+        [p.model_dump() for p in payload.projects]
+        if payload and payload.projects
+        else list(source_doc.get("projects") or [])
+    )
+    education = (
+        [ed.model_dump() for ed in payload.education]
+        if payload and payload.education
+        else list(source_doc.get("education") or [])
+    )
+
+    summary = payload.summary.strip() if payload and payload.summary else ""
+    if not summary:
+        prompt = f"""
+Write a concise, high-impact, ATS-optimized professional summary (3-4 sentences) for a {target_role} candidate.
+Candidate Skills: {', '.join(skills[:12])}
+Return ONLY the summary text, no quotes or markdown.
+"""
+        try:
+            ai_summary = call_llm(prompt, "You are an expert ATS resume writer.", is_json=False).strip()
+            if ai_summary and len(ai_summary) > 30:
+                summary = ai_summary
+        except Exception:
+            pass
+
+    if not summary:
+        top_skills_str = ", ".join(skills[:6]) if skills else "software engineering and modern web technologies"
+        summary = (
+            f"Results-driven {target_role} with strong technical proficiency in {top_skills_str}. "
+            f"Experienced in designing, developing, and delivering scalable software solutions aligned with industry best practices. "
+            f"Proven ability to solve complex engineering problems and collaborate effectively in agile environments."
+        )
+
+    return ATSResumeOptimizeResponse(
+        full_name=full_name,
+        target_role=target_role,
+        email=email,
+        phone=phone,
+        location=location,
+        linkedin_url=linkedin_url,
+        summary=summary,
+        skills=skills,
+        experience=experience,
+        projects=projects,
+        education=education,
+    )
+
+
+@router.post("/extract/{extraction_id}/export-ats-pdf")
+def export_ats_resume_pdf(
+    extraction_id: str,
+    payload: ATSResumeBuildRequest | None = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Phase 2 (Section 7.1): Formats and exports an ATS-compliant resume PDF directly from refined profile data."""
+    optimized = optimize_ats_resume(extraction_id=extraction_id, payload=payload, current_user=current_user)
+    pdf_bytes = build_ats_resume_pdf(optimized.model_dump())
+    filename = f"ATS-Resume-{extraction_id[:8]}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

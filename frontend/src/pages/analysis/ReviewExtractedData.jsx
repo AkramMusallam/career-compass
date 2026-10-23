@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import { getErrorMessage } from "../../api/client";
 import { confirmExtraction, getAtsScore } from "../../api/endpoints";
+import AtsCvBuilderModal from "../../components/features/AtsCvBuilderModal";
 import Stepper from "../../components/ui/Stepper";
 import { useAnalysisFlow } from "../../context/AnalysisContext";
 
-function AtsScoreSection({ extractionId }) {
+function AtsScoreSection({ extractionId, onOpenAtsBuilder }) {
   const [scoreData, setScoreData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +31,18 @@ function AtsScoreSection({ extractionId }) {
 
   return (
     <section className="card bg-primary-50 border-primary-100">
-      <h2 className="mb-3 font-black text-primary-900">مقياس توافق السيرة الذاتية (ATS Score)</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <h2 className="font-black text-primary-900">مقياس توافق السيرة الذاتية (ATS Score)</h2>
+        {onOpenAtsBuilder && (
+          <button
+            type="button"
+            onClick={onOpenAtsBuilder}
+            className="rounded-xl bg-gradient-to-l from-indigo-600 to-violet-600 px-4 py-2 text-xs font-extrabold text-white shadow-sm hover:opacity-95 transition"
+          >
+            📄 بناء وتصدير سيرة ذاتية متوافقة مع ATS
+          </button>
+        )}
+      </div>
       <div className="flex items-center gap-4 mb-4">
         <div className={`text-4xl font-black ${scoreData.score >= 70 ? 'text-green-600' : 'text-warning'}`}>
           {scoreData.score}%
@@ -154,10 +166,23 @@ function ProjectsSection({ projects, setProjects }) {
               type="text"
               className="input-field"
               placeholder="التقنيات المستخدمة (مفصولة بفاصلة)"
-              value={(project.technologies || []).join(", ")}
+              value={
+                project._rawTech !== undefined
+                  ? project._rawTech
+                  : (project.technologies || []).join(", ")
+              }
               onChange={(e) =>
                 updateProject(index, {
-                  technologies: e.target.value.split(",").map((t) => t.trim()).filter(Boolean),
+                  _rawTech: e.target.value,
+                  technologies: e.target.value
+                    .split(/[,،]/)
+                    .map((t) => t.trim())
+                    .filter(Boolean),
+                })
+              }
+              onBlur={() =>
+                updateProject(index, {
+                  _rawTech: undefined,
                 })
               }
             />
@@ -292,10 +317,10 @@ export default function ReviewExtractedData() {
   const [experience, setExperience] = useState(extractedData?.experience || []);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showAtsBuilder, setShowAtsBuilder] = useState(false);
 
   if (!extractionId || !extractedData) {
-    navigate("/analysis/upload", { replace: true });
-    return null;
+    return <Navigate to="/analysis/upload" replace />;
   }
 
   const canContinue = skills.length > 0 && !isSaving;
@@ -358,11 +383,25 @@ export default function ReviewExtractedData() {
         </div>
       )}
 
-      <AtsScoreSection extractionId={extractionId} />
+      <AtsScoreSection
+        extractionId={extractionId}
+        onOpenAtsBuilder={() => setShowAtsBuilder(true)}
+      />
       <SkillsSection skills={skills} setSkills={setSkills} />
       <ProjectsSection projects={projects} setProjects={setProjects} />
       <EducationSection education={education} setEducation={setEducation} />
       <ExperienceSection experience={experience} setExperience={setExperience} />
+
+      {showAtsBuilder && (
+        <AtsCvBuilderModal
+          extractionId={extractionId}
+          initialSkills={skills}
+          initialProjects={projects}
+          initialEducation={education}
+          initialExperience={experience}
+          onClose={() => setShowAtsBuilder(false)}
+        />
+      )}
 
       {skills.length === 0 && (
         <p className="text-sm font-semibold text-warning">يجب وجود مهارة واحدة على الأقل للمتابعة</p>

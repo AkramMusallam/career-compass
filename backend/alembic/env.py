@@ -21,7 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.models.mysql_models import Base
-from app.config import settings
+from app.core.config import settings
 
 # add your model's MetaData object here
 # for 'autogenerate' support

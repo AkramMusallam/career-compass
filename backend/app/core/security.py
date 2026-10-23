@@ -45,6 +45,7 @@ def create_access_token(subject: str, extra_claims: Optional[dict] = None) -> st
     expire = now + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     to_encode = {
         "sub": subject,
+        "type": "access",
         "iat": now,
         "exp": expire,
         "jti": str(uuid.uuid4()),
@@ -95,6 +96,8 @@ def get_current_user(
         raise credentials_exception
 
     payload = decode_access_token(token)
+    if payload.get("type") == "password_reset":
+        raise credentials_exception
     user_id = payload.get("sub")
     if user_id is None:
         raise credentials_exception

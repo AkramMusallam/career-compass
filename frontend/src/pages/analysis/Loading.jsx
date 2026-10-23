@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { getErrorMessage } from "../../api/client";
-import { extractCVData, runAnalysis } from "../../api/endpoints";
+import {
+  extractCVData,
+  getCVTaskStatus,
+  runAnalysis,
+  startAsyncCVExtraction,
+} from "../../api/endpoints";
 import CompassLogo from "../../components/layout/CompassLogo";
 import { useAnalysisFlow } from "../../context/AnalysisContext";
 
@@ -42,10 +47,37 @@ export default function Loading() {
           navigate("/analysis/upload", { replace: true });
           return;
         }
-        const res = await extractCVData(fileId);
-        setExtractionId(res.data.extraction_id);
-        setExtractedData(res.data);
-        navigate("/analysis/review", { replace: true });
+        try {
+          const asyncRes = await startAsyncCVExtraction(fileId);
+          const taskId = asyncRes.data.task_id;
+          let finalResult = null;
+
+          for (let attempt = 0; attempt < 25; attempt++) {
+            const statusRes = await getCVTaskStatus(taskId);
+            if (statusRes.data.status === "completed" && statusRes.data.result) {
+              finalResult = statusRes.data.result;
+              break;
+            }
+            if (statusRes.data.status === "failed") {
+              throw new Error(statusRes.data.error || "فشل تحليل السيرة الذاتية");
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+          }
+
+          if (!finalResult) {
+            const fallbackRes = await extractCVData(fileId);
+            finalResult = fallbackRes.data;
+          }
+
+          setExtractionId(finalResult.extraction_id);
+          setExtractedData(finalResult);
+          navigate("/analysis/review", { replace: true });
+        } catch {
+          const res = await extractCVData(fileId);
+          setExtractionId(res.data.extraction_id);
+          setExtractedData(res.data);
+          navigate("/analysis/review", { replace: true });
+        }
       } else {
         if (!extractionId || !assessmentId) {
           navigate("/analysis/upload", { replace: true });

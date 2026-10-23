@@ -215,3 +215,223 @@ def build_analysis_pdf(analysis: dict) -> bytes:
 
     doc.build(story)
     return buffer.getvalue()
+
+
+def _has_arabic(text: str) -> bool:
+    return any("\u0600" <= ch <= "\u06FF" for ch in (text or ""))
+
+
+def _format_ats_text(text: str) -> str:
+    """Shapes Arabic/mixed text with rtl() while keeping pure English text natural."""
+    if not text:
+        return ""
+    if _has_arabic(str(text)):
+        return rtl(str(text))
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def build_ats_resume_pdf(resume_data: dict) -> bytes:
+    """Phase 2 (Section 7.1): Full ATS CV Builder & Exporter.
+
+    Generates a clean, single-column, ATS-compliant PDF resume from refined profile data.
+    Supports both English and Arabic text seamlessly using bundled Amiri fonts.
+    """
+    buffer = BytesIO()
+    doc = BaseDocTemplate(
+        buffer,
+        pagesize=A4,
+        topMargin=1.4 * cm,
+        bottomMargin=1.4 * cm,
+        leftMargin=1.6 * cm,
+        rightMargin=1.6 * cm,
+    )
+    frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="ats_main")
+    doc.addPageTemplates([PageTemplate(id="ats_template", frames=frame)])
+
+    # Determine dominant direction based on whether summary/name/experience contain Arabic
+    sample_blob = " ".join(
+        [
+            str(resume_data.get("full_name", "")),
+            str(resume_data.get("target_role", "")),
+            str(resume_data.get("summary", "")),
+        ]
+    )
+    is_rtl_doc = _has_arabic(sample_blob)
+    body_align = TA_RIGHT if is_rtl_doc else 0  # 0 = TA_LEFT
+
+    ats_styles = {
+        "name": ParagraphStyle(
+            "ats_name",
+            fontName="Amiri-Bold",
+            fontSize=20,
+            textColor=colors.HexColor("#0F172A"),
+            alignment=TA_CENTER,
+            leading=26,
+            spaceAfter=4,
+        ),
+        "role": ParagraphStyle(
+            "ats_role",
+            fontName="Amiri-Bold",
+            fontSize=12,
+            textColor=PRIMARY_COLOR,
+            alignment=TA_CENTER,
+            leading=16,
+            spaceAfter=4,
+        ),
+        "contact": ParagraphStyle(
+            "ats_contact",
+            fontName="Amiri",
+            fontSize=9.5,
+            textColor=SLATE_COLOR,
+            alignment=TA_CENTER,
+            leading=14,
+            spaceAfter=10,
+        ),
+        "section_header": ParagraphStyle(
+            "ats_section",
+            fontName="Amiri-Bold",
+            fontSize=12.5,
+            textColor=PRIMARY_COLOR,
+            alignment=body_align,
+            leading=16,
+            spaceBefore=10,
+            spaceAfter=4,
+        ),
+        "item_title": ParagraphStyle(
+            "ats_item_title",
+            fontName="Amiri-Bold",
+            fontSize=11,
+            textColor=colors.HexColor("#1E293B"),
+            alignment=body_align,
+            leading=15,
+            spaceBefore=4,
+            spaceAfter=2,
+        ),
+        "body": ParagraphStyle(
+            "ats_body",
+            fontName="Amiri",
+            fontSize=10.5,
+            textColor=colors.HexColor("#334155"),
+            alignment=body_align,
+            leading=15,
+            spaceAfter=4,
+        ),
+        "small": ParagraphStyle(
+            "ats_small",
+            fontName="Amiri",
+            fontSize=9.5,
+            textColor=SLATE_COLOR,
+            alignment=body_align,
+            leading=13,
+            spaceAfter=3,
+        ),
+    }
+
+    def add_divider():
+        div = Table([[""]], colWidths=[doc.width], rowHeights=[2])
+        div.setStyle(
+            TableStyle(
+                [
+                    ("LINEABOVE", (0, 0), (-1, 0), 1.0, colors.HexColor("#CBD5E1")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
+        )
+        story.append(div)
+        story.append(Spacer(1, 4))
+
+    story = []
+
+    # 1. Header (Name, Role, Contact)
+    full_name = resume_data.get("full_name") or "Candidate Name"
+    target_role = resume_data.get("target_role") or "Software Professional"
+    story.append(Paragraph(_format_ats_text(full_name), ats_styles["name"]))
+    story.append(Paragraph(_format_ats_text(target_role), ats_styles["role"]))
+
+    contact_parts = [
+        p
+        for p in [
+            resume_data.get("email"),
+            resume_data.get("phone"),
+            resume_data.get("location"),
+            resume_data.get("linkedin_url"),
+        ]
+        if p
+    ]
+    if contact_parts:
+        story.append(Paragraph(_format_ats_text("  |  ".join(str(c) for c in contact_parts)), ats_styles["contact"]))
+
+    add_divider()
+
+    # 2. Professional Summary
+    summary = (resume_data.get("summary") or "").strip()
+    if summary:
+        sec_title = "الملخص المهني (PROFESSIONAL SUMMARY)" if is_rtl_doc else "PROFESSIONAL SUMMARY"
+        story.append(Paragraph(_format_ats_text(sec_title), ats_styles["section_header"]))
+        story.append(Paragraph(_format_ats_text(summary), ats_styles["body"]))
+        add_divider()
+
+    # 3. Technical Skills & Core Competencies
+    skills = resume_data.get("skills") or []
+    if skills:
+        sec_title = "المهارات التقنية والأساسية (TECHNICAL SKILLS)" if is_rtl_doc else "TECHNICAL SKILLS & CORE COMPETENCIES"
+        story.append(Paragraph(_format_ats_text(sec_title), ats_styles["section_header"]))
+        skills_line = " • ".join(str(s) for s in skills if s)
+        story.append(Paragraph(_format_ats_text(skills_line), ats_styles["body"]))
+        add_divider()
+
+    # 4. Professional Experience
+    experience = resume_data.get("experience") or []
+    if experience:
+        sec_title = "الخبرات العملية (PROFESSIONAL EXPERIENCE)" if is_rtl_doc else "PROFESSIONAL EXPERIENCE"
+        story.append(Paragraph(_format_ats_text(sec_title), ats_styles["section_header"]))
+        for exp in experience:
+            if not isinstance(exp, dict):
+                continue
+            title = exp.get("title") or ""
+            company = exp.get("company") or ""
+            months = exp.get("duration_months") or 0
+            duration_label = f" ({months} months)" if months and not is_rtl_doc else (f" ({months} شهر)" if months else "")
+            header_line = f"{title} — {company}{duration_label}" if company else f"{title}{duration_label}"
+            if header_line.strip(" —"):
+                story.append(Paragraph(_format_ats_text(header_line), ats_styles["item_title"]))
+            desc = (exp.get("description") or "").strip()
+            if desc:
+                story.append(Paragraph(_format_ats_text(desc), ats_styles["body"]))
+        add_divider()
+
+    # 5. Key Projects
+    projects = resume_data.get("projects") or []
+    if projects:
+        sec_title = "المشاريع التقنية (KEY PROJECTS)" if is_rtl_doc else "KEY PROJECTS"
+        story.append(Paragraph(_format_ats_text(sec_title), ats_styles["section_header"]))
+        for proj in projects:
+            if not isinstance(proj, dict):
+                continue
+            p_title = proj.get("title") or "Project"
+            techs = proj.get("technologies") or []
+            tech_str = f" [{', '.join(str(t) for t in techs)}]" if techs else ""
+            story.append(Paragraph(_format_ats_text(f"{p_title}{tech_str}"), ats_styles["item_title"]))
+            p_desc = (proj.get("description") or "").strip()
+            if p_desc:
+                story.append(Paragraph(_format_ats_text(p_desc), ats_styles["body"]))
+        add_divider()
+
+    # 6. Education
+    education = resume_data.get("education") or []
+    if education:
+        sec_title = "التعليم والمؤهلات العلمية (EDUCATION)" if is_rtl_doc else "EDUCATION"
+        story.append(Paragraph(_format_ats_text(sec_title), ats_styles["section_header"]))
+        for edu in education:
+            if not isinstance(edu, dict):
+                continue
+            degree = edu.get("degree") or ""
+            inst = edu.get("institution") or ""
+            year = edu.get("year") or ""
+            edu_parts = [p for p in [degree, inst, str(year) if year else ""] if p]
+            if edu_parts:
+                story.append(Paragraph(_format_ats_text(" — ".join(edu_parts)), ats_styles["item_title"]))
+
+    doc.build(story)
+    return buffer.getvalue()

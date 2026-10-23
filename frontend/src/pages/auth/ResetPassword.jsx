@@ -17,7 +17,10 @@ export default function ResetPassword() {
   const [message, setMessage] = useState("");
 
   const passwordValid =
-    newPassword.length >= 8 && /\d/.test(newPassword) && /[a-zA-Z]/.test(newPassword);
+    newPassword.length >= 8 &&
+    /[A-Z]/.test(newPassword) &&
+    /[a-z]/.test(newPassword) &&
+    /[0-9]/.test(newPassword);
   const passwordsMatch =
     newPassword === confirmPassword && confirmPassword.length > 0;
   const canSubmit = passwordValid && passwordsMatch && status !== "loading";
@@ -84,7 +87,7 @@ export default function ResetPassword() {
               />
               {newPassword && !passwordValid && (
                 <p className="error-text">
-                  يجب أن تكون 8 أحرف على الأقل وتحتوي على رقم وحرف
+                  8 أحرف على الأقل، تحتوي حرفاً كبيراً وصغيراً ورقماً
                 </p>
               )}
             </div>

@@ -20,11 +20,11 @@ try {
 
 # 2. Start Backend in a new window
 Write-Host "Starting Backend..." -ForegroundColor Yellow
-Start-Process powershell -WorkingDirectory $backendDir -ArgumentList "-NoExit", "-Command", "`$env:PYTHONIOENCODING='utf-8'; `$env:USE_SQLITE_FALLBACK='1'; `$env:USE_MONGOMOCK='1'; .\myenv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
+Start-Process powershell -WorkingDirectory $backendDir -ArgumentList "-NoExit", "-Command", "`$env:PYTHONIOENCODING='utf-8'; `$env:USE_SQLITE_FALLBACK='1'; `$env:USE_MONGOMOCK='1'; .\myenv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
 # 3. Start Frontend in a new window
 Write-Host "Starting Frontend..." -ForegroundColor Yellow
-Start-Process powershell -WorkingDirectory $frontendDir -ArgumentList "-NoExit", "-Command", "`$env:VITE_API_BASE_URL='http://localhost:8000'; npm run dev"
+Start-Process powershell -WorkingDirectory $frontendDir -ArgumentList "-NoExit", "-Command", "`$env:VITE_API_BASE_URL='http://localhost:8000'; npm run dev -- --host 0.0.0.0 --port 5173"
 
 Start-Sleep -Seconds 2
 try {
