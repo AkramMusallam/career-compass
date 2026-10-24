@@ -42,6 +42,12 @@ async def upload_cv(file: UploadFile = File(...), current_user: User = Depends(g
             detail=f"File exceeds the maximum allowed size of {settings.MAX_UPLOAD_MB} MB",
         )
 
+    if not contents.startswith(b"%PDF-"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid PDF file format. File must be a valid PDF document.",
+        )
+
     file_id = str(uuid.uuid4())
     file_path = UPLOAD_DIR / f"{file_id}.pdf"
     file_path.write_bytes(contents)
