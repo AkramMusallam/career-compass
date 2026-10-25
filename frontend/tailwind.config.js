@@ -1,4 +1,4 @@
-﻿/** @type {import('tailwindcss').Config} */
+/** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
@@ -63,14 +63,14 @@ export default {
         },
         fade_in_up: {
           "0%": { opacity: 0, transform: "translateY(20px)" },
-          "100%": { opacity: 1, transform: "translateY(0)" },
+          "100%": { opacity: 1, transform: "none" },
         }
       },
       animation: {
         "compass-spin": "spin_slow 4s cubic-bezier(0.4, 0, 0.2, 1) infinite",
         "float": "float 3s ease-in-out infinite",
         "pulse-soft": "pulse_soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "fade-in-up": "fade_in_up 0.5s ease-out forwards",
+        "fade-in-up": "fade_in_up 0.5s ease-out",
       },
       boxShadow: {
         'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',

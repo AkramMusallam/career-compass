@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 
 import { getErrorMessage } from "../../api/client";
 import { createShareLink, revokeShareLink } from "../../api/endpoints";
@@ -43,9 +44,9 @@ export default function ShareModal({ analysisId, shareToken, onShareTokenChange,
     }
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 px-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4"
       onClick={onClose}
       role="presentation"
     >
@@ -83,6 +84,7 @@ export default function ShareModal({ analysisId, shareToken, onShareTokenChange,
           إغلاق
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
