@@ -48,6 +48,7 @@ def _doc_to_analyze_response(doc: dict) -> AnalyzeResponse:
     """محوّل مشترك من مستند MongoDB إلى AnalyzeResponse، يُستخدم في history detail والمقارنة."""
     return AnalyzeResponse(
         analysis_id=doc["analysis_id"],
+        date=doc.get("date"),
         career_score=doc["career_score"],
         career_dna=doc["career_dna"],
         top_jobs=[JobMatchOut(**j) for j in doc["top_jobs"]],
@@ -56,6 +57,7 @@ def _doc_to_analyze_response(doc: dict) -> AnalyzeResponse:
         skill_gap=SkillGapOut(**doc["skill_gap"]),
         roadmap=[RoadmapMonthOut(**m) for m in doc["roadmap"]],
         suggested_courses=[SuggestedCourseOut(**c) for c in doc["suggested_courses"]],
+        skills=doc.get("skills", []),
         completed_skills=doc.get("completed_skills", []),  # توافق مع تحليلات أُنشئت قبل Batch 2
         share_token=doc.get("share_token"),  # توافق مع تحليلات أُنشئت قبل Batch 4
     )

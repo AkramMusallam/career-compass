@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 
 from app.core.config import settings
 from app.models.mysql_models import User
@@ -177,7 +177,7 @@ def _resolve_extraction_source(id_or_analysis_id: str, user_id: int) -> str | No
 
     if extraction and extraction.get("file_id"):
         upload = uploads_collection.find_one({"file_id": extraction["file_id"]})
-        if upload and upload.get("path"):
+        if upload and upload.get("path") and Path(upload["path"]).is_file():
             return upload["path"]
 
     target = extraction or analysis
@@ -240,11 +240,15 @@ from app.worker.tasks import parse_cv_task
 
 
 @router.post("/extract/async", response_model=AsyncExtractResponse)
-def extract_async(payload: ExtractRequest, current_user: User = Depends(get_current_user)):
+def extract_async(
+    payload: ExtractRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+):
     """Phase 2 (Section 7.1): Dispatches CV parsing to Celery background worker (`parse_cv_task`).
 
     Returns an immediate `task_id` that the client polls via `GET /cv/status/{task_id}`.
-    Falls back seamlessly to synchronous execution if Redis broker is not reachable in local dev.
+    Falls back seamlessly to background execution if Redis broker is not reachable in local dev.
     """
     upload = uploads_collection.find_one({"file_id": payload.file_id, "user_id": current_user.id})
     if upload is None:
@@ -268,8 +272,11 @@ def extract_async(payload: ExtractRequest, current_user: User = Depends(get_curr
     try:
         parse_cv_task.apply_async(args=[payload.file_id, current_user.id, task_id], task_id=task_id)
     except Exception:
-        # Broker offline in local development: execute task directly so polling succeeds immediately
-        parse_cv_task(payload.file_id, current_user.id, task_id)
+        # Broker offline in local development: execute in background or eagerly in testing
+        if settings.CELERY_TASK_ALWAYS_EAGER or settings.ENV == "testing":
+            parse_cv_task(payload.file_id, current_user.id, task_id)
+        else:
+            background_tasks.add_task(parse_cv_task, payload.file_id, current_user.id, task_id)
 
     task_doc = cv_tasks_collection.find_one({"task_id": task_id, "user_id": current_user.id})
     current_status = task_doc.get("status", "processing") if task_doc else "processing"
@@ -343,9 +350,16 @@ def optimize_ats_resume(
     if not target_role:
         target_role = "Software Engineer"
 
-    skills = (payload.skills if payload and payload.skills else None) or list(
-        source_doc.get("skills") or source_doc.get("strengths") or []
+    db_skills = list(
+        (extraction or {}).get("skills")
+        or (analysis or {}).get("skills")
+        or source_doc.get("strengths")
+        or []
     )
+    if payload and payload.skills:
+        skills = list(dict.fromkeys([*payload.skills, *db_skills]))
+    else:
+        skills = db_skills
     experience = (
         [e.model_dump() for e in payload.experience]
         if payload and payload.experience

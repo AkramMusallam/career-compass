@@ -33,6 +33,7 @@ celery_app.conf.update(
     task_eager_propagates=True,
     task_track_started=True,
     worker_hijack_root_logger=False,
+    broker_connection_retry_on_startup=True,
 )
 
 # جدولة المهمة الأسبوعية الوحيدة الحالية (الدفعة 5.3 / B5.4-B5.5)

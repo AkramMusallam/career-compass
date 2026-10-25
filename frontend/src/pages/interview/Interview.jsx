@@ -7,10 +7,12 @@ import {
   sendVoiceInterviewAnswer,
 } from "../../api/endpoints";
 import { getErrorMessage } from "../../api/client";
+import { useToast } from "../../context/ToastContext";
 
 export default function Interview() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [jobTitle, setJobTitle] = useState("");
   const [messages, setMessages] = useState([]);
@@ -106,7 +108,7 @@ export default function Interview() {
         speakText(lastMsg.content);
       }
     } catch (err) {
-      alert(getErrorMessage(err, "فشل إرسال الإجابة، يرجى المحاولة ثانية"));
+      showToast(getErrorMessage(err, "فشل إرسال الإجابة، يرجى المحاولة ثانية"), "error");
     } finally {
       setLoading(false);
     }
@@ -212,8 +214,9 @@ export default function Interview() {
 
     const transcriptHint = (liveTranscript || input).trim();
     if (!audioBlob && !transcriptHint) {
-      alert(
-        "لم يتم التقاط صوت واضح. يرجى التأكد من تفعيل الميكروفون أو التحدث بوضوح."
+      showToast(
+        "لم يتم التقاط صوت واضح. يرجى التأكد من تفعيل الميكروفون أو التحدث بوضوح.",
+        "error"
       );
       return;
     }
@@ -239,11 +242,12 @@ export default function Interview() {
         speakText(lastMsg.content);
       }
     } catch (err) {
-      alert(
+      showToast(
         getErrorMessage(
           err,
           "تعذر معالجة الإجابة الصوتية، يرجى المحاولة مرة أخرى"
-        )
+        ),
+        "error"
       );
     } finally {
       setLoading(false);
@@ -253,7 +257,7 @@ export default function Interview() {
   const handleFinishAndEvaluate = async () => {
     const userAnswers = messages.filter((m) => m.role === "user");
     if (userAnswers.length === 0) {
-      alert("يرجى الإجابة على سؤال واحد على الأقل قبل طلب التقييم النهائي.");
+      showToast("يرجى الإجابة على سؤال واحد على الأقل قبل طلب التقييم النهائي.", "error");
       return;
     }
 
@@ -271,7 +275,7 @@ export default function Interview() {
       setEvaluation(res.data);
       setSessionStatus("completed");
     } catch (err) {
-      alert(getErrorMessage(err, "تعذر تقييم المقابلة، يرجى المحاولة ثانية"));
+      showToast(getErrorMessage(err, "تعذر تقييم المقابلة، يرجى المحاولة ثانية"), "error");
     } finally {
       setEvaluating(false);
     }

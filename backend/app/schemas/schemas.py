@@ -244,6 +244,7 @@ class SuggestedCourseOut(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     analysis_id: str
+    date: Optional[datetime] = None
     career_score: float
     career_dna: dict
     top_jobs: List[JobMatchOut]
@@ -252,6 +253,7 @@ class AnalyzeResponse(BaseModel):
     skill_gap: SkillGapOut
     roadmap: List[RoadmapMonthOut]
     suggested_courses: List[SuggestedCourseOut]
+    skills: List[str] = Field(default_factory=list)
     completed_skills: List[str] = Field(default_factory=list)  # Batch 2.2 — Skill Checklist
     share_token: Optional[str] = None  # Batch 4.1 — رمز المشاركة العامة إن وُجد (None = غير مُشارك)
 

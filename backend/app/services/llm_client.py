@@ -57,7 +57,14 @@ def ollama_chat(
     if json_mode:
         kwargs["format"] = "json"
 
-    attempts = 2
+    from unittest.mock import AsyncMock, MagicMock, NonCallableMagicMock
+
+    if settings.ENV == "testing" and not isinstance(
+        getattr(ollama.Client, "chat", None), (MagicMock, NonCallableMagicMock, AsyncMock)
+    ):
+        raise ConnectionError("Ollama network calls disabled in testing environment")
+
+    attempts = 1 if settings.ENV == "testing" else 2
     for attempt in range(1, attempts + 1):
         started = time.monotonic()
         try:

@@ -506,7 +506,15 @@ CV Text:
     try:
         content = call_llm(prompt, 'You are a precise JSON-only ATS evaluator.', is_json=True)
         data = json.loads(content)
-        return {"score": data.get("score", 0), "feedback": data.get("feedback", [])}
+        if not isinstance(data, dict):
+            raise ValueError("Invalid ATS JSON payload")
+        raw_score = int(float(data.get("score", 0)))
+        score = max(0, min(100, raw_score))
+        raw_feedback = data.get("feedback")
+        feedback = [str(item).strip() for item in raw_feedback if str(item).strip()] if isinstance(raw_feedback, list) else []
+        if score <= 0 or not feedback:
+            raise ValueError("Incomplete ATS response from LLM")
+        return {"score": score, "feedback": feedback}
     except Exception as e:
         logger.warning(f"Ollama ATS evaluation failed ({e}), using rule-based ATS evaluator.")
         skills = _extract_skills(full_text)

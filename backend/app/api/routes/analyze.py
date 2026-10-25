@@ -90,6 +90,7 @@ def analyze(payload: AnalyzeRequest, db: Session = Depends(get_db), current_user
 
     return AnalyzeResponse(
         analysis_id=analysis_id,
+        date=now,
         career_score=result.career_score,
         career_dna=result.career_dna,
         top_jobs=[JobMatchOut(job_title=j.job_title, match_percentage=j.match_percentage, matched_skills=j.matched_skills, missing_skills=j.missing_skills, explanation=j.explanation) for j in result.top_jobs],
@@ -98,5 +99,6 @@ def analyze(payload: AnalyzeRequest, db: Session = Depends(get_db), current_user
         skill_gap=SkillGapOut(**result.skill_gap),
         roadmap=[RoadmapMonthOut(**m) for m in result.roadmap],
         suggested_courses=[SuggestedCourseOut(**c) for c in result.suggested_courses],
+        skills=profile_input.skills,
         completed_skills=[],
     )

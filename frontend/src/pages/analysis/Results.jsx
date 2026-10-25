@@ -997,7 +997,7 @@ export default function Results() {
       {showAtsBuilder && (
         <AtsCvBuilderModal
           extractionId={analysis.analysis_id || analysisId}
-          initialSkills={analysis.strengths || []}
+          initialSkills={analysis.skills?.length ? analysis.skills : (analysis.strengths || [])}
           defaultRole={analysis.top_jobs?.[0]?.job_title || ""}
           onClose={() => setShowAtsBuilder(false)}
         />

@@ -62,6 +62,7 @@ from pathlib import Path
 from app.core.mongo import (
     analysis_results_collection,
     assessments_collection,
+    cv_tasks_collection,
     extractions_collection,
     feedback_collection,
     mongo_db,
@@ -95,6 +96,7 @@ def delete_account(
         extractions_collection,
         assessments_collection,
         feedback_collection,
+        cv_tasks_collection,
         mongo_db["interviews"],
     ):
         coll.delete_many({"user_id": user_id})

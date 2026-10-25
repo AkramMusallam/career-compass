@@ -8,6 +8,8 @@ os.environ["USE_SQLITE_FALLBACK"] = "1"
 os.environ["SQLITE_PATH"] = str(Path(__file__).resolve().parent / "test_career_compass.db")
 os.environ["USE_MONGOMOCK"] = "1"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key"
+os.environ["CELERY_TASK_ALWAYS_EAGER"] = "1"
+os.environ["EMAIL_NOTIFICATIONS_ENABLED"] = "0"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

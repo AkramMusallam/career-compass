@@ -15,6 +15,7 @@ export default function AtsCvBuilderModal({
   const [loadingOptimize, setLoadingOptimize] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [newSkillInput, setNewSkillInput] = useState("");
 
   const [form, setForm] = useState({
     full_name: "",
@@ -291,16 +292,63 @@ export default function AtsCvBuilderModal({
 
               {/* Skills */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200">
-                <label className="block text-xs font-black text-slate-800 mb-2">
-                  الكلمات المفتاحية والمهارات التقنية ({form.skills.length} مهارة)
-                </label>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <label className="block text-xs font-black text-slate-800">
+                    الكلمات المفتاحية والمهارات التقنية ({form.skills.length} مهارة)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      className="input-field !py-1 !px-2.5 text-xs w-44"
+                      value={newSkillInput}
+                      onChange={(e) => setNewSkillInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const trimmed = newSkillInput.trim();
+                          if (trimmed && !form.skills.includes(trimmed)) {
+                            setForm({ ...form, skills: [...form.skills, trimmed] });
+                            setNewSkillInput("");
+                          }
+                        }
+                      }}
+                      placeholder="أضف مهارة جديدة..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = newSkillInput.trim();
+                        if (trimmed && !form.skills.includes(trimmed)) {
+                          setForm({ ...form, skills: [...form.skills, trimmed] });
+                          setNewSkillInput("");
+                        }
+                      }}
+                      className="rounded-lg bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-xs font-extrabold text-indigo-700 hover:bg-indigo-100"
+                    >
+                      + إضافة
+                    </button>
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {form.skills.map((skill, idx) => (
                     <span
                       key={idx}
-                      className="rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs font-bold text-indigo-800"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs font-bold text-indigo-800"
                     >
-                      {skill}
+                      <span>{skill}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            skills: form.skills.filter((_, i) => i !== idx),
+                          })
+                        }
+                        className="text-indigo-400 hover:text-rose-600 font-black"
+                        title="حذف المهارة"
+                      >
+                        ×
+                      </button>
                     </span>
                   ))}
                 </div>

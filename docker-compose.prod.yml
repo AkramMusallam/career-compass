@@ -72,9 +72,10 @@ services:
       MONGO_URI: mongodb://mongo:27017
       MONGO_DB: career_compass
       USE_MONGOMOCK: "0"
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://129.159.143.77,http://localhost:5173,http://localhost:3000,http://localhost}
       REDIS_URL: redis://redis:6379/0
-      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost}
+      CELERY_TASK_ALWAYS_EAGER: "0"
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://129.159.143.77}
       # ربط الباك إند بحاوية ollama
       OLLAMA_HOST: "http://ollama:11434"
     volumes:
@@ -106,7 +107,8 @@ services:
       MONGO_DB: career_compass
       USE_MONGOMOCK: "0"
       REDIS_URL: redis://redis:6379/0
-      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost}
+      CELERY_TASK_ALWAYS_EAGER: "0"
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://129.159.143.77}
       OLLAMA_HOST: "http://ollama:11434"
     volumes:
       - backend_uploads:/app/uploads
@@ -124,6 +126,7 @@ services:
       ENV: production
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-to-a-long-random-secret-in-production}
       REDIS_URL: redis://redis:6379/0
+      CELERY_TASK_ALWAYS_EAGER: "0"
 
   frontend:
     build:

@@ -30,7 +30,7 @@ def register(payload: RegisterRequest, background_tasks: BackgroundTasks, db: Se
     db.commit()
     db.refresh(user)
 
-    # ... OrO_U.Oc O U,OU,UOOU^U+US ...
+    # إرسال بريد الترحيب بالتسجيل في الخلفية
     background_tasks.add_task(send_registration_welcome_email, user.email, user.full_name)
     return RegisterResponse(
         id=str(user.id),
@@ -47,7 +47,7 @@ def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session 
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     token = create_access_token(subject=str(user.id))
-    # ... OrO_U.Oc O U,OU,UOOU^U+US ...
+    # إرسال إشعار تسجيل الدخول في الخلفية
     background_tasks.add_task(send_login_welcome_email, user.email, user.full_name)
     return LoginResponse(
         access_token=token,
