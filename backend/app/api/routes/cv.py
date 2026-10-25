@@ -377,14 +377,21 @@ def optimize_ats_resume(
     )
 
     summary = payload.summary.strip() if payload and payload.summary else ""
-    if not summary:
+    # Only invoke LLM when user explicitly requests AI regeneration (after initial modal load)
+    if not summary and payload and payload.full_name:
         prompt = f"""
-Write a concise, high-impact, ATS-optimized professional summary (3-4 sentences) for a {target_role} candidate.
-Candidate Skills: {', '.join(skills[:12])}
+Write a concise, high-impact, ATS-optimized professional summary (3 sentences max) for a {target_role} candidate.
+Candidate Skills: {', '.join(skills[:10])}
 Return ONLY the summary text, no quotes or markdown.
 """
         try:
-            ai_summary = call_llm(prompt, "You are an expert ATS resume writer.", is_json=False).strip()
+            ai_summary = call_llm(
+                prompt,
+                "You are an expert ATS resume writer.",
+                is_json=False,
+                max_tokens=90,
+                timeout=10.0,
+            ).strip()
             if ai_summary and len(ai_summary) > 30:
                 summary = ai_summary
         except Exception:

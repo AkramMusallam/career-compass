@@ -106,7 +106,7 @@ function JobCard({
               onClick={() => onStartInterview(job.job_title)}
               className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3.5 py-2 text-xs font-extrabold text-emerald-700 transition hover:bg-emerald-600 hover:text-white disabled:opacity-50"
             >
-              🎙️ محاكاة مقابلة
+              {isStartingInterview ? "⏳ جاري الفتح..." : "🎙️ محاكاة مقابلة"}
             </button>
           )}
           <button

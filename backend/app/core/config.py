@@ -64,7 +64,7 @@ class Settings:
     OLLAMA_TIMEOUT: float = float(os.getenv("OLLAMA_TIMEOUT", "90"))
     # إبقاء النموذج محمّلاً في الذاكرة لتجنب زمن التحميل البارد (cold start) مع كل طلب
     OLLAMA_KEEP_ALIVE: str = os.getenv("OLLAMA_KEEP_ALIVE", "24h")
-    OLLAMA_NUM_CTX: int = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
+    OLLAMA_NUM_CTX: int = int(os.getenv("OLLAMA_NUM_CTX", "2048"))
     OLLAMA_WARMUP: bool = os.getenv("OLLAMA_WARMUP", "1") == "1"
 
     # ---- رفع الملفات ----

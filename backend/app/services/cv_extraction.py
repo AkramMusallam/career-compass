@@ -299,7 +299,13 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-def call_llm(prompt: str, system_prompt: str, is_json: bool = False) -> str:
+def call_llm(
+    prompt: str,
+    system_prompt: str,
+    is_json: bool = False,
+    max_tokens: int | None = 220,
+    timeout: float | None = 15.0,
+) -> str:
     """Wrapper to call OpenAI if configured, otherwise fallback to Ollama."""
     # Try OpenAI first
     if settings.OPENAI_API_KEY and openai is not None:
@@ -311,8 +317,10 @@ def call_llm(prompt: str, system_prompt: str, is_json: bool = False) -> str:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": 0.7
+                "temperature": 0.5,
             }
+            if max_tokens is not None:
+                kwargs["max_tokens"] = max_tokens
             if is_json:
                 kwargs["response_format"] = {"type": "json_object"}
             
@@ -331,6 +339,9 @@ def call_llm(prompt: str, system_prompt: str, is_json: bool = False) -> str:
                 {"role": "user", "content": prompt},
             ],
             json_mode=is_json,
+            temperature=0.4,
+            max_tokens=max_tokens,
+            timeout=timeout,
         )
     except Exception as e:
         logger.warning(f"Ollama local extraction failed: {e}")
@@ -542,19 +553,19 @@ CV Text:
 
 
 def generate_cover_letter(file_path: str | Path, job_description: str) -> str:
-    full_text = _resolve_cv_text(file_path)
+    full_text = _resolve_cv_text(file_path)[:1800]
     prompt = f"""
-You are an expert career coach. Write a professional, tailored cover letter for the following job description based on the candidate's CV.
+Write a concise, professional cover letter (3 short paragraphs, max 160 words) for the following job based on the candidate's CV.
 Return ONLY the cover letter text, no markdown, no intro or outro.
 
 Job Description:
-{job_description}
+{job_description[:400]}
 
 Candidate CV:
 {full_text}
 """
     try:
-        content = call_llm(prompt, 'You are a professional cover letter writer.', is_json=False)
+        content = call_llm(prompt, 'You are a concise professional cover letter writer.', is_json=False, max_tokens=200, timeout=12.0)
         return content.strip()
     except Exception as e:
         logger.warning(f"Ollama Cover Letter generation failed ({e}), using structured template.")

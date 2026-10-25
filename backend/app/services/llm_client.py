@@ -40,9 +40,13 @@ def ollama_chat(
     json_mode: bool = False,
     temperature: float | None = None,
     max_tokens: int | None = None,
+    timeout: float | None = None,
 ) -> str:
     """يستدعي النموذج ويعيد نص الرد. يرفع استثناء عند الفشل ليتولى المستدعي المنطق الاحتياطي."""
-    options: dict[str, Any] = {"num_ctx": settings.OLLAMA_NUM_CTX}
+    options: dict[str, Any] = {
+        "num_ctx": settings.OLLAMA_NUM_CTX,
+        "num_thread": 4,
+    }
     if temperature is not None:
         options["temperature"] = temperature
     if max_tokens is not None:
@@ -64,11 +68,17 @@ def ollama_chat(
     ):
         raise ConnectionError("Ollama network calls disabled in testing environment")
 
-    attempts = 1 if settings.ENV == "testing" else 2
+    client = (
+        ollama.Client(host=settings.OLLAMA_HOST, timeout=timeout)
+        if timeout is not None
+        else get_client()
+    )
+
+    attempts = 1 if (settings.ENV == "testing" or timeout is not None) else 2
     for attempt in range(1, attempts + 1):
         started = time.monotonic()
         try:
-            response = get_client().chat(**kwargs)
+            response = client.chat(**kwargs)
             elapsed = time.monotonic() - started
             logger.info("Ollama call ok in %.1fs (model=%s)", elapsed, settings.OLLAMA_MODEL)
             return response["message"]["content"] or ""
