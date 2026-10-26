@@ -454,6 +454,11 @@ def extract_cv_data(file_path: str | Path) -> ExtractedCVData:
     ai_result = _extract_with_ollama(full_text)
     if ai_result:
         ai_result.is_linkedin = is_linkedin
+        if is_linkedin:
+            li_skills = extract_linkedin_top_skills(full_text)
+            for s in li_skills:
+                if s not in ai_result.skills:
+                    ai_result.skills.append(s)
         logger.info("Successfully extracted CV data using local AI (Ollama).")
         return ai_result
         

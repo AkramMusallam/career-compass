@@ -488,9 +488,14 @@ def evaluate_interview(session_id: str, current_user: User = Depends(get_current
     word_count = sum(len(str(m.get("content") or "").split()) for m in user_turns)
     avg_words_per_turn = word_count / max(1, len(user_turns))
     detailed_turns = sum(1 for m in user_turns if len(str(m.get("content") or "").split()) >= 12)
-    tech_score_calc = min(9, max(5, int(round(5 + min(2.5, word_count / 45.0) + min(1.5, detailed_turns * 0.5)))))
-    comm_score_calc = min(10, max(6, int(round(6 + min(2.5, avg_words_per_turn / 12.0) + (1 if len(user_turns) >= 3 else 0)))))
-    final_score_calc = int(round((tech_score_calc + comm_score_calc) / 2.0))
+    if word_count < 10:
+        tech_score_calc = max(1, min(3, int(round(1 + word_count / 4.0))))
+        comm_score_calc = max(1, min(3, int(round(1 + avg_words_per_turn / 3.0))))
+        final_score_calc = int(round((tech_score_calc + comm_score_calc) / 2.0))
+    else:
+        tech_score_calc = min(9, max(3, int(round(3 + min(3.5, word_count / 25.0) + min(2.5, detailed_turns * 0.8)))))
+        comm_score_calc = min(10, max(3, int(round(3 + min(4.0, avg_words_per_turn / 8.0) + (1.5 if len(user_turns) >= 3 else 0)))))
+        final_score_calc = max(1, min(10, int(round((tech_score_calc + comm_score_calc) / 2.0))))
 
     assistant_questions = [
         str(m.get("content") or "").strip()
@@ -566,7 +571,7 @@ def evaluate_interview(session_id: str, current_user: User = Depends(get_current
                 [{"role": "user", "content": eval_prompt}],
                 json_mode=True,
                 temperature=0.3,
-                max_tokens=220,
+                max_tokens=550,
                 timeout=9.0,
             )
 

@@ -554,6 +554,7 @@ JOB_POSTINGS = [
         "id": "job-pal-01",
         "title": "Junior Backend Developer (Python / FastAPI)",
         "company": "Asal Technologies",
+        "company_url": "https://www.asaltech.com",
         "location": "Ramallah / Hybrid",
         "type": "Full-time",
         "experience_level": "Entry / Junior (0-2 years)",
@@ -568,6 +569,7 @@ JOB_POSTINGS = [
         "id": "job-pal-02",
         "title": "Frontend React Developer",
         "company": "Exalt Technologies",
+        "company_url": "https://www.exalt.ps",
         "location": "Ramallah / Nablus (Hybrid)",
         "type": "Full-time",
         "experience_level": "Junior - Mid",
@@ -582,6 +584,7 @@ JOB_POSTINGS = [
         "id": "job-pal-03",
         "title": "Full Stack Engineer (React & Node.js)",
         "company": "Harri",
+        "company_url": "https://harri.ai",
         "location": "Ramallah, Palestine",
         "type": "Full-time",
         "experience_level": "Mid-Level (2-4 years)",
@@ -589,13 +592,14 @@ JOB_POSTINGS = [
         "required_skills": ["JavaScript", "React", "Node.js", "SQL", "API Design", "Git"],
         "bonus_skills": ["Docker", "TypeScript", "AWS"],
         "description": "فرصة للمساهمة في بناء منصة Harri العالمية لإدارة الضيافة والموارد البشرية، وتطوير دورة حياة الميزات من الواجهة إلى قاعدة البيانات.",
-        "apply_url": "https://harri.com/careers",
+        "apply_url": "https://harri.ai/careers/",
         "posted_date": "منذ أسبوع",
     },
     {
         "id": "job-pal-04",
         "title": "Software Engineer (Backend & Cloud)",
         "company": "Foothill Technology Solutions",
+        "company_url": "https://foothillsolutions.com/",
         "location": "Nablus / Remote",
         "type": "Full-time",
         "experience_level": "Junior - Mid",
@@ -603,13 +607,14 @@ JOB_POSTINGS = [
         "required_skills": ["OOP", "Python", "SQL", "Git", "Docker"],
         "bonus_skills": ["CI/CD", "AWS", "Microservices"],
         "description": "تطوير أنظمة سحابية وخدمات مصغرة لشركات رعاية صحية وتكنولوجيا في أمريكا الشمالية بالتعاون مع فرق هندسية متميزة.",
-        "apply_url": "https://www.foothilltech.net/careers",
+        "apply_url": "https://foothill.na.teamtailor.com/",
         "posted_date": "مفتوحة حديثاً",
     },
     {
         "id": "job-rem-05",
         "title": "Remote Junior Python & Data Automation Engineer",
         "company": "Canonical (Ubuntu)",
+        "company_url": "https://canonical.com",
         "location": "Worldwide Remote (Palestine Eligible)",
         "type": "Remote",
         "experience_level": "Entry / Graduate",
@@ -624,6 +629,7 @@ JOB_POSTINGS = [
         "id": "job-rem-06",
         "title": "Associate DevOps & Infrastructure Specialist",
         "company": "GitLab",
+        "company_url": "https://about.gitlab.com",
         "location": "Remote",
         "type": "Full-time Remote",
         "experience_level": "Junior - Mid",
@@ -631,13 +637,14 @@ JOB_POSTINGS = [
         "required_skills": ["Git", "CI/CD", "Docker", "Linux"],
         "bonus_skills": ["Kubernetes", "AWS", "Terraform", "Python"],
         "description": "المشاركة في تحسين خطوط الأنابيب الآلية (CI/CD)، وضمان موثوقية البنية التحتية، وتوفير بيئات تشغيل مرنة ومستقرة للمطورين.",
-        "apply_url": "https://about.gitlab.com/jobs",
+        "apply_url": "https://about.gitlab.com/jobs/",
         "posted_date": "منذ 5 أيام",
     },
     {
         "id": "job-pal-07",
         "title": "Mobile App Developer (Flutter / React Native)",
-        "company": "SouqTel Digital Solutions",
+        "company": "Souktel Digital Solutions",
+        "company_url": "https://www.linkedin.com/company/souktel",
         "location": "Ramallah / Hybrid",
         "type": "Full-time",
         "experience_level": "Mid-Level",
@@ -645,13 +652,14 @@ JOB_POSTINGS = [
         "required_skills": ["Flutter", "React Native", "API Design", "Git", "OOP"],
         "bonus_skills": ["State Management", "Firebase", "Offline Sync"],
         "description": "بناء تطبيقات هواتف ذكية موثوقة لمشاريع إنسانية وتنموية تخدم ملايين المستخدمين في الشرق الأوسط وإفريقيا.",
-        "apply_url": "https://www.souqtel.com/careers",
+        "apply_url": "https://www.souktel.org/",
         "posted_date": "منذ أسبوعين",
     },
     {
         "id": "job-pal-08",
         "title": "Data Analyst & Business Intelligence Specialist",
         "company": "WalaPlus",
+        "company_url": "https://www.walaplus.com",
         "location": "Remote / Palestine",
         "type": "Full-time",
         "experience_level": "Entry / Mid",
@@ -659,10 +667,99 @@ JOB_POSTINGS = [
         "required_skills": ["SQL", "Python", "Data Analysis", "Statistics"],
         "bonus_skills": ["Power BI", "Data Visualization", "Excel"],
         "description": "تحليل بيانات العملاء وسلوك المستخدمين واستخراج مؤشرات أداء دقيقة لدعم اتخاذ القرارات الإستراتيجية للمنصة.",
-        "apply_url": "https://walaplus.com/careers",
+        "apply_url": "https://walaplus.zohorecruit.com/jobs/Careers",
         "posted_date": "منذ 3 أيام",
     },
+    {
+        "id": "job-pal-09",
+        "title": "Software QA & Automation Engineer",
+        "company": "Progineer Technologies",
+        "company_url": "https://progineer.net",
+        "location": "Ramallah, Palestine",
+        "type": "Full-time",
+        "experience_level": "Entry / Mid",
+        "salary_range": "$1,500 - $2,500",
+        "required_skills": ["Software Testing", "Selenium", "Python", "Git", "API Testing"],
+        "bonus_skills": ["CI/CD", "Docker", "Linux"],
+        "description": "المشاركة في فحص وضمان جودة الأنظمة البرمجية المتقدمة لعملاء عالميين، وكتابة سيناريوهات الاختبار المؤتمتة باستخدام Python و Selenium.",
+        "apply_url": "https://progineer.net/careers/",
+        "posted_date": "منذ 3 أيام",
+    },
+    {
+        "id": "job-rem-10",
+        "title": "Remote Web Developer (JavaScript / React / PHP)",
+        "company": "Automattic",
+        "company_url": "https://automattic.com",
+        "location": "Worldwide Remote",
+        "type": "Full-time Remote",
+        "experience_level": "Junior - Mid",
+        "salary_range": "$3,000 - $4,800",
+        "required_skills": ["JavaScript", "React", "HTML/CSS", "Git", "REST"],
+        "bonus_skills": ["TypeScript", "PHP", "Docker"],
+        "description": "تطوير المنصات الرقمية وتطبيقات الويب مفتوحة المصدر لملايين المستخدمين حول العالم ضمن بيئة عمل مرنة وعالمية عن بُعد.",
+        "apply_url": "https://automattic.com/work-with-us/",
+        "posted_date": "منذ 4 أيام",
+    },
+    {
+        "id": "job-pal-11",
+        "title": "Network & Systems Infrastructure Specialist",
+        "company": "Paltel Group",
+        "company_url": "https://www.paltelgroup.ps/",
+        "location": "Ramallah / Nablus",
+        "type": "Full-time",
+        "experience_level": "Entry / Mid",
+        "salary_range": "$1,400 - $2,300",
+        "required_skills": ["Linux", "Networking Fundamentals", "Bash", "Git"],
+        "bonus_skills": ["Python", "Docker", "Cybersecurity Fundamentals"],
+        "description": "إدارة وصيانة شبكات الاتصالات والبنى التحتية للخوادم والأنظمة السحابية لخدمة كبرى المؤسسات في فلسطين.",
+        "apply_url": "https://www.paltelgroup.ps/",
+        "posted_date": "منذ أسبوع",
+    },
+    {
+        "id": "job-rem-12",
+        "title": "Junior Cloud & Data Infrastructure Engineer",
+        "company": "Spotify",
+        "company_url": "https://spotify.com",
+        "location": "Remote (EMEA)",
+        "type": "Full-time Remote",
+        "experience_level": "Junior - Mid",
+        "salary_range": "$3,500 - $5,200",
+        "required_skills": ["Python", "SQL", "Docker", "Git", "Linux"],
+        "bonus_skills": ["AWS", "Kubernetes", "ETL Pipelines"],
+        "description": "بناء وتطوير خطوط نقل ومعالجة البيانات السحابية الضخمة لدعم ملايين المستخدمين في الاستماع التفاعلي واقتراحات الذكاء الاصطناعي.",
+        "apply_url": "https://www.lifeatspotify.com/jobs",
+        "posted_date": "مفتوحة حديثاً",
+    },
 ]
+_TECH_SYNONYMS: dict[str, list[str]] = {
+    "sql": ["postgresql", "mysql", "sqlite", "tsql", "plsql", "postgres"],
+    "rest": ["rest api", "rest apis", "restful", "restful api"],
+    "git": ["github", "gitlab", "version control", "git vcs"],
+    "react": ["react.js", "reactjs"],
+    "node.js": ["nodejs", "node"],
+    "vue.js": ["vuejs", "vue"],
+    "tailwind css": ["tailwind", "tailwindcss"],
+    "html/css": ["html", "css", "html5", "css3"],
+    "ci/cd": ["github actions", "gitlab ci", "jenkins"],
+    "python": ["python 3", "python3"],
+    "docker": ["docker containers", "containerization"],
+    "api design": ["restful api", "rest api", "api development"],
+}
+
+
+def _is_job_skill_match(required_skill: str, candidate_skills: list[str]) -> bool:
+    req = required_skill.strip().lower()
+    for cand in candidate_skills:
+        c = cand.strip().lower()
+        if req == c:
+            return True
+        if (req in c or c in req) and len(req) >= 3 and len(c) >= 3:
+            return True
+        if req in _TECH_SYNONYMS and any(syn in c for syn in _TECH_SYNONYMS[req]):
+            return True
+        if c in _TECH_SYNONYMS and any(syn in req for syn in _TECH_SYNONYMS[c]):
+            return True
+    return False
 
 
 def match_candidate_to_job_postings(
@@ -670,17 +767,16 @@ def match_candidate_to_job_postings(
     target_role: str = "",
     min_match_percentage: int = 15,
 ) -> list[dict]:
-    norm_candidate_skills = {s.strip().lower() for s in candidate_skills if s}
     results = []
 
     for posting in JOB_POSTINGS:
         required = posting.get("required_skills", [])
         bonus = posting.get("bonus_skills", [])
 
-        matched_required = [r for r in required if r.strip().lower() in norm_candidate_skills]
-        missing_required = [r for r in required if r.strip().lower() not in norm_candidate_skills]
-        matched_bonus = [b for b in bonus if b.strip().lower() in norm_candidate_skills]
-        missing_bonus = [b for b in bonus if b.strip().lower() not in norm_candidate_skills]
+        matched_required = [r for r in required if _is_job_skill_match(r, candidate_skills)]
+        missing_required = [r for r in required if not _is_job_skill_match(r, candidate_skills)]
+        matched_bonus = [b for b in bonus if _is_job_skill_match(b, candidate_skills)]
+        missing_bonus = [b for b in bonus if not _is_job_skill_match(b, candidate_skills)]
 
         total_req_w = len(required) * 1.0
         total_bon_w = len(bonus) * 0.3
@@ -705,6 +801,7 @@ def match_candidate_to_job_postings(
                     "id": posting["id"],
                     "title": posting["title"],
                     "company": posting["company"],
+                    "company_url": posting.get("company_url", posting.get("apply_url", "")),
                     "location": posting["location"],
                     "type": posting["type"],
                     "experience_level": posting["experience_level"],

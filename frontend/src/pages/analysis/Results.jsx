@@ -244,9 +244,20 @@ function LiveJobMatchingSection({ analysisId, onStartInterview }) {
                     <h3 className="font-black text-slate-900 text-sm">
                       {item.title}
                     </h3>
-                    <p className="text-xs font-bold text-primary-600">
-                      {item.company}
-                    </p>
+                    <a
+                      href={
+                        item.company_url ||
+                        item.apply_url ||
+                        `https://www.google.com/search?q=${encodeURIComponent(item.company)}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-800 hover:underline transition-colors mt-0.5"
+                      title={`زيارة الموقع التعريفي لشركة ${item.company}`}
+                    >
+                      <span>🏢 {item.company}</span>
+                      <span className="text-[10px] text-slate-400">↗</span>
+                    </a>
                   </div>
                   <span
                     className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-black ${
@@ -322,10 +333,15 @@ function LiveJobMatchingSection({ analysisId, onStartInterview }) {
                     🎙️ محاكاة مقابلة
                   </button>
                   <a
-                    href={item.apply_url}
+                    href={
+                      item.apply_url && item.apply_url.startsWith("http")
+                        ? item.apply_url
+                        : `https://www.google.com/search?q=${encodeURIComponent(`${item.company} careers ${item.title}`)}`
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn-primary !py-1.5 !px-3.5 !text-xs inline-flex items-center gap-1"
+                    title={`التقديم المباشر لشاغر ${item.title} في ${item.company}`}
                   >
                     <span>التقديم</span>
                     <span>↗</span>
