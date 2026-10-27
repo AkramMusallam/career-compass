@@ -8,25 +8,30 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
-from app.models.mysql_models import Question
 from app.core.mongo import assessments_collection
+from app.core.security import get_current_user
+from app.models.mysql_models import Question
 from app.schemas.schemas import (
     AssessmentQuestionOut,
     AssessmentQuestionsResponse,
     AssessmentSubmitRequest,
     AssessmentSubmitResponse,
 )
-from app.core.security import get_current_user
 
 router = APIRouter(tags=["Assessment"])
 
 
 @router.get("/assessment", response_model=AssessmentQuestionsResponse)
 def get_assessment_questions(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    questions = db.query(Question).order_by(Question.order_index).all()
+    questions = (
+        db.query(Question)
+        .options(selectinload(Question.options))
+        .order_by(Question.order_index)
+        .all()
+    )
     return AssessmentQuestionsResponse(
         questions=[
             AssessmentQuestionOut(

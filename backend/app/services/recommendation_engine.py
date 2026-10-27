@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.mysql_models import Course, Job, JobSkill, Question, Skill
 from app.seed.skills_data import SKILLS
@@ -384,12 +384,16 @@ Return ONLY a valid JSON array with 3 objects. Format exactly like this:
 ]
 """
         try:
-            from app.services.llm_client import ollama_chat
-            
-            ai_raw = json.loads(ollama_chat([
-                {'role': 'system', 'content': 'You are a career advisor API that strictly outputs JSON arrays.'},
-                {'role': 'user', 'content': prompt}
-            ], json_mode=True))
+            from app.services.llm_client import call_llm, strip_json_fences
+
+            raw_content = call_llm(
+                prompt,
+                "You are a career advisor API that strictly outputs JSON arrays.",
+                is_json=True,
+                max_tokens=320,
+                timeout=12.0,
+            )
+            ai_raw = json.loads(strip_json_fences(raw_content))
             if isinstance(ai_raw, dict):
                 for val in ai_raw.values():
                     if isinstance(val, list):
@@ -451,7 +455,12 @@ def match_courses_to_skills(skill_gap: dict[str, list[str]], db: Session) -> lis
     
     courses_out = []
     if skill_ids:
-        courses = db.query(Course).filter(Course.covers_skill_id.in_(skill_ids)).all()
+        courses = (
+            db.query(Course)
+            .options(joinedload(Course.skill))
+            .filter(Course.covers_skill_id.in_(skill_ids))
+            .all()
+        )
         courses_out = [
             {
                 "title": c.title,

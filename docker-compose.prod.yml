@@ -62,7 +62,7 @@ services:
       - ./backend/.env
     environment:
       ENV: production
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-to-a-long-random-secret-in-production}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in production environment}
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: ${MYSQL_USER:-career_user}
@@ -96,7 +96,7 @@ services:
       - ./backend/.env
     environment:
       ENV: production
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-to-a-long-random-secret-in-production}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in production environment}
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: ${MYSQL_USER:-career_user}
@@ -124,7 +124,7 @@ services:
       - ./backend/.env
     environment:
       ENV: production
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-to-a-long-random-secret-in-production}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in production environment}
       REDIS_URL: redis://redis:6379/0
       CELERY_TASK_ALWAYS_EAGER: "0"
 

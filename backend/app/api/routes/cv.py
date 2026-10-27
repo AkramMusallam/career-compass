@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,10 +28,29 @@ router = APIRouter(tags=["CV Analysis"])
 
 UPLOAD_DIR = Path(settings.UPLOAD_DIR)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+UPLOAD_RETENTION_SECONDS = 30 * 24 * 3600  # 30 يوماً
+
+
+def _cleanup_old_uploads() -> None:
+    """ينظف ملفات الـ PDF المؤقتة التي مضى عليها أكثر من 30 يوماً لمنع امتلاء القرص الصلب."""
+    cutoff = time.time() - UPLOAD_RETENTION_SECONDS
+    try:
+        for pdf_file in UPLOAD_DIR.glob("*.pdf"):
+            try:
+                if pdf_file.stat().st_mtime < cutoff:
+                    pdf_file.unlink(missing_ok=True)
+            except OSError:
+                pass
+    except OSError:
+        pass
 
 
 @router.post("/upload-cv", response_model=UploadCVResponse)
-async def upload_cv(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+async def upload_cv(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
     if file.content_type not in ("application/pdf", "application/x-pdf"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only PDF files are allowed")
 
@@ -61,6 +81,7 @@ async def upload_cv(file: UploadFile = File(...), current_user: User = Depends(g
             "uploaded_at": datetime.now(timezone.utc),
         }
     )
+    background_tasks.add_task(_cleanup_old_uploads)
 
     return UploadCVResponse(file_id=file_id, filename=file.filename, status="uploaded")
 

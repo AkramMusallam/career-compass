@@ -13,11 +13,25 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.core.config import settings
-from app.core.database import init_db
-from app.core.mongo import ensure_mongo_indexes
-from app.api.routes import analyze, assessment, auth, benchmark, cv, history, profile, settings_router, shared, interview, jobs_router
+from app.core.database import SessionLocal, init_db
+from app.core.mongo import ensure_mongo_indexes, mongo_db
+from app.core.rate_limit import RateLimitMiddleware, SecurityHeadersMiddleware
+from app.api.routes import (
+    analyze,
+    assessment,
+    auth,
+    benchmark,
+    cv,
+    history,
+    interview,
+    jobs_router,
+    profile,
+    settings_router,
+    shared,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("career_compass")
@@ -47,6 +61,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -79,7 +95,20 @@ def root():
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    return {"status": "healthy"}
+    checks = {"sql": "ok", "mongo": "ok"}
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+    except Exception:
+        checks["sql"] = "degraded"
+
+    try:
+        _ = mongo_db.list_collection_names()
+    except Exception:
+        checks["mongo"] = "degraded"
+
+    overall = "healthy" if all(v == "ok" for v in checks.values()) else "degraded"
+    return {"status": overall, "checks": checks}
 
 
 app.include_router(auth.router)

@@ -9,11 +9,13 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.core.benchmark_cache import invalidate_benchmark_cache
 from app.core.database import get_db
-from app.models.mysql_models import Job, Question, User
 from app.core.mongo import analysis_results_collection, assessments_collection, extractions_collection
+from app.core.security import get_current_user
+from app.models.mysql_models import Job, JobSkill, Question, User
 from app.schemas.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -22,7 +24,6 @@ from app.schemas.schemas import (
     SkillGapOut,
     SuggestedCourseOut,
 )
-from app.core.security import get_current_user
 from app.services.recommendation_engine import UserProfileInput, calculate_recommendation
 
 router = APIRouter(tags=["Analysis"])
@@ -50,8 +51,17 @@ def analyze(payload: AnalyzeRequest, db: Session = Depends(get_db), current_user
         assessment_answers=assessment.get("answers", []),
     )
 
-    all_jobs = db.query(Job).all()
-    all_questions = db.query(Question).all()
+    # Eager loading: يمنع مشكلة الـ 141 استعلام N+1 ويختزلها إلى 3 استعلامات فقط
+    all_jobs = (
+        db.query(Job)
+        .options(joinedload(Job.skills).joinedload(JobSkill.skill))
+        .all()
+    )
+    all_questions = (
+        db.query(Question)
+        .options(selectinload(Question.options), joinedload(Question.related_skill))
+        .all()
+    )
 
     result = calculate_recommendation(profile_input, all_jobs, all_questions, db)
 
@@ -87,13 +97,24 @@ def analyze(payload: AnalyzeRequest, db: Session = Depends(get_db), current_user
     }
     # الحفظ التلقائي والفوري — ملاحظة الباك في الواجهة 8
     analysis_results_collection.insert_one(document)
+    if current_user.benchmark_opt_in:
+        invalidate_benchmark_cache()
 
     return AnalyzeResponse(
         analysis_id=analysis_id,
         date=now,
         career_score=result.career_score,
         career_dna=result.career_dna,
-        top_jobs=[JobMatchOut(job_title=j.job_title, match_percentage=j.match_percentage, matched_skills=j.matched_skills, missing_skills=j.missing_skills, explanation=j.explanation) for j in result.top_jobs],
+        top_jobs=[
+            JobMatchOut(
+                job_title=j.job_title,
+                match_percentage=j.match_percentage,
+                matched_skills=j.matched_skills,
+                missing_skills=j.missing_skills,
+                explanation=j.explanation,
+            )
+            for j in result.top_jobs
+        ],
         strengths=result.strengths,
         weaknesses=result.weaknesses,
         skill_gap=SkillGapOut(**result.skill_gap),

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -464,11 +464,91 @@ class ATSScoreResponse(BaseModel):
     score: int
     feedback: List[str]
 
+
 class CoverLetterRequest(BaseModel):
-    job_description: str
+    job_description: str = Field(..., min_length=2, max_length=5000)
+
 
 class CoverLetterResponse(BaseModel):
     cover_letter: str
+
+
+# ============================================================
+# Phase 3 & Epic 4: AI Mock Interview & Voice Evaluation Schemas
+# ============================================================
+
+
+class InterviewStartRequest(BaseModel):
+    analysis_id: str = Field(..., min_length=1, max_length=120)
+    job_title: str = Field(..., min_length=2, max_length=150)
+
+
+class InterviewMessage(BaseModel):
+    role: str
+    content: str
+    voice_feedback: Optional[Dict[str, Any]] = None
+
+
+class VoiceFeedbackModel(BaseModel):
+    transcript: str
+    clarity_score: int
+    pace_score: int
+    confidence_score: int
+    words_per_minute: int
+    pace_label: str
+    filler_words_count: int = 0
+    feedback_summary: str
+    tips: List[str] = Field(default_factory=list)
+
+
+class InterviewVoiceResponse(BaseModel):
+    session_id: str
+    status: str
+    transcript: str
+    voice_feedback: VoiceFeedbackModel
+    messages: List[InterviewMessage]
+
+
+class InterviewStartResponse(BaseModel):
+    session_id: str
+    job_title: str
+    messages: List[InterviewMessage]
+
+
+class InterviewChatRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, max_length=120)
+    message: str = Field(..., min_length=1, max_length=4000)
+
+
+class InterviewChatResponse(BaseModel):
+    session_id: str
+    status: str
+    messages: List[InterviewMessage]
+
+
+class ModelAnswerItem(BaseModel):
+    question: str
+    model_answer: str
+
+
+class InterviewEvaluationResponse(BaseModel):
+    session_id: str
+    final_score: int
+    technical_score: int
+    communication_score: int
+    strengths: List[str]
+    technical_mistakes: List[str]
+    grammar_mistakes: List[str]
+    model_answers: List[ModelAnswerItem]
+    overall_feedback: str
+
+
+class InterviewSessionDetailResponse(BaseModel):
+    session_id: str
+    job_title: str
+    status: str
+    messages: List[InterviewMessage]
+    evaluation: Optional[Dict[str, Any]] = None
 
 
 # ============================================================

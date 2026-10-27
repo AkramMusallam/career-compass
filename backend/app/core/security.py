@@ -4,17 +4,19 @@
 from __future__ import annotations
 
 import uuid
+import warnings
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+
+warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"jose\.jwt")
 from jose import JWTError, jwt
 import bcrypt
-from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import SessionLocal
 from app.models.mysql_models import User
 
 # tokenUrl فقط للتوثيق التفاعلي (Swagger)؛ الفرونت يستخدم /login مباشرة عبر JSON.
@@ -24,23 +26,27 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
 def hash_password(plain_password: str) -> str:
     # Hash a password for the first time
     # (Using bcrypt, the salt is saved into the hash itself)
-    pwd_bytes = plain_password.encode('utf-8')
+    pwd_bytes = plain_password.encode("utf-8")
     salt = bcrypt.gensalt()
     hashed_password = bcrypt.hashpw(pwd_bytes, salt)
-    return hashed_password.decode('utf-8')
+    return hashed_password.decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     # Check hashed password. Using bcrypt, the salt is extracted from the hash.
-    pwd_bytes = plain_password.encode('utf-8')
-    hashed_bytes = hashed_password.encode('utf-8')
+    pwd_bytes = plain_password.encode("utf-8")
+    hashed_bytes = hashed_password.encode("utf-8")
     try:
         return bcrypt.checkpw(pwd_bytes, hashed_bytes)
     except ValueError:
         return False
 
 
-def create_access_token(subject: str, extra_claims: Optional[dict] = None) -> str:
+def create_access_token(
+    subject: str,
+    extra_claims: Optional[dict] = None,
+    password_hash: Optional[str] = None,
+) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     to_encode = {
@@ -50,6 +56,8 @@ def create_access_token(subject: str, extra_claims: Optional[dict] = None) -> st
         "exp": expire,
         "jti": str(uuid.uuid4()),
     }
+    if password_hash:
+        to_encode["pwh"] = password_hash[-12:]
     if extra_claims:
         to_encode.update(extra_claims)
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
@@ -84,9 +92,13 @@ def decode_access_token(token: str) -> dict:
 
 def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
 ) -> User:
-    """Dependency موحّد (Middleware) يُستخدم في كل الـ routes المحمية للتحقق من JWT."""
+    """Dependency موحّد (Middleware) يُستخدم في كل الـ routes المحمية للتحقق من JWT.
+
+    ملاحظة أداء حرجة: يفتح جلسة قاعدة بيانات قصيرة جداً لجلب المستخدم وفحص التوكن ثم يغلقها
+    فوراً (خلال <2ms) عبر `with SessionLocal() as db:` بدلاً من إبقاء الاتصال محجوزاً طوال
+    فترة تنفيذ الطلب (كطلبات الذكاء الاصطناعي أو توليد ملفات PDF)، مما يمنع استنزاف QueuePool.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -102,7 +114,12 @@ def get_current_user(
     if user_id is None:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if user is None:
-        raise credentials_exception
-    return user
+    with SessionLocal() as db:
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if user is None:
+            raise credentials_exception
+        # إذا كان التوكن يحمل بصمة كلمة المرور (pwh)، نتحقق أنها لم تتغير منذ إصدار التوكن
+        if "pwh" in payload and payload["pwh"] != (user.hashed_password or "")[-12:]:
+            raise credentials_exception
+        db.expunge(user)
+        return user

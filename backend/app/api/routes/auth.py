@@ -4,13 +4,32 @@
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.security import (
+    create_access_token,
+    create_reset_token,
+    decode_access_token,
+    hash_password,
+    verify_password,
+)
 from app.models.mysql_models import User
-from app.schemas.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, UserPublic
-from app.core.security import create_access_token, hash_password, verify_password
+from app.schemas.schemas import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    LoginResponse,
+    RegisterRequest,
+    RegisterResponse,
+    ResetPasswordRequest,
+    UserPublic,
+)
+from app.services.email_notifications import (
+    send_login_welcome_email,
+    send_password_reset_email,
+    send_registration_welcome_email,
+)
 
 router = APIRouter(tags=["Authentication"])
 
@@ -46,7 +65,7 @@ def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session 
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    token = create_access_token(subject=str(user.id))
+    token = create_access_token(subject=str(user.id), password_hash=user.hashed_password)
     # إرسال إشعار تسجيل الدخول في الخلفية
     background_tasks.add_task(send_login_welcome_email, user.email, user.full_name)
     return LoginResponse(
@@ -55,10 +74,6 @@ def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session 
         user=UserPublic(id=str(user.id), full_name=user.full_name, email=user.email),
     )
 
-
-from app.schemas.schemas import ForgotPasswordRequest, ResetPasswordRequest
-from app.core.security import create_reset_token, decode_access_token
-from app.services.email_notifications import send_password_reset_email, send_login_welcome_email, send_registration_welcome_email
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
 def forgot_password(payload: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
@@ -69,7 +84,7 @@ def forgot_password(payload: ForgotPasswordRequest, background_tasks: Background
 
     token = create_reset_token(subject=str(user.id), password_hash=user.hashed_password)
     background_tasks.add_task(send_password_reset_email, user.email, user.full_name, token)
-    
+
     return {"detail": "If an account with that email exists, a password reset link has been sent."}
 
 
@@ -80,7 +95,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         token_data = decode_access_token(payload.token)
         if token_data.get("type") != "password_reset":
             raise ValueError("Invalid token type")
-        
+
         user_id = token_data.get("sub")
         user = db.query(User).filter(User.id == int(user_id)).first()
         if not user:
@@ -97,7 +112,6 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         return {"detail": "Password has been reset successfully"}
     except Exception:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Invalid or expired password reset token"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token",
         )
-
