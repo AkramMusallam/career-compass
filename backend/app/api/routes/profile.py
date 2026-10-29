@@ -16,6 +16,8 @@ from app.core.mongo import (
     extractions_collection,
     feedback_collection,
     mongo_db,
+    recruiter_jobs_collection,
+    subscriptions_collection,
     uploads_collection,
 )
 from app.core.security import get_current_user
@@ -116,9 +118,11 @@ def delete_account(
         assessments_collection,
         feedback_collection,
         cv_tasks_collection,
+        subscriptions_collection,
         mongo_db["interviews"],
     ):
         coll.delete_many({"user_id": user_id})
+    recruiter_jobs_collection.delete_many({"recruiter_id": user_id})
 
     # 3. Remove uploaded PDF files from disk
     for file_path in upload_paths:

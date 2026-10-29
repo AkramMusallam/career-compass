@@ -6,7 +6,7 @@
 [![React 18](https://img.shields.io/badge/Frontend-React_18-61DAFB?style=flat&logo=react)](https://react.dev/)
 [![Ollama](https://img.shields.io/badge/AI_Engine-Ollama_(Llama_3.2)-black?style=flat)](https://ollama.ai/)
 [![Celery](https://img.shields.io/badge/Task_Queue-Celery_%2B_Redis-37814A?style=flat&logo=celery)](https://docs.celeryq.dev/)
-[![Tests](https://img.shields.io/badge/Tests-77%2F77_Passing-brightgreen?style=flat&logo=pytest)](https://docs.pytest.org/)
+[![Tests](https://img.shields.io/badge/Tests-128%2F128_Passing-brightgreen?style=flat&logo=pytest)](https://docs.pytest.org/)
 
 Career Compass is a full-stack, AI-driven career guidance and resume intelligence platform. Unlike traditional keyword-matching career tools, Career Compass integrates local Generative AI models (via **Ollama running Llama 3.2**, with cloud **OpenAI fallback**) to deeply analyze candidate resumes in Arabic and English, benchmark candidate skills against industry standards, generate personalized 3-month skill roadmaps, and conduct interactive technical mock interviews.
 
@@ -216,6 +216,26 @@ docker compose exec backend python -c "from app.seed.seed_runner import run_seed
 | **Monetization** | `GET` | `/subscriptions/plans`, `/subscriptions/current` | Pricing tiers (Free, Pro, Enterprise) & status |
 | **Monetization** | `POST`| `/subscriptions/checkout-session`, `/cancel` | Stripe checkout session generation & cancellation |
 | **Extension** | `POST`| `/extension/match-job` | Real-time LinkedIn job text compatibility matcher |
+
+---
+
+## 🧪 Automated Testing & Test Suite (128/128 Tests Passing)
+
+Career Compass comes with a comprehensive, enterprise-grade test suite covering every core capability, service, API endpoint, edge case, and multi-tenant security boundary:
+
+```bash
+# Run the full test suite with verbose reporting:
+python -m pytest backend/tests/ -v
+```
+
+### Test Coverage Highlights:
+- **Phase 3 B2B Recruiter Portal & Pipeline (`test_phase3_b2b_and_monetization.py`, `test_phase3_edge_cases_and_isolation.py`):** Multi-tenant job posting CRUD, candidate ranking algorithm, pipeline status transitions across all 6 stages, and deep-dive profile previews.
+- **Monetization & Billing Gateways (`test_monetization_deep.py`, `test_phase3_advanced_expansion.py`):** Freemium/Pro/Enterprise plans configuration, 20% annual discount calculations, Stripe checkout sessions, sandbox instant activation, automated role assignment, subscription cancellation, and webhook handling.
+- **Chrome Extension Matcher (`test_extension_api_deep.py`):** Real-time HTML and raw text job parsing, skill overlap computation, salary benchmark alignment, and fallback modes.
+- **Regional Market Intelligence & Fine-Tuning (`test_regional_taxonomy_deep.py`, `prepare_finetuning_dataset.py`):** MenA tech salary percentile validations, bilingual role normalization, university/tech-hub recognition, ChatML JSONL dataset generation.
+- **Voice AI & Mock Interview Evaluation (`test_interview_service_and_scoring.py`, `test_phase3_advanced_expansion.py`):** Speech rate (WPM) calculations, filler words detection (Arabic/English), 10-point scoring rubrics, and model answer generation.
+- **ATS Audit & Resume Builder (`test_cv_and_ats_deep.py`):** Formatting risk audit, section scoring breakdown, ATS resume builder optimization, and PDF generation.
+- **Authentication & Security Hardening (`test_security_auth_and_profile_deep.py`, `test_security_and_performance.py`):** Password strength validation, case-insensitive login, single-use reset tokens, JWT invalidation on password change, sliding-window rate limiting, and N+1 query elimination.
 
 ---
 

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -36,7 +37,8 @@ router = APIRouter(tags=["Authentication"])
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == payload.email).first()
+    norm_email = str(payload.email).strip().lower()
+    existing = db.query(User).filter(func.lower(User.email) == norm_email).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
@@ -44,7 +46,7 @@ def register(payload: RegisterRequest, background_tasks: BackgroundTasks, db: Se
     tier_val = "enterprise" if role_val.lower() == "recruiter" else "free"
     user = User(
         full_name=payload.full_name,
-        email=payload.email,
+        email=norm_email,
         hashed_password=hash_password(payload.password),
         role=role_val,
         company_name=getattr(payload, "company_name", None),
@@ -66,7 +68,8 @@ def register(payload: RegisterRequest, background_tasks: BackgroundTasks, db: Se
 
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
+    norm_email = str(payload.email).strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == norm_email).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
@@ -89,7 +92,8 @@ def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session 
 
 @router.post("/forgot-password", status_code=status.HTTP_200_OK)
 def forgot_password(payload: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == payload.email).first()
+    norm_email = str(payload.email).strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == norm_email).first()
     if not user:
         # For security reasons, don't reveal that the user does not exist.
         return {"detail": "If an account with that email exists, a password reset link has been sent."}
