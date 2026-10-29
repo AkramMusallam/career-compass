@@ -40,10 +40,15 @@ def register(payload: RegisterRequest, background_tasks: BackgroundTasks, db: Se
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
+    role_val = getattr(payload, "role", "candidate") or "candidate"
+    tier_val = "enterprise" if role_val.lower() == "recruiter" else "free"
     user = User(
         full_name=payload.full_name,
         email=payload.email,
         hashed_password=hash_password(payload.password),
+        role=role_val,
+        company_name=getattr(payload, "company_name", None),
+        subscription_tier=tier_val,
     )
     db.add(user)
     db.commit()
@@ -71,7 +76,14 @@ def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session 
     return LoginResponse(
         access_token=token,
         token_type="bearer",
-        user=UserPublic(id=str(user.id), full_name=user.full_name, email=user.email),
+        user=UserPublic(
+            id=str(user.id),
+            full_name=user.full_name,
+            email=user.email,
+            role=getattr(user, "role", "candidate") or "candidate",
+            subscription_tier=getattr(user, "subscription_tier", "free") or "free",
+            company_name=getattr(user, "company_name", None),
+        ),
     )
 
 

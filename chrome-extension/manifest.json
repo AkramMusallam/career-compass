@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Career Compass — LinkedIn Job Matcher & Career AI",
+  "version": "1.0.0",
+  "description": "AI-Powered Instant Job Compatibility, Skill Gap Audit, and Cover Letter Generator for LinkedIn and Job Boards.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Career Compass AI Matcher"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*.linkedin.com/*",
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.linkedin.com/jobs/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

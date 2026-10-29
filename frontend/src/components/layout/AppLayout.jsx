@@ -7,6 +7,8 @@ const NAV_ITEMS = [
   { to: "/dashboard", label: "لوحة التحكم", icon: "⚡" },
   { to: "/analysis/upload", label: "تحليل جديد", icon: "🚀" },
   { to: "/history", label: "سجل التحليلات", icon: "📊" },
+  { to: "/recruiter", label: "بوابة التوظيف (B2B)", icon: "🏢" },
+  { to: "/pricing", label: "الاشتراكات", icon: "💎" },
   { to: "/profile", label: "الملف الشخصي", icon: "👤" },
   { to: "/settings", label: "الإعدادات", icon: "⚙️" },
 ];
@@ -82,9 +84,21 @@ export default function AppLayout() {
                         {initial}
                       </div>
                       <div className="text-right hidden xl:block">
-                        <p className="text-xs font-black text-slate-800 leading-tight max-w-[120px] truncate">
-                          {displayName}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-black text-slate-800 leading-tight max-w-[120px] truncate">
+                            {displayName}
+                          </p>
+                          {user?.subscription_tier === "pro" && (
+                            <span className="px-1.5 py-0.2 rounded-md bg-indigo-100 text-indigo-700 text-[9px] font-black">
+                              💎 Pro
+                            </span>
+                          )}
+                          {(user?.subscription_tier === "enterprise" || user?.role === "recruiter") && (
+                            <span className="px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 text-[9px] font-black">
+                              🏢 B2B
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[10px] font-semibold text-slate-400 leading-tight max-w-[120px] truncate">
                           {user.email}
                         </p>

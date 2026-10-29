@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Career Compass Matcher</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="extension-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-box">
+        <span class="compass-icon">🧭</span>
+        <div>
+          <h1 class="brand-title">Career Compass</h1>
+          <p class="brand-subtitle">فاحص التوافق المهني بالذكاء الاصطناعي</p>
+        </div>
+      </div>
+      <span class="badge" id="tier-badge">AI Pro</span>
+    </header>
+
+    <!-- Main Content State -->
+    <main class="content">
+      <!-- Auth / Token Section if not signed in -->
+      <div id="auth-section" class="card auth-box hidden">
+        <p class="auth-desc">يرجى تسجيل الدخول أو إدخال رمز الجلسة (Token) للربط مع حسابك:</p>
+        <input type="text" id="token-input" placeholder="Bearer Token أو البريد المسجل..." class="input" />
+        <button id="save-token-btn" class="btn btn-primary">حفظ وربط الحساب 🔗</button>
+      </div>
+
+      <!-- Active Job Detection -->
+      <div id="detected-job-box" class="card job-card">
+        <div class="job-meta">
+          <span class="pill-type">LinkedIn Job</span>
+          <h2 id="job-title" class="job-title">جاري فحص الصفحة...</h2>
+          <p id="job-company" class="job-company">LinkedIn Opportunity</p>
+        </div>
+        <button id="analyze-btn" class="btn btn-primary pulse">
+          <span>✨</span>
+          <span>مطابقة الوظيفة مع سيرتي الذاتية</span>
+        </button>
+      </div>
+
+      <!-- Loading State -->
+      <div id="loading-box" class="loading-state hidden">
+        <div class="spinner"></div>
+        <p>جاري مطابقة المهارات وتحليل التوافق الفوري...</p>
+      </div>
+
+      <!-- Results Section -->
+      <div id="results-box" class="results-box hidden">
+        <!-- Score Circular Gauge -->
+        <div class="score-card">
+          <div class="score-circle">
+            <span id="score-val" class="score-number">85%</span>
+            <span class="score-label">نسبة التوافق</span>
+          </div>
+          <div class="verdict-box">
+            <h3 id="verdict-text" class="verdict-title">تطابق ممتاز 🚀</h3>
+            <p id="candidate-meta" class="candidate-meta">تمت المطابقة مع ملفك</p>
+          </div>
+        </div>
+
+        <!-- Skills Breakdown -->
+        <div class="skills-section">
+          <h4 class="section-label">✅ المهارات المتوفرة لديك:</h4>
+          <div id="matched-tags" class="tag-cloud tags-green"></div>
+
+          <h4 class="section-label">⚠️ المهارات الإضافية المطلوبة:</h4>
+          <div id="missing-tags" class="tag-cloud tags-amber"></div>
+        </div>
+
+        <!-- AI Advice -->
+        <div class="advice-card">
+          <h4 class="section-label">💡 نصيحة التقديم الذكية:</h4>
+          <ul id="recommendations-list" class="advice-list"></ul>
+        </div>
+
+        <!-- AI Cover Letter Snippet -->
+        <div class="cover-card">
+          <div class="cover-header">
+            <h4 class="section-label">✍️ مقدمة خطاب تقديم مقترحة (Cover Letter):</h4>
+            <button id="copy-cover-btn" class="btn-copy" title="نسخ">📋 نسخ</button>
+          </div>
+          <p id="cover-snippet" class="cover-text"></p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <a href="http://localhost:5173/dashboard" target="_blank" class="footer-link">فتح لوحة التحكم الكاملة ↗</a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

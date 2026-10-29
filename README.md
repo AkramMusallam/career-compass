@@ -6,7 +6,7 @@
 [![React 18](https://img.shields.io/badge/Frontend-React_18-61DAFB?style=flat&logo=react)](https://react.dev/)
 [![Ollama](https://img.shields.io/badge/AI_Engine-Ollama_(Llama_3.2)-black?style=flat)](https://ollama.ai/)
 [![Celery](https://img.shields.io/badge/Task_Queue-Celery_%2B_Redis-37814A?style=flat&logo=celery)](https://docs.celeryq.dev/)
-[![Tests](https://img.shields.io/badge/Tests-63%2F63_Passing-brightgreen?style=flat&logo=pytest)](https://docs.pytest.org/)
+[![Tests](https://img.shields.io/badge/Tests-77%2F77_Passing-brightgreen?style=flat&logo=pytest)](https://docs.pytest.org/)
 
 Career Compass is a full-stack, AI-driven career guidance and resume intelligence platform. Unlike traditional keyword-matching career tools, Career Compass integrates local Generative AI models (via **Ollama running Llama 3.2**, with cloud **OpenAI fallback**) to deeply analyze candidate resumes in Arabic and English, benchmark candidate skills against industry standards, generate personalized 3-month skill roadmaps, and conduct interactive technical mock interviews.
 
@@ -43,6 +43,30 @@ Career Compass is a full-stack, AI-driven career guidance and resume intelligenc
 - **Peer Cohort Benchmarking:** Anonymous percentile comparison against peer cohort runs.
 - **Bidirectional Arabic PDF Export:** Branded, downloadable PDF reports with Arabic RTL support powered by `ReportLab` and bundled `Amiri` typography.
 - **Public Report Sharing:** Secure tokenized links for public, unauthenticated viewing with revocation controls.
+
+### 7. 🏢 B2B HR & Recruiter Portal (Phase 3)
+- **Corporate Job Specifications:** Dedicated corporate dashboard for employers to post, update, and manage vacancies.
+- **AI Candidate Discovery & Ranking:** Automated candidate talent pool matching against job requirements, ranking candidates by match percentage and ATS score.
+- **Recruitment Pipeline Management:** Interactive candidate tracking stages (Discovered, Shortlisted, Contacted, Interviewed, Offered, Rejected).
+- **Candidate Profile Deep-Dive:** Direct view of verified skills, work history, projects, and AI fit evaluation.
+
+### 8. 💎 Monetization & Payment Gateways (Stripe & PayPal)
+- **Tiered Subscriptions:** Freemium ($0), Unlimited AI Pro ($19/mo or $180/yr), and Recruiter & Enterprise ($79/mo).
+- **Stripe Integration & Sandbox Simulator:** Secure checkout session generation and instant sandbox upgrade for zero-dependency local testing.
+- **Subscription Lifecycle:** Plan feature matrix, limits enforcement, and 1-click auto-renew cancellation.
+
+### 9. 🧭 Chrome Browser Extension (LinkedIn Job Matcher)
+- **Manifest V3 Extension:** Standalone extension in `chrome-extension/` with glassmorphic UI.
+- **Instant LinkedIn Compatibility Audit:** Scrapes active LinkedIn job details and runs immediate skill gap analysis against user profile.
+- **AI Cover Letter Generator Snippet:** 1-click tailored intro paragraph tailored to the viewed company and role.
+
+### 10. 📱 Cross-Platform Mobile Companion (React Native / Expo)
+- **Voice Mock Interviews on Mobile:** Audio simulation and instant AI feedback on handheld devices.
+- **3-Month Roadmap Checklist:** Interactive offline-capable milestone tracker in `mobile/`.
+
+### 11. 🧠 Domain Fine-Tuned LLM Pipeline & Regional Taxonomy
+- **Regional Tech Ecosystem:** Taxonomies for Palestinian and MENA tech employers, local university recognition, and salary benchmarks.
+- **Fine-Tuning Dataset Generator:** Automated script (`prepare_finetuning_dataset.py`) producing ChatML/JSONL training sets for Llama-3 domain adaptation.
 
 ---
 
@@ -145,7 +169,7 @@ The project includes an extensive test suite covering the full user journey, rec
 cd backend
 pytest tests/ -v
 ```
-**Results:** `63 passed, 100% test pass rate`.
+**Results:** `77 passed, 100% test pass rate`.
 
 ---
 
@@ -185,6 +209,13 @@ docker compose exec backend python -c "from app.seed.seed_runner import run_seed
 | **Jobs** | `GET` | `/jobs/matched` | Active market vacancy matching with smart synonyms |
 | **Interview**| `POST`| `/interview/start`, `/interview/chat` | Interactive AI technical mock interview session |
 | **Interview**| `POST`| `/interview/{id}/voice`, `/interview/{id}/evaluate` | Whisper voice simulation & 10-point scoring |
+| **Recruiter (B2B)**| `POST`, `GET` | `/recruiter/jobs`, `/recruiter/jobs/{id}` | Corporate job postings & vacancy management |
+| **Recruiter (B2B)**| `GET` | `/recruiter/jobs/{id}/candidates` | AI-driven candidate discovery & match ranking |
+| **Recruiter (B2B)**| `POST`| `/recruiter/jobs/{id}/candidates/{cand_id}/status` | Update candidate recruitment pipeline stage |
+| **Recruiter (B2B)**| `GET` | `/recruiter/candidates/{cand_id}/profile` | Candidate verified profile, projects & ATS score |
+| **Monetization** | `GET` | `/subscriptions/plans`, `/subscriptions/current` | Pricing tiers (Free, Pro, Enterprise) & status |
+| **Monetization** | `POST`| `/subscriptions/checkout-session`, `/cancel` | Stripe checkout session generation & cancellation |
+| **Extension** | `POST`| `/extension/match-job` | Real-time LinkedIn job text compatibility matcher |
 
 ---
 

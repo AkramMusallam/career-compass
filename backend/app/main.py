@@ -31,6 +31,9 @@ from app.api.routes import (
     profile,
     settings_router,
     shared,
+    recruiter,
+    subscriptions,
+    extension,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -122,3 +125,6 @@ app.include_router(shared.router)
 app.include_router(benchmark.router)
 app.include_router(interview.router)
 app.include_router(jobs_router.router)
+app.include_router(recruiter.router)
+app.include_router(subscriptions.router)
+app.include_router(extension.router)

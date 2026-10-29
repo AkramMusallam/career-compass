@@ -29,7 +29,9 @@ analysis_results_collection = mongo_db["analysis_results"]
 feedback_collection = mongo_db["feedback"]  # Batch 1.2 — تقييم 👍/👎 على التوصيات
 logs_collection = mongo_db["logs"]
 cv_tasks_collection = mongo_db["cv_tasks"]  # Phase 2 — تتبع مهام استخراج الـ CV غير المتزامنة (Celery)
-
+recruiter_jobs_collection = mongo_db["recruiter_jobs"]  # Phase 3 — وظائف الشركات والتوظيف B2B
+recruitment_pipeline_collection = mongo_db["recruitment_pipeline"]  # Phase 3 — مراحل فرز وتصنيف المرشحين
+subscriptions_collection = mongo_db["subscriptions"]  # Phase 3 — سجل اشتراكات وتحديثات الباقات
 
 def ensure_mongo_indexes() -> None:
     """إنشاء الفهارس الأساسية في MongoDB لتسريع الاستعلامات."""
@@ -48,6 +50,12 @@ def ensure_mongo_indexes() -> None:
         mongo_db["interviews"].create_index("user_id")
         cv_tasks_collection.create_index("task_id", unique=True)
         cv_tasks_collection.create_index("user_id")
+        recruiter_jobs_collection.create_index("job_id", unique=True)
+        recruiter_jobs_collection.create_index("recruiter_id")
+        recruiter_jobs_collection.create_index("status")
+        recruitment_pipeline_collection.create_index([("job_id", 1), ("candidate_id", 1)], unique=True)
+        subscriptions_collection.create_index("subscription_id", unique=True)
+        subscriptions_collection.create_index("user_id")
     except Exception:
         pass
 

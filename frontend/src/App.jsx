@@ -23,6 +23,8 @@ const ReviewExtractedData = lazy(() => import("./pages/analysis/ReviewExtractedD
 const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const SharedResults = lazy(() => import("./pages/shared/SharedResults"));
 const UploadCV = lazy(() => import("./pages/analysis/UploadCV"));
+const RecruiterPortal = lazy(() => import("./pages/recruiter/RecruiterPortal"));
+const PricingPlans = lazy(() => import("./pages/subscription/PricingPlans"));
 
 function PublicOnlyRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -72,6 +74,8 @@ export default function App() {
           <Route path="/interview/:sessionId" element={<Interview />} />
           <Route path="/compare" element={<CompareAnalyses />} />
           <Route path="/history" element={<History />} />
+          <Route path="/recruiter" element={<RecruiterPortal />} />
+          <Route path="/pricing" element={<PricingPlans />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
         </Route>

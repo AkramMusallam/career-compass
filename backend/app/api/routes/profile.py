@@ -54,6 +54,9 @@ def get_profile(current_user: User = Depends(get_current_user)):
         highest_career_score=highest,
         benchmark_opt_in=current_user.benchmark_opt_in,
         notifications_opt_in=current_user.notifications_opt_in,
+        role=getattr(current_user, "role", "candidate") or "candidate",
+        subscription_tier=getattr(current_user, "subscription_tier", "free") or "free",
+        company_name=getattr(current_user, "company_name", None),
     )
 
 

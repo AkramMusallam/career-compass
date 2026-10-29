@@ -20,6 +20,8 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=255)
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
+    role: Optional[str] = "candidate"
+    company_name: Optional[str] = None
 
     @field_validator("password")
     @classmethod
@@ -69,6 +71,9 @@ class UserPublic(BaseModel):
     id: str
     full_name: str
     email: EmailStr
+    role: str = "candidate"
+    subscription_tier: str = "free"
+    company_name: Optional[str] = None
 
 
 class LoginResponse(BaseModel):
@@ -291,6 +296,9 @@ class ProfileResponse(BaseModel):
     highest_career_score: float
     benchmark_opt_in: bool = False  # Batch 4.2 — لتهيئة حالة التبديل الصحيحة في Settings.jsx
     notifications_opt_in: bool = True  # Batch 5.6 — لتهيئة حالة مفتاح التنبيهات البريدية في Settings.jsx
+    role: str = "candidate"
+    subscription_tier: str = "free"
+    company_name: Optional[str] = None
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -599,3 +607,180 @@ class ATSResumeOptimizeResponse(BaseModel):
 
 class ErrorDetail(BaseModel):
     detail: str
+
+
+# ============================================================
+# Phase 3: B2B HR & Recruiter Portal Schemas (Section 7.2)
+# ============================================================
+
+
+class RecruiterJobCreate(BaseModel):
+    title: str = Field(..., min_length=2, max_length=200)
+    company_name: Optional[str] = Field(None, max_length=200)
+    field: str = Field("Engineering", max_length=150)
+    experience_level: str = Field("Junior", max_length=100)
+    location: str = Field("Ramallah / Remote", max_length=150)
+    work_type: str = Field("Full-time", max_length=100)  # Full-time, Part-time, Remote, Hybrid
+    salary_range: Optional[str] = Field(None, max_length=100)
+    required_skills: List[str] = Field(..., min_length=1)
+    bonus_skills: List[str] = Field(default_factory=list)
+    description: str = Field(..., min_length=10, max_length=4000)
+
+
+class RecruiterJobUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=2, max_length=200)
+    company_name: Optional[str] = None
+    field: Optional[str] = None
+    experience_level: Optional[str] = None
+    location: Optional[str] = None
+    work_type: Optional[str] = None
+    salary_range: Optional[str] = None
+    required_skills: Optional[List[str]] = None
+    bonus_skills: Optional[List[str]] = None
+    description: Optional[str] = None
+    status: Optional[str] = Field(None, max_length=50)  # "active" | "closed"
+
+
+class RecruiterJobResponse(BaseModel):
+    job_id: str
+    recruiter_id: int
+    title: str
+    company_name: str
+    field: str
+    experience_level: str
+    location: str
+    work_type: str
+    salary_range: Optional[str] = None
+    required_skills: List[str]
+    bonus_skills: List[str]
+    description: str
+    status: str = "active"
+    created_at: str
+    total_candidates_count: int = 0
+    shortlisted_count: int = 0
+
+
+class CandidateMatchItem(BaseModel):
+    candidate_id: str
+    user_id: int
+    full_name: str
+    email: str
+    match_percentage: int
+    matched_skills: List[str]
+    missing_skills: List[str]
+    experience_years_summary: str
+    target_role: str
+    ats_score: Optional[int] = None
+    career_score: Optional[int] = None
+    fit_reasoning: str
+    pipeline_status: str = "discovered"  # discovered | shortlisted | contacted | interviewed | rejected
+    notes: Optional[str] = ""
+    updated_at: Optional[str] = None
+
+
+class CandidateListResponse(BaseModel):
+    job_id: str
+    job_title: str
+    total_matches: int
+    candidates: List[CandidateMatchItem]
+
+
+class UpdateCandidatePipelineRequest(BaseModel):
+    pipeline_status: str = Field(..., max_length=50)  # discovered | shortlisted | contacted | interviewed | offered | rejected
+    notes: Optional[str] = Field(None, max_length=1000)
+
+
+class CandidateProfileDetail(BaseModel):
+    candidate_id: str
+    user_id: int
+    full_name: str
+    email: str
+    target_role: str
+    ats_score: Optional[int] = None
+    skills: List[str]
+    experience: List[Dict[str, Any]]
+    projects: List[Dict[str, Any]]
+    education: List[Dict[str, Any]]
+    career_score: Optional[int] = None
+    pipeline_status: str = "discovered"
+    notes: Optional[str] = ""
+
+
+# ============================================================
+# Phase 3: Monetization & Subscriptions Schemas
+# ============================================================
+
+
+class PlanPricingTier(BaseModel):
+    id: str
+    name: str
+    name_ar: str
+    price_monthly: float
+    price_annual: float
+    currency: str = "USD"
+    description: str
+    description_ar: str
+    badge: Optional[str] = None
+    features: List[str]
+    features_ar: List[str]
+    limits: Dict[str, Any]
+    recommended: bool = False
+
+
+class CheckoutSessionRequest(BaseModel):
+    plan_id: str = Field(..., max_length=50)  # "pro" | "enterprise"
+    billing_cycle: str = Field("monthly", max_length=20)  # "monthly" | "annual"
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
+    test_token: Optional[str] = None  # allows instant simulation upgrade
+
+
+class CheckoutSessionResponse(BaseModel):
+    session_id: str
+    checkout_url: str
+    provider: str = "stripe"
+    mode: str = "payment"
+
+
+class CurrentSubscriptionResponse(BaseModel):
+    tier: str
+    tier_label: str
+    status: str
+    billing_cycle: str
+    features: List[str]
+    features_ar: List[str]
+    limits: Dict[str, Any]
+    expires_at: Optional[str] = None
+
+
+class CancelSubscriptionResponse(BaseModel):
+    status: str
+    message: str
+    tier: str
+
+
+# ============================================================
+# Phase 3: Chrome Browser Extension Schemas
+# ============================================================
+
+
+class ExtensionMatchRequest(BaseModel):
+    job_title: str = Field(..., min_length=2, max_length=300)
+    company: Optional[str] = Field("", max_length=200)
+    location: Optional[str] = Field("", max_length=200)
+    job_description: str = Field(..., min_length=5)
+    extracted_skills: Optional[List[str]] = Field(default_factory=list)
+
+
+class ExtensionMatchResponse(BaseModel):
+    job_title: str
+    company: str
+    candidate_name: str
+    match_score: int
+    verdict: str
+    matched_skills: List[str]
+    missing_skills: List[str]
+    recommendations: List[str]
+    suggested_cover_letter_snippet: str
+    candidate_skills_count: int
+    required_skills_count: int

@@ -166,3 +166,27 @@ export const sendVoiceInterviewAnswer = (
     headers: { "Content-Type": "multipart/form-data" },
   });
 };
+
+// ============================================================
+// Phase 3 (Section 7.2): B2B Recruiter Portal, Subscriptions & Extension
+// ============================================================
+export const getRecruiterJobs = (params) => apiClient.get("/recruiter/jobs", { params });
+export const createRecruiterJob = (data) => apiClient.post("/recruiter/jobs", data);
+export const getRecruiterJob = (jobId) => apiClient.get(`/recruiter/jobs/${jobId}`);
+export const updateRecruiterJob = (jobId, data) => apiClient.put(`/recruiter/jobs/${jobId}`, data);
+export const deleteRecruiterJob = (jobId) => apiClient.delete(`/recruiter/jobs/${jobId}`);
+export const getJobCandidates = (jobId, params) =>
+  apiClient.get(`/recruiter/jobs/${jobId}/candidates`, { params });
+export const updateCandidatePipelineStatus = (jobId, candidateId, data) =>
+  apiClient.post(`/recruiter/jobs/${jobId}/candidates/${candidateId}/status`, data);
+export const getCandidateProfile = (candidateId) =>
+  apiClient.get(`/recruiter/candidates/${candidateId}/profile`);
+export const switchToRecruiterRole = (companyName) =>
+  apiClient.post("/recruiter/switch-role", null, { params: { company_name: companyName } });
+
+export const getSubscriptionPlans = () => apiClient.get("/subscriptions/plans");
+export const getCurrentSubscription = () => apiClient.get("/subscriptions/current");
+export const createCheckoutSession = (data) => apiClient.post("/subscriptions/checkout-session", data);
+export const cancelSubscription = () => apiClient.post("/subscriptions/cancel");
+
+export const matchExtensionJob = (data) => apiClient.post("/extension/match-job", data);

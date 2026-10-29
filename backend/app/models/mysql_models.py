@@ -55,6 +55,10 @@ class User(Base):
     #   ALTER TABLE users ADD COLUMN notifications_opt_in BOOLEAN NOT NULL DEFAULT TRUE;
     # (بيئة SQLite/الاختبار غير متأثرة لأنها تُنشأ من الصفر في كل مرة).
     notifications_opt_in = Column(Boolean, default=True, nullable=False)
+    # Phase 3: B2B Expansion & Tiered Subscriptions
+    role = Column(String(50), default="candidate", nullable=False)  # candidate | recruiter | admin
+    subscription_tier = Column(String(50), default="free", nullable=False)  # free | pro | enterprise
+    company_name = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

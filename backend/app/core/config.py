@@ -106,6 +106,14 @@ class Settings:
     # يُستخدم لبناء روابط قابلة للنقر داخل الإيميل (مثال: رابط صفحة النتائج)
     FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
+    # ---- Phase 3: Monetization & Payment Gateways ----
+    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_PUBLISHABLE_KEY: str = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    PAYPAL_CLIENT_ID: str = os.getenv("PAYPAL_CLIENT_ID", "")
+    PAYPAL_SECRET: str = os.getenv("PAYPAL_SECRET", "")
+    PAYPAL_MODE: str = os.getenv("PAYPAL_MODE", "sandbox")
+
 
 @lru_cache
 def get_settings() -> Settings:
