@@ -74,14 +74,10 @@ export default function RecruiterPortal() {
     description: "نبحث عن مهندس برمجيات موهوب للانضمام لفريقنا والمساهمة في بناء حلول رقمية عالية الاعتمادية.",
   });
 
-  // Load jobs on mount when recruiter access is active
+  // Load jobs on mount
   useEffect(() => {
-    if (user?.role === "recruiter" || user?.role === "admin" || user?.subscription_tier === "enterprise") {
-      fetchJobs();
-    } else {
-      setIsLoadingJobs(false);
-    }
-  }, [user?.role, user?.subscription_tier]);
+    fetchJobs();
+  }, []);
 
   // When selected job or filters change, load ranked candidates
   useEffect(() => {
@@ -125,23 +121,38 @@ export default function RecruiterPortal() {
   const handleCreateJob = async (e) => {
     e.preventDefault();
     try {
-      if (user?.role !== "recruiter" && user?.role !== "admin" && user?.subscription_tier !== "enterprise") {
-        await switchToRecruiterRole(jobForm.company_name || "شركة تقنية رائدة");
-        updateStoredUser({ role: "recruiter", company_name: jobForm.company_name || "شركة تقنية رائدة" });
-      }
+      const parsedRequired = (jobForm.required_skills || "")
+        .split(/[,،\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const parsedBonus = (jobForm.bonus_skills || "")
+        .split(/[,،\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
       const payload = {
         ...jobForm,
-        required_skills: jobForm.required_skills.split(",").map((s) => s.trim()).filter(Boolean),
-        bonus_skills: jobForm.bonus_skills.split(",").map((s) => s.trim()).filter(Boolean),
+        title: (jobForm.title || "").trim(),
+        description: (jobForm.description || "").trim() || "نبحث عن مهندس برمجيات موهوب للانضمام لفريقنا.",
+        required_skills: parsedRequired.length > 0 ? parsedRequired : ["Software Engineering"],
+        bonus_skills: parsedBonus,
       };
       const res = await createRecruiterJob(payload);
+      if (user?.role !== "recruiter" && user?.role !== "admin") {
+        updateStoredUser({
+          role: "recruiter",
+          company_name: jobForm.company_name || user?.company_name || "شركة تقنية رائدة",
+        });
+      }
       showToast("تم نشر الشاغر الوظيفي بنجاح", "success");
       setShowCreateModal(false);
+      setJobForm((prev) => ({ ...prev, title: "" }));
       await fetchJobs();
       setSelectedJobId(res.data.job_id);
       setActiveTab("pipeline");
     } catch (err) {
-      showToast("حدث خطأ أثناء نشر الوظيفة", "error");
+      const msg = err?.response?.data?.detail;
+      showToast(typeof msg === "string" ? msg : "حدث خطأ أثناء نشر الوظيفة", "error");
     }
   };
 

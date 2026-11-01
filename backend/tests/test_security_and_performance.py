@@ -186,18 +186,15 @@ def test_phase3_rbac_blocks_candidate_from_recruiter_endpoints(client, registere
     token, _ = registered_user_token
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Unprivileged candidate user must receive 403 Forbidden on recruiter endpoints
-    jobs_resp = client.get("/recruiter/jobs", headers=headers)
-    assert jobs_resp.status_code == 403
-
+    # Unprivileged candidate user must receive 403 Forbidden on sensitive candidate profile dump
     profile_resp = client.get("/recruiter/candidates/some-id/profile", headers=headers)
     assert profile_resp.status_code == 403
 
-    # After switching to recruiter role, access is granted
+    # After switching to recruiter role, access is granted (404 for nonexistent id instead of 403)
     switch_resp = client.post("/recruiter/switch-role?company_name=SecureCorp", headers=headers)
     assert switch_resp.status_code == 200
-    jobs_after = client.get("/recruiter/jobs", headers=headers)
-    assert jobs_after.status_code == 200
+    profile_after = client.get("/recruiter/candidates/some-id/profile", headers=headers)
+    assert profile_after.status_code == 404
 
 
 def test_jobs_matched_idor_protection(client, registered_user_token):

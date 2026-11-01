@@ -41,9 +41,21 @@ def require_recruiter_or_active(current_user: User = Depends(get_current_user)) 
 @router.post("/jobs", response_model=RecruiterJobResponse, status_code=status.HTTP_201_CREATED)
 def create_job(
     payload: RecruiterJobCreate,
-    current_user: User = Depends(require_recruiter_or_active),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
-    """نشر شاغر وظيفي جديد من قبل الشركة."""
+    """نشر شاغر وظيفي جديد من قبل الشركة (مع تفعيل صلاحية التوظيف تلقائياً عند نشر أول شاغر)."""
+    role = getattr(current_user, "role", "candidate") or "candidate"
+    if role not in ("recruiter", "admin"):
+        db_user = db.query(User).filter(User.id == current_user.id).first()
+        if db_user:
+            db_user.role = "recruiter"
+            if payload.company_name and not db_user.company_name:
+                db_user.company_name = payload.company_name.strip()[:200]
+            db.commit()
+            db.refresh(db_user)
+            current_user = db_user
+
     doc = recruiter_service.create_job_posting(current_user, payload.model_dump())
     return RecruiterJobResponse(**doc)
 
@@ -51,7 +63,7 @@ def create_job(
 @router.get("/jobs", response_model=List[RecruiterJobResponse])
 def list_jobs(
     status: Optional[str] = Query(None, description="فلترة حسب الحالة (active / closed)"),
-    current_user: User = Depends(require_recruiter_or_active),
+    current_user: User = Depends(get_current_user),
 ):
     """عرض جميع شواغر الشركة المعلنة وإحصائيات المرشحين."""
     jobs = recruiter_service.get_recruiter_jobs(current_user.id, status_filter=status)

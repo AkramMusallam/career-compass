@@ -625,16 +625,22 @@ class ErrorDetail(BaseModel):
 
 
 class RecruiterJobCreate(BaseModel):
-    title: str = Field(..., min_length=2, max_length=200)
+    title: str = Field(..., min_length=1, max_length=200)
     company_name: Optional[str] = Field(None, max_length=200)
     field: str = Field("Engineering", max_length=150)
     experience_level: str = Field("Junior", max_length=100)
     location: str = Field("Ramallah / Remote", max_length=150)
     work_type: str = Field("Full-time", max_length=100)  # Full-time, Part-time, Remote, Hybrid
     salary_range: Optional[str] = Field(None, max_length=100)
-    required_skills: List[str] = Field(..., min_length=1)
+    required_skills: List[str] = Field(default_factory=lambda: ["Software Engineering"])
     bonus_skills: List[str] = Field(default_factory=list)
-    description: str = Field(..., min_length=10, max_length=4000)
+    description: str = Field("نبحث عن كفاءة تقنية للانضمام لفريقنا.", min_length=1, max_length=4000)
+
+    @field_validator("required_skills")
+    @classmethod
+    def ensure_non_empty_skills(cls, v: List[str]) -> List[str]:
+        cleaned = [s.strip() for s in (v or []) if s and s.strip()]
+        return cleaned if cleaned else ["Software Engineering"]
 
 
 class RecruiterJobUpdate(BaseModel):
