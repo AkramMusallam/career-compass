@@ -53,7 +53,33 @@ def get_db():
 
 
 def init_db() -> None:
-    """إنشاء كل الجداول إذا لم تكن موجودة."""
+    """إنشاء كل الجداول إذا لم تكن موجودة مع ترقية أعمدة المرحلة الثالثة تلقائياً."""
+    from sqlalchemy import inspect, text
     from app.models import mysql_models  # noqa: F401  ensures models are registered
 
     Base.metadata.create_all(bind=engine)
+
+    # ترقية تلقائية لجدول users في قواعد البيانات القائمة مسبقاً (إضافة أعمدة Phase 3 إن لم تكن موجودة)
+    try:
+        inspector = inspect(engine)
+        if inspector.has_table("users"):
+            existing_cols = {col["name"] for col in inspector.get_columns("users")}
+            alter_statements = []
+            if "role" not in existing_cols:
+                alter_statements.append(
+                    "ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT 'candidate'"
+                )
+            if "subscription_tier" not in existing_cols:
+                alter_statements.append(
+                    "ALTER TABLE users ADD COLUMN subscription_tier VARCHAR(50) NOT NULL DEFAULT 'free'"
+                )
+            if "company_name" not in existing_cols:
+                alter_statements.append(
+                    "ALTER TABLE users ADD COLUMN company_name VARCHAR(255) NULL"
+                )
+            if alter_statements:
+                with engine.begin() as conn:
+                    for stmt in alter_statements:
+                        conn.execute(text(stmt))
+    except Exception:
+        pass
