@@ -2,21 +2,28 @@
 __pycache__/
 *.py[cod]
 *.db
+*.db-wal
+*.db-shm
 .pytest_cache/
 .env
 *.egg-info/
+*.tar.gz
 
 # Node
 node_modules/
 dist/
 .vite/
 
-# OS
+# OS / IDE
 .DS_Store
+.idea/
 
 # Uploads
+uploads/
 backend/uploads/
 
 # Virtual environments
 myenv/
 venv/
+backend/myenv/
+backend/venv/

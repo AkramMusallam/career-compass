@@ -1,11 +1,17 @@
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
+
+_TEST_DB_PATH = Path(__file__).resolve().parent / "test_career_compass.db"
+_TEST_UPLOAD_DIR = Path(tempfile.mkdtemp(prefix="career_compass_test_uploads_"))
 
 # يجب ضبط متغيرات البيئة قبل استيراد أي وحدة من app.* لأن app.config يقرأها عند الاستيراد
 os.environ["ENV"] = "testing"
 os.environ["USE_SQLITE_FALLBACK"] = "1"
-os.environ["SQLITE_PATH"] = str(Path(__file__).resolve().parent / "test_career_compass.db")
+os.environ["SQLITE_PATH"] = str(_TEST_DB_PATH)
+os.environ["UPLOAD_DIR"] = str(_TEST_UPLOAD_DIR)
 os.environ["USE_MONGOMOCK"] = "1"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key"
 os.environ["CELERY_TASK_ALWAYS_EAGER"] = "1"
@@ -27,6 +33,10 @@ def _setup_database():
     Base.metadata.create_all(bind=engine)
     run_seed()
     yield
+    engine.dispose()
+    for suffix in ("", "-wal", "-shm"):
+        Path(f"{_TEST_DB_PATH}{suffix}").unlink(missing_ok=True)
+    shutil.rmtree(_TEST_UPLOAD_DIR, ignore_errors=True)
 
 
 @pytest.fixture()

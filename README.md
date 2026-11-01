@@ -6,7 +6,7 @@
 [![React 18](https://img.shields.io/badge/Frontend-React_18-61DAFB?style=flat&logo=react)](https://react.dev/)
 [![Ollama](https://img.shields.io/badge/AI_Engine-Ollama_(Llama_3.2)-black?style=flat)](https://ollama.ai/)
 [![Celery](https://img.shields.io/badge/Task_Queue-Celery_%2B_Redis-37814A?style=flat&logo=celery)](https://docs.celeryq.dev/)
-[![Tests](https://img.shields.io/badge/Tests-128%2F128_Passing-brightgreen?style=flat&logo=pytest)](https://docs.pytest.org/)
+[![Tests](https://img.shields.io/badge/Tests-131%2F131_Passing-brightgreen?style=flat&logo=pytest)](https://docs.pytest.org/)
 
 Career Compass is a full-stack, AI-driven career guidance and resume intelligence platform. Unlike traditional keyword-matching career tools, Career Compass integrates local Generative AI models (via **Ollama running Llama 3.2**, with cloud **OpenAI fallback**) to deeply analyze candidate resumes in Arabic and English, benchmark candidate skills against industry standards, generate personalized 3-month skill roadmaps, and conduct interactive technical mock interviews.
 
@@ -92,14 +92,49 @@ flowchart TD
 
 | Layer | Technologies |
 | :--- | :--- |
-| **Frontend** | React 18, Vite, React Router v6, Tailwind CSS, Recharts, Axios, Lucide Icons |
-| **Backend** | FastAPI, Python 3.11+, Pydantic v2, Uvicorn |
-| **Relational DB** | MySQL 8.0 (Production) with automated SQLite fallback (Development/Testing) |
-| **Document DB** | MongoDB (Production) with automated Mongomock fallback |
-| **Task Queue** | Celery 5.3+, Redis 7.0+ (Scheduled email reminders, async PDF parsing) |
-| **AI / LLMs** | Ollama (`llama3.2`), OpenAI (`gpt-3.5-turbo`, Whisper audio transcription) |
-| **PDF Processing**| `pdfplumber` (text parsing), `reportlab` (bilingual RTL Arabic career report generation) |
-| **Testing** | Pytest, TestClient, Mongomock, Unitest.mock (63 automated tests) |
+| **Frontend (Web)** | React 18, Vite, React Router v6, Tailwind CSS, Recharts, Axios, Lucide Icons |
+| **Browser Extension** | Chrome Extension Manifest V3 (`chrome-extension/`), LinkedIn DOM Matcher & SPA Observer |
+| **Mobile Companion** | React Native / Expo (`mobile/`), Voice Interview Simulator & Offline-Capable Roadmap |
+| **Backend API** | FastAPI, Python 3.11+, Pydantic v2, Uvicorn, Sliding-Window Rate Limiter, OWASP Security Headers |
+| **Relational DB** | MySQL 8.0 (Production with auto-migration) & SQLite WAL Fallback (Local Dev/Testing) |
+| **Document DB** | MongoDB 7.0 (Indexed Collections) with Mongomock Fallback |
+| **Task Queue** | Celery 5.3+, Redis 7.0+ (Async PDF Extraction Worker & Weekly Progress Email Cron) |
+| **AI / LLMs** | Ollama (`career-model` / `llama3.2`), OpenAI (`gpt-3.5-turbo`, Whisper Audio Transcription) |
+| **PDF Processing**| `pdfplumber` (multi-column parsing), `reportlab` (bilingual RTL Arabic PDF career & ATS reports) |
+| **Testing** | Pytest, FastAPI TestClient, Mongomock, Unittest.mock (**131 automated tests — 100% passing**) |
+
+---
+
+## 📂 Project Structure
+
+```text
+career-compass/
+├── backend/
+│   ├── alembic/                  # Database schema migrations (Phase 1–3)
+│   ├── app/
+│   │   ├── api/routes/           # REST API routers (auth, cv, analyze, interview, recruiter, subscriptions, extension, ...)
+│   │   ├── assets/fonts/         # Bundled Amiri Arabic fonts for RTL PDF generation
+│   │   ├── core/                 # Config, MySQL/SQLite pool, MongoDB indexes, JWT security, Rate Limiter
+│   │   ├── models/               # SQLAlchemy relational models (User, Job, Skill, Question, Course)
+│   │   ├── schemas/              # Strict Pydantic v2 request/response schemas & validators
+│   │   ├── seed/                 # Reference skills (117), jobs (30), assessment questions & courses
+│   │   ├── services/             # Recommendation engine, ATS builder, Interview AI, Recruiter B2B, Stripe Billing, Regional Taxonomy
+│   │   └── worker/               # Celery background tasks & scheduled weekly beat jobs
+│   ├── scripts/                  # Fine-tuning dataset generator (ChatML / JSONL)
+│   └── tests/                    # 21 comprehensive test suites (131 passing tests)
+├── frontend/
+│   └── src/
+│       ├── api/                  # Axios client & typed API endpoint wrappers
+│       ├── components/           # Layout, ATS Resume Builder modal, Live Job Matching, Charts & UI primitives
+│       ├── context/              # AuthContext, AnalysisContext, ToastContext
+│       └── pages/                # Dashboard, Analysis, Mock Interview, Recruiter Portal (B2B), Pricing Plans
+├── chrome-extension/             # Manifest V3 LinkedIn Job Matcher extension
+├── mobile/                       # React Native (Expo) companion app
+├── docker-compose.yml            # Local development container stack
+├── docker-compose.prod.yml       # Production stack (Nginx, Frontend, Backend, Celery, MySQL, Mongo, Redis, Ollama)
+├── nginx.conf                    # Reverse proxy with OWASP security headers & gzip compression
+└── start.ps1                     # One-click local startup script for Windows PowerShell
+```
 
 ---
 
@@ -156,32 +191,20 @@ Frontend will be running at: `http://localhost:5173`
 #### 3. Run Celery Worker (Optional - for background jobs)
 ```bash
 cd backend
-celery -A app.celery_app worker --loglevel=info
+celery -A app.worker.celery_app worker --loglevel=info
 ```
-
----
-
-## 🧪 Testing & Verification
-
-The project includes an extensive test suite covering the full user journey, recommendation mathematics, LinkedIn extraction, mock interviews, and background tasks.
-
-```bash
-cd backend
-pytest tests/ -v
-```
-**Results:** `77 passed, 100% test pass rate`.
 
 ---
 
 ## 🐳 Production Deployment (Docker Compose)
 
-The repository provides production-ready Docker Compose configurations:
+The repository provides production-ready Docker Compose configurations (`docker-compose.prod.yml`):
 
 ```bash
-# 1. Build and launch all services (API, Frontend Nginx, MySQL, MongoDB, Redis, Celery)
+# 1. Build and launch all services (API, Frontend, Nginx, MySQL, MongoDB, Redis, Celery, Ollama)
 docker compose -f docker-compose.prod.yml up -d --build
 
-# 2. Seed initial catalogue data (Jobs, Skills, Questions)
+# 2. Seed initial catalogue data (Jobs, Skills, Questions, Courses)
 docker compose exec backend python -c "from app.seed.seed_runner import run_seed; run_seed()"
 ```
 
@@ -209,17 +232,18 @@ docker compose exec backend python -c "from app.seed.seed_runner import run_seed
 | **Jobs** | `GET` | `/jobs/matched` | Active market vacancy matching with smart synonyms |
 | **Interview**| `POST`| `/interview/start`, `/interview/chat` | Interactive AI technical mock interview session |
 | **Interview**| `POST`| `/interview/{id}/voice`, `/interview/{id}/evaluate` | Whisper voice simulation & 10-point scoring |
-| **Recruiter (B2B)**| `POST`, `GET` | `/recruiter/jobs`, `/recruiter/jobs/{id}` | Corporate job postings & vacancy management |
+| **Recruiter (B2B)**| `POST`, `GET`, `PUT`, `DELETE` | `/recruiter/jobs`, `/recruiter/jobs/{id}` | Corporate job postings & vacancy management |
 | **Recruiter (B2B)**| `GET` | `/recruiter/jobs/{id}/candidates` | AI-driven candidate discovery & match ranking |
 | **Recruiter (B2B)**| `POST`| `/recruiter/jobs/{id}/candidates/{cand_id}/status` | Update candidate recruitment pipeline stage |
-| **Recruiter (B2B)**| `GET` | `/recruiter/candidates/{cand_id}/profile` | Candidate verified profile, projects & ATS score |
+| **Recruiter (B2B)**| `GET` | `/recruiter/candidates/{cand_id}/profile` | Candidate verified profile, projects & ATS score (RBAC protected) |
+| **Recruiter (B2B)**| `POST`| `/recruiter/switch-role` | Upgrade account role to B2B Recruiter mode |
 | **Monetization** | `GET` | `/subscriptions/plans`, `/subscriptions/current` | Pricing tiers (Free, Pro, Enterprise) & status |
-| **Monetization** | `POST`| `/subscriptions/checkout-session`, `/cancel` | Stripe checkout session generation & cancellation |
+| **Monetization** | `POST`| `/subscriptions/checkout-session`, `/cancel`, `/webhook` | Stripe checkout, cancellation & verified webhooks |
 | **Extension** | `POST`| `/extension/match-job` | Real-time LinkedIn job text compatibility matcher |
 
 ---
 
-## 🧪 Automated Testing & Test Suite (128/128 Tests Passing)
+## 🧪 Automated Testing & Test Suite (131/131 Tests Passing)
 
 Career Compass comes with a comprehensive, enterprise-grade test suite covering every core capability, service, API endpoint, edge case, and multi-tenant security boundary:
 
@@ -229,13 +253,13 @@ python -m pytest backend/tests/ -v
 ```
 
 ### Test Coverage Highlights:
-- **Phase 3 B2B Recruiter Portal & Pipeline (`test_phase3_b2b_and_monetization.py`, `test_phase3_edge_cases_and_isolation.py`):** Multi-tenant job posting CRUD, candidate ranking algorithm, pipeline status transitions across all 6 stages, and deep-dive profile previews.
-- **Monetization & Billing Gateways (`test_monetization_deep.py`, `test_phase3_advanced_expansion.py`):** Freemium/Pro/Enterprise plans configuration, 20% annual discount calculations, Stripe checkout sessions, sandbox instant activation, automated role assignment, subscription cancellation, and webhook handling.
-- **Chrome Extension Matcher (`test_extension_api_deep.py`):** Real-time HTML and raw text job parsing, skill overlap computation, salary benchmark alignment, and fallback modes.
-- **Regional Market Intelligence & Fine-Tuning (`test_regional_taxonomy_deep.py`, `prepare_finetuning_dataset.py`):** MenA tech salary percentile validations, bilingual role normalization, university/tech-hub recognition, ChatML JSONL dataset generation.
+- **Phase 3 B2B Recruiter Portal & Pipeline (`test_phase3_b2b_and_monetization.py`, `test_phase3_edge_cases_and_isolation.py`):** Multi-tenant job posting CRUD, newest-CV candidate ranking algorithm, pipeline status transitions across all 6 stages, and RBAC-protected deep-dive profile previews.
+- **Monetization & Billing Gateways (`test_monetization_deep.py`, `test_phase3_advanced_expansion.py`):** Freemium/Pro/Enterprise plans configuration, 20% annual discount calculations, Stripe checkout sessions, open-redirect protection, sandbox instant activation, automated role assignment, subscription cancellation, and webhook handling.
+- **Chrome Extension Matcher (`test_extension_api_deep.py`):** Real-time HTML and raw text job parsing, pre-compiled regex skill overlap (including symbol skills like `C++` and `C#`), salary benchmark alignment, and fallback modes.
+- **Regional Market Intelligence & Fine-Tuning (`test_regional_taxonomy_deep.py`, `prepare_finetuning_dataset.py`):** MENA tech salary percentile validations, bilingual role normalization, university/tech-hub recognition, ChatML JSONL dataset generation.
 - **Voice AI & Mock Interview Evaluation (`test_interview_service_and_scoring.py`, `test_phase3_advanced_expansion.py`):** Speech rate (WPM) calculations, filler words detection (Arabic/English), 10-point scoring rubrics, and model answer generation.
 - **ATS Audit & Resume Builder (`test_cv_and_ats_deep.py`):** Formatting risk audit, section scoring breakdown, ATS resume builder optimization, and PDF generation.
-- **Authentication & Security Hardening (`test_security_auth_and_profile_deep.py`, `test_security_and_performance.py`):** Password strength validation, case-insensitive login, single-use reset tokens, JWT invalidation on password change, sliding-window rate limiting, and N+1 query elimination.
+- **Authentication, Security & Performance (`test_security_auth_and_profile_deep.py`, `test_security_and_performance.py`):** Password strength validation, privilege escalation prevention, IDOR protection on job matching, RBAC enforcement, single-use reset tokens, JWT invalidation on password change, bounded sliding-window rate limiting, and N+1 query elimination.
 
 ---
 
