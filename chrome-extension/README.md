@@ -23,7 +23,7 @@ The Career Compass Chrome Browser Extension allows job seekers to browse vacanci
 2. Navigate to `chrome://extensions/`.
 3. Enable **Developer mode** (toggle in the top-right corner).
 4. Click **Load unpacked** (تحميل إضافة لم تُحزم).
-5. Select this folder: `c:\Users\msi\Downloads\career-compass\career-compass\chrome-extension`.
+5. Select this folder: `C:\Users\msi\Downloads\career-compass\chrome-extension`.
 6. Pin the Career Compass extension icon in your browser toolbar!
 
 ---
