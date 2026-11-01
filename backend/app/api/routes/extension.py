@@ -19,14 +19,24 @@ from app.services.recommendation_engine import _is_job_skill_match
 router = APIRouter(prefix="/extension", tags=["Chrome Browser Extension"])
 
 
+_COMPILED_SKILL_PATTERNS = [
+    (
+        skill_name,
+        re.compile(
+            r"(?<![a-z0-9])" + re.escape(skill_name.lower()) + r"(?![a-z0-9])"
+        ),
+    )
+    for skill_name in SKILLS.keys()
+]
+
+
 def _extract_skills_from_text(text: str) -> List[str]:
     """استخراج المهارات التقنية المذكورة في نص إعلان الوظيفة."""
     found = []
     lower = text.lower()
-    for s in SKILLS.keys():
-        pattern = r"\b" + re.escape(s.lower()) + r"\b"
-        if re.search(pattern, lower):
-            found.append(s)
+    for skill_name, compiled_re in _COMPILED_SKILL_PATTERNS:
+        if compiled_re.search(lower):
+            found.append(skill_name)
     return normalize_and_dedupe_skills(found)
 
 

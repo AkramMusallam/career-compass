@@ -7,6 +7,26 @@ import {
   RadarChart,
   ResponsiveContainer,
 } from "recharts";
+import {
+  Sparkles,
+  Download,
+  FileText,
+  Share2,
+  TrendingUp,
+  TrendingDown,
+  Activity,
+  CheckCircle2,
+  AlertTriangle,
+  Target,
+  Briefcase,
+  ArrowDown,
+  Flame,
+  Star,
+  Lightbulb,
+  Map,
+  GraduationCap,
+  FolderClock,
+} from "lucide-react";
 
 import { getErrorMessage } from "../../api/client";
 import {
@@ -183,9 +203,9 @@ export default function Results() {
 
   if (status === "loading") {
     return (
-      <div className="mx-auto max-w-5xl animate-pulse space-y-6">
-        <div className="card h-56" />
-        <div className="card h-72" />
+      <div className="mx-auto max-w-5xl animate-pulse space-y-5">
+        <div className="card h-52" />
+        <div className="card h-64" />
       </div>
     );
   }
@@ -193,10 +213,10 @@ export default function Results() {
   if (status === "error" || !analysis) {
     return (
       <div className="card mx-auto max-w-md text-center py-12">
-        <p className="mb-2 text-lg font-black text-danger">
+        <p className="mb-2 text-base sm:text-lg font-black text-danger">
           تعذر عرض نتائج التحليل
         </p>
-        <p className="mb-5 text-sm text-slate-500">
+        <p className="mb-5 text-xs sm:text-sm text-slate-500">
           التحليل نفسه محفوظ بأمان في سجلك ولن يُفقد
         </p>
         <button className="btn-primary" onClick={handleRetry}>
@@ -218,21 +238,18 @@ export default function Results() {
     : 0;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 animate-fade-in-up">
+    <div className="mx-auto max-w-5xl space-y-5 animate-fade-in">
       {/* أ) Executive Career Score Hero */}
-      <section className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-indigo-50/95 via-white/95 to-emerald-50/85 p-8 sm:p-10 shadow-[0_20px_50px_-15px_rgba(79,70,229,0.12)] border border-indigo-100/90 backdrop-blur-xl">
-        <div className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-indigo-400/20 blur-[100px]" />
-        <div className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-emerald-400/15 blur-[100px]" />
-
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+      <section className="rounded-2xl bg-slate-900 text-white p-5 sm:p-8 shadow-card border border-slate-800">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex-1 text-center md:text-right">
-            <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-indigo-200/80 bg-white/85 px-3.5 py-1 text-xs font-extrabold text-indigo-700 shadow-sm">
-              <span>✨</span>
+            <span className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-[11px] font-bold text-secondary-300">
+              <Sparkles size={13} />
               <span>التقرير التنفيذي للجاهزية المهنية</span>
             </span>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 mb-3">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white mb-2.5 leading-snug">
               ملفك المهني{" "}
-              <span className="text-gradient">
+              <span className="text-secondary-400">
                 {analysis.career_score >= 70
                   ? "قوي ومنافس"
                   : analysis.career_score >= 40
@@ -242,61 +259,70 @@ export default function Results() {
               ومتوافق مع {analysis.top_jobs.length} مسارات وظيفية
             </h1>
             {analysis.top_jobs[0] && (
-              <p className="text-sm sm:text-base text-slate-600 font-medium">
+              <p className="text-xs sm:text-sm text-slate-300 font-medium">
                 أعلى مسار موصى به لك حالياً:{" "}
-                <b className="text-slate-900">{analysis.top_jobs[0].job_title}</b>{" "}
+                <b className="text-white">{analysis.top_jobs[0].job_title}</b>{" "}
                 بنسبة توافق{" "}
-                <b className="text-emerald-600">
+                <b className="text-secondary-400">
                   {Math.round(analysis.top_jobs[0].match_percentage)}%
                 </b>
               </p>
             )}
 
             {benchmark && benchmark.average_career_score !== null && (
-              <div className="mt-4 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-indigo-100 bg-white/80 px-4 py-2 text-xs font-bold text-slate-600 shadow-sm">
+              <div className="mt-3.5 inline-flex flex-wrap items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2 text-xs font-bold text-slate-300">
                 <span>
                   متوسط الأقران: {Math.round(benchmark.average_career_score)} (من{" "}
                   {benchmark.sample_size} تحليل)
                 </span>
                 {analysis.career_score >= benchmark.average_career_score ? (
-                  <span className="text-emerald-600 font-extrabold">— أنت أعلى من المتوسط ▲</span>
+                  <span className="inline-flex items-center gap-1 text-secondary-400 font-extrabold">
+                    <TrendingUp size={13} />
+                    <span>أعلى من المتوسط</span>
+                  </span>
                 ) : (
-                  <span className="text-amber-600 font-extrabold">— أنت أقل من المتوسط ▼</span>
+                  <span className="inline-flex items-center gap-1 text-accent-400 font-extrabold">
+                    <TrendingDown size={13} />
+                    <span>أقل من المتوسط</span>
+                  </span>
                 )}
               </div>
             )}
 
-            <div className="mt-6 flex flex-wrap justify-center md:justify-start gap-2.5">
+            <div className="mt-5 flex flex-wrap justify-center md:justify-start gap-2">
               <button
                 type="button"
                 onClick={handleDownloadPdf}
                 disabled={isDownloadingPdf}
-                className="btn-primary !py-2.5 !px-5 !text-xs"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-primary-500 transition-colors disabled:opacity-50"
               >
-                {isDownloadingPdf ? "جاري التصدير..." : "📥 تحميل التقرير PDF"}
+                <Download size={14} />
+                <span>{isDownloadingPdf ? "جاري التصدير..." : "تحميل التقرير PDF"}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setShowAtsBuilder(true)}
-                className="btn-secondary !py-2.5 !px-5 !text-xs"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-secondary-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-secondary-500 transition-colors"
               >
-                📄 بناء وتصدير سيرة ذاتية ATS
+                <FileText size={14} />
+                <span>بناء سيرة ATS</span>
               </button>
               <button
                 type="button"
                 onClick={() => setShowShareModal(true)}
-                className="btn-outline !py-2.5 !px-5 !text-xs"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-xs font-bold text-slate-200 hover:bg-slate-700 transition-colors"
               >
-                🔗 {shareToken ? "إدارة رابط المشاركة" : "مشاركة التقرير"}
+                <Share2 size={14} />
+                <span>{shareToken ? "إدارة المشاركة" : "مشاركة التقرير"}</span>
               </button>
             </div>
           </div>
 
-          <div className="shrink-0 rounded-3xl border border-indigo-100/90 bg-white/90 p-6 shadow-lg shadow-indigo-500/5 backdrop-blur-xl">
+          <div className="shrink-0 rounded-2xl border border-slate-800 bg-slate-800/70 p-5">
             <CircularProgress
               value={analysis.career_score}
-              size={170}
-              dark={false}
+              size={150}
+              dark={true}
               label="مؤشر Career Score"
             />
           </div>
@@ -304,30 +330,33 @@ export default function Results() {
       </section>
 
       {/* ب) Career DNA + نقاط القوة والضعف */}
-      <div className="grid gap-6 lg:grid-cols-12">
+      <div className="grid gap-5 lg:grid-cols-12">
         <section className="card lg:col-span-7 flex flex-col justify-between">
           <div>
-            <h2 className="text-lg font-black text-slate-900">
-              🧬 البصمة المهنية (Career DNA)
-            </h2>
+            <div className="flex items-center gap-2">
+              <Activity size={18} className="text-primary-600" />
+              <h2 className="text-base sm:text-lg font-black text-slate-900">
+                البصمة المهنية (Career DNA)
+              </h2>
+            </div>
             <p className="text-xs font-medium text-slate-500 mt-0.5">
               توزيع قدراتك عبر المحاور المهنية والتقنية الرئيسية
             </p>
           </div>
-          <div className="h-80 w-full mt-2">
+          <div className="h-72 sm:h-80 w-full mt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={dnaData} outerRadius="68%">
+              <RadarChart data={dnaData} outerRadius="66%">
                 <PolarGrid stroke="#CBD5E1" />
                 <PolarAngleAxis
                   dataKey="axis"
-                  tick={{ fill: "#334155", fontSize: 12, fontWeight: 800 }}
+                  tick={{ fill: "#334155", fontSize: 11, fontWeight: 700 }}
                 />
                 <Radar
                   dataKey="value"
-                  stroke="#4F46E5"
-                  strokeWidth={2.5}
-                  fill="#6366F1"
-                  fillOpacity={0.35}
+                  stroke="#2563EB"
+                  strokeWidth={2}
+                  fill="#3B82F6"
+                  fillOpacity={0.3}
                 />
               </RadarChart>
             </ResponsiveContainer>
@@ -335,16 +364,16 @@ export default function Results() {
         </section>
 
         <section className="lg:col-span-5 flex flex-col gap-4">
-          <div className="card flex-1 border-emerald-200/80 bg-gradient-to-br from-emerald-50/70 to-white">
-            <h3 className="mb-3 flex items-center gap-2 text-base font-black text-emerald-800">
-              <span>💪</span>
+          <div className="card flex-1 !border-secondary-200 !bg-secondary-50/40">
+            <h3 className="mb-3 flex items-center gap-2 text-sm sm:text-base font-black text-secondary-800">
+              <CheckCircle2 size={18} className="text-secondary-600" />
               <span>نقاط القوة البارزة</span>
             </h3>
-            <ul className="space-y-2 text-sm font-semibold text-slate-700">
+            <ul className="space-y-2 text-xs sm:text-sm font-semibold text-slate-700">
               {analysis.strengths.length ? (
                 analysis.strengths.map((s) => (
                   <li key={s} className="flex items-start gap-2">
-                    <span className="text-emerald-600 font-black">✓</span>
+                    <span className="text-secondary-600 font-black">•</span>
                     <span>{s}</span>
                   </li>
                 ))
@@ -354,16 +383,16 @@ export default function Results() {
             </ul>
           </div>
 
-          <div className="card flex-1 border-amber-200/80 bg-gradient-to-br from-amber-50/70 to-white">
-            <h3 className="mb-3 flex items-center gap-2 text-base font-black text-amber-800">
-              <span>⚡</span>
+          <div className="card flex-1 !border-accent-200 !bg-accent-50/40">
+            <h3 className="mb-3 flex items-center gap-2 text-sm sm:text-base font-black text-accent-800">
+              <AlertTriangle size={18} className="text-accent-600" />
               <span>جوانب قابلة للتعزيز</span>
             </h3>
-            <ul className="space-y-2 text-sm font-semibold text-slate-700">
+            <ul className="space-y-2 text-xs sm:text-sm font-semibold text-slate-700">
               {analysis.weaknesses.length ? (
                 analysis.weaknesses.map((w) => (
                   <li key={w} className="flex items-start gap-2">
-                    <span className="text-amber-600 font-black">•</span>
+                    <span className="text-accent-600 font-black">•</span>
                     <span>{w}</span>
                   </li>
                 ))
@@ -377,15 +406,28 @@ export default function Results() {
 
       {/* ج) Top 5 Jobs */}
       <section className="card">
-        <div className="mb-5">
-          <h2 className="text-lg font-black text-slate-900">
-            🎯 أفضل 5 مسارات وظيفية مناسبة لك
-          </h2>
-          <p className="text-xs font-medium text-slate-500 mt-0.5">
-            مرتبة تنازلياً حسب توافق مهاراتك وخبراتك مع متطلبات كل دور وظيفي
-          </p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Target size={18} className="text-primary-600" />
+              <h2 className="text-base sm:text-lg font-black text-slate-900">
+                أفضل 5 مسارات وظيفية مناسبة لك
+              </h2>
+            </div>
+            <p className="text-xs font-medium text-slate-500 mt-0.5">
+              مرتبة تنازلياً حسب توافق مهاراتك وخبراتك مع متطلبات كل دور وظيفي
+            </p>
+          </div>
+          <a
+            href="#companies-section"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-primary-50 border border-primary-200 px-3 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-100 transition-colors"
+          >
+            <Briefcase size={13} />
+            <span>الشركات المقترحة للتقديم المباشر</span>
+            <ArrowDown size={13} />
+          </a>
         </div>
-        <div className="space-y-3.5">
+        <div className="space-y-3">
           {analysis.top_jobs.map((job, index) => (
             <JobCard
               key={job.job_title}
@@ -400,21 +442,21 @@ export default function Results() {
         </div>
       </section>
 
-      {/* فرص العمل الحقيقية المطابقة لملفك (Feature 6.5) */}
+      {/* فرص العمل الحقيقية المطابقة لملفك والشركات المقترحة */}
       <LiveJobMatchingSection
-        analysisId={analysis.analysis_id}
+        analysisId={analysis.analysis_id || analysisId}
         onStartInterview={handleStartInterview}
       />
 
       {/* هـ) Skill Gap */}
       <section className="card">
-        <h2 className="mb-4 text-lg font-black text-slate-900">
-          🧩 تحليل فجوة المهارات (Skill Gap Analysis)
+        <h2 className="mb-4 text-base sm:text-lg font-black text-slate-900">
+          تحليل فجوة المهارات (Skill Gap Analysis)
         </h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-red-100 bg-red-50/40 p-4">
+        <div className="grid gap-3.5 sm:grid-cols-3">
+          <div className="rounded-xl border border-red-200 bg-red-50/40 p-4">
             <p className="mb-2.5 text-xs font-black text-danger flex items-center gap-1.5">
-              <span>🔥</span>
+              <Flame size={15} />
               <span>مهارات حرجة (Critical)</span>
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -422,7 +464,7 @@ export default function Results() {
                 analysis.skill_gap.critical.map((s) => (
                   <span
                     key={s}
-                    className="rounded-full border border-red-200 bg-white px-3 py-1 text-xs font-bold text-red-700 shadow-sm"
+                    className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-bold text-red-700"
                   >
                     {s}
                   </span>
@@ -433,9 +475,9 @@ export default function Results() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4">
-            <p className="mb-2.5 text-xs font-black text-amber-700 flex items-center gap-1.5">
-              <span>⭐</span>
+          <div className="rounded-xl border border-accent-200 bg-accent-50/40 p-4">
+            <p className="mb-2.5 text-xs font-black text-accent-700 flex items-center gap-1.5">
+              <Star size={15} />
               <span>موصى بها (Recommended)</span>
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -443,7 +485,7 @@ export default function Results() {
                 analysis.skill_gap.recommended.map((s) => (
                   <span
                     key={s}
-                    className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-bold text-amber-800 shadow-sm"
+                    className="rounded-lg border border-accent-200 bg-white px-2.5 py-1 text-xs font-bold text-accent-800"
                   >
                     {s}
                   </span>
@@ -454,9 +496,9 @@ export default function Results() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p className="mb-2.5 text-xs font-black text-slate-600 flex items-center gap-1.5">
-              <span>💡</span>
+              <Lightbulb size={15} />
               <span>إضافية داعمة (Nice to Have)</span>
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -464,7 +506,7 @@ export default function Results() {
                 analysis.skill_gap.nice_to_have.map((s) => (
                   <span
                     key={s}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-600 shadow-sm"
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-600"
                   >
                     {s}
                   </span>
@@ -479,62 +521,65 @@ export default function Results() {
 
       {/* و) Roadmap */}
       <section className="card">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-black text-slate-900">
-              🗺️ خارطة التعلم والتطوير (3 أشهر)
-            </h2>
+            <div className="flex items-center gap-2">
+              <Map size={18} className="text-secondary-600" />
+              <h2 className="text-base sm:text-lg font-black text-slate-900">
+                خارطة التعلم والتطوير (3 أشهر)
+              </h2>
+            </div>
             <p className="text-xs font-medium text-slate-500 mt-0.5">
               ضع علامة صح بجانب كل مهارة تنجزها لتتبع تقدمك الفعلي
             </p>
           </div>
           {allRoadmapSkills.length > 0 && (
-            <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-2">
-              <div className="h-2.5 w-32 overflow-hidden rounded-full bg-emerald-100">
+            <div className="flex items-center gap-3 rounded-xl border border-secondary-200 bg-secondary-50/70 px-3.5 py-2">
+              <div className="h-2 w-24 sm:w-32 overflow-hidden rounded-full bg-secondary-100">
                 <div
-                  className="h-full rounded-full bg-emerald-600 transition-all duration-500"
+                  className="h-full rounded-full bg-secondary-600 transition-all duration-500"
                   style={{ width: `${roadmapProgressPercent}%` }}
                 />
               </div>
-              <span className="text-xs font-black text-emerald-800">
-                {completedSkills.size}/{allRoadmapSkills.length} مكتملة (
+              <span className="text-xs font-black text-secondary-800">
+                {completedSkills.size}/{allRoadmapSkills.length} (
                 {roadmapProgressPercent}%)
               </span>
             </div>
           )}
         </div>
 
-        <ol className="relative border-r-2 border-indigo-200 pr-6 space-y-6">
+        <ol className="relative border-r-2 border-primary-200 pr-5 space-y-4">
           {analysis.roadmap.map((month) => (
             <li
               key={month.month}
-              className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5"
+              className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4"
             >
-              <span className="absolute -right-[11px] flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 ring-4 ring-white" />
-              <p className="mb-2 text-base font-black text-indigo-700">
+              <span className="absolute -right-[9px] flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 ring-4 ring-white" />
+              <p className="mb-2 text-sm sm:text-base font-black text-primary-700">
                 الشهر {month.month}
               </p>
-              <ul className="mb-3 list-inside list-disc space-y-1 text-sm font-semibold text-slate-700">
+              <ul className="mb-3 list-inside list-disc space-y-1 text-xs sm:text-sm font-semibold text-slate-700">
                 {month.goals.map((g, i) => (
                   <li key={i}>{g}</li>
                 ))}
               </ul>
               {month.skills_to_learn.length > 0 && (
-                <div className="pt-2 border-t border-slate-200/60 flex flex-wrap gap-2">
+                <div className="pt-2.5 border-t border-slate-200/60 flex flex-wrap gap-2">
                   {month.skills_to_learn.map((skill) => {
                     const done = completedSkills.has(skill);
                     return (
                       <label
                         key={skill}
-                        className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition ${
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors ${
                           done
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700 line-through"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-indigo-300"
+                            ? "border-secondary-200 bg-secondary-50 text-secondary-700 line-through"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-primary-300"
                         }`}
                       >
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500"
+                          className="h-4 w-4 rounded text-secondary-600 focus:ring-secondary-500"
                           checked={done}
                           onChange={() => handleToggleRoadmapSkill(skill)}
                         />
@@ -552,28 +597,32 @@ export default function Results() {
       {/* ز) الكورسات المقترحة */}
       {analysis.suggested_courses.length > 0 && (
         <section className="card">
-          <h2 className="mb-4 text-lg font-black text-slate-900">
-            🎓 الكورسات والمصادر التعليمية المقترحة
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+          <div className="mb-4 flex items-center gap-2">
+            <GraduationCap size={18} className="text-primary-600" />
+            <h2 className="text-base sm:text-lg font-black text-slate-900">
+              الكورسات والمصادر التعليمية المقترحة
+            </h2>
+          </div>
+          <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3">
             {analysis.suggested_courses.map((course) => (
               <a
                 key={course.title}
                 href={course.url}
                 target="_blank"
                 rel="noreferrer"
-                className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md"
+                className="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-4 transition-colors hover:border-primary-300"
               >
                 <div>
-                  <span className="mb-2 inline-block rounded-lg bg-indigo-50 px-2.5 py-1 text-[11px] font-extrabold text-indigo-700">
+                  <span className="mb-2 inline-block rounded-md bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">
                     {course.platform}
                   </span>
-                  <p className="mb-2 font-black text-slate-900 group-hover:text-indigo-700 transition-colors">
+                  <p className="mb-2 text-sm font-bold text-slate-900 group-hover:text-primary-600 transition-colors">
                     {course.title}
                   </p>
                 </div>
                 <p className="pt-2 border-t border-slate-100 text-xs font-bold text-slate-500">
-                  يغطي مهارة: <span className="text-slate-800">{course.covers_skill}</span>
+                  يغطي مهارة:{" "}
+                  <span className="text-slate-800">{course.covers_skill}</span>
                 </p>
               </a>
             ))}
@@ -582,40 +631,44 @@ export default function Results() {
       )}
 
       {!analysis.suggested_courses.length && (
-        <p className="text-center text-sm text-slate-400">
+        <p className="text-center text-xs sm:text-sm text-slate-400">
           لا توجد كورسات مقترحة حالياً لهذا المسار
         </p>
       )}
 
-      {/* Batch 1.2: Feedback Loop */}
+      {/* Feedback Loop */}
       <FeedbackWidget analysisId={analysis.analysis_id} />
 
       {/* ح) أزرار الإجراءات */}
-      <div className="flex flex-col items-center gap-3 pb-8 sm:flex-row sm:justify-center">
+      <div className="flex flex-col items-center gap-2.5 pb-6 sm:flex-row sm:justify-center">
         <button
           type="button"
           onClick={handleDownloadPdf}
           disabled={isDownloadingPdf}
           className="btn-outline w-full sm:w-auto"
         >
-          {isDownloadingPdf ? "جاري التحميل..." : "📥 تحميل كـ PDF"}
+          <Download size={15} />
+          <span>{isDownloadingPdf ? "جاري التحميل..." : "تحميل كـ PDF"}</span>
         </button>
         <button
           type="button"
           onClick={() => setShowShareModal(true)}
           className="btn-outline w-full sm:w-auto"
         >
-          🔗 {shareToken ? "إدارة المشاركة" : "مشاركة النتائج"}
+          <Share2 size={15} />
+          <span>{shareToken ? "إدارة المشاركة" : "مشاركة النتائج"}</span>
         </button>
         <Link to="/history" className="btn-outline w-full sm:w-auto">
-          📂 عرض سجل التحليلات
+          <FolderClock size={15} />
+          <span>عرض سجل التحليلات</span>
         </Link>
         <button
           type="button"
           onClick={startNewAnalysis}
           className="btn-secondary w-full sm:w-auto"
         >
-          ✨ بدء تحليل جديد
+          <Sparkles size={15} />
+          <span>بدء تحليل جديد</span>
         </button>
       </div>
 
@@ -639,7 +692,9 @@ export default function Results() {
       {showAtsBuilder && (
         <AtsCvBuilderModal
           extractionId={analysis.analysis_id || analysisId}
-          initialSkills={analysis.skills?.length ? analysis.skills : (analysis.strengths || [])}
+          initialSkills={
+            analysis.skills?.length ? analysis.skills : analysis.strengths || []
+          }
           defaultRole={analysis.top_jobs?.[0]?.job_title || ""}
           onClose={() => setShowAtsBuilder(false)}
         />

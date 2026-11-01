@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
+import { fetchLatestRoadmap, fetchProfile } from "../services/api";
 
 export default function DashboardScreen({ onNavigate, token }) {
   const [stats, setStats] = useState({
@@ -8,6 +9,37 @@ export default function DashboardScreen({ onNavigate, token }) {
     completedRoadmapSkills: 5,
     totalRoadmapSkills: 12,
   });
+
+  useEffect(() => {
+    if (!token) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const [profile, latest] = await Promise.all([
+          fetchProfile(token).catch(() => null),
+          fetchLatestRoadmap(token).catch(() => null),
+        ]);
+        if (!mounted) return;
+        if (latest || profile) {
+          const totalSkills = (latest?.roadmap || []).reduce(
+            (acc, m) => acc + ((m.skills_to_learn || []).length),
+            0
+          );
+          setStats((prev) => ({
+            careerScore: Math.round(latest?.career_score ?? profile?.highest_career_score ?? prev.careerScore),
+            targetRole: latest?.top_jobs?.[0]?.job_title || prev.targetRole,
+            completedRoadmapSkills: (latest?.completed_skills || []).length || prev.completedRoadmapSkills,
+            totalRoadmapSkills: totalSkills || prev.totalRoadmapSkills,
+          }));
+        }
+      } catch (_err) {
+        // Fallback to local offline snapshot when backend is unreachable
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
 
   return (
     <ScrollView style={styles.container}>

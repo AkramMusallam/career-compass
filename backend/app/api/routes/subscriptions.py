@@ -66,7 +66,8 @@ def cancel_subscription(current_user: User = Depends(get_current_user)):
 @router.post("/webhook", status_code=status.HTTP_200_OK)
 async def stripe_webhook(request: Request, stripe_signature: str = Header(None)):
     """معالجة إشعارات Stripe الفورية لتأكيد الدفع وتجديد الاشتراكات."""
-    # قراءة جسم الطلب الخام
     body = await request.body()
-    # يتم التحقق والتحديث بحسب نوع الحدث
-    return {"status": "received", "length": len(body)}
+    try:
+        return subscription_service.handle_webhook_event(body, stripe_signature)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

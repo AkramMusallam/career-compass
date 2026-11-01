@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  FileText,
+  PenLine,
+  Eye,
+  X,
+  AlertCircle,
+  Sparkles,
+  Plus,
+  Download,
+  Check,
+} from "lucide-react";
 import { getErrorMessage } from "../../api/client";
 import { exportAtsResumePdf, optimizeAtsResume } from "../../api/endpoints";
 
@@ -12,7 +23,7 @@ export default function AtsCvBuilderModal({
   defaultRole = "",
   onClose,
 }) {
-  const [activeTab, setActiveTab] = useState("edit"); // "edit" | "preview"
+  const [activeTab, setActiveTab] = useState("edit");
   const [loadingOptimize, setLoadingOptimize] = useState(true);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -61,7 +72,9 @@ export default function AtsCvBuilderModal({
       })
       .catch((err) => {
         if (mounted) {
-          setErrorMsg(getErrorMessage(err, "تعذر جلب البيانات المحسّنة تلقائياً"));
+          setErrorMsg(
+            getErrorMessage(err, "تعذر جلب البيانات المحسّنة تلقائياً")
+          );
         }
       })
       .finally(() => {
@@ -87,7 +100,9 @@ export default function AtsCvBuilderModal({
         summary: res.data.summary || prev.summary,
       }));
     } catch (err) {
-      setErrorMsg(getErrorMessage(err, "تعذر توليد الملخص المهني بالذكاء الاصطناعي"));
+      setErrorMsg(
+        getErrorMessage(err, "تعذر توليد الملخص المهني بالذكاء الاصطناعي")
+      );
     } finally {
       setLoadingOptimize(false);
     }
@@ -109,7 +124,9 @@ export default function AtsCvBuilderModal({
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      setErrorMsg(getErrorMessage(err, "تعذر تصدير ملف الـ PDF المتوافق مع ATS"));
+      setErrorMsg(
+        getErrorMessage(err, "تعذر تصدير ملف الـ PDF المتوافق مع ATS")
+      );
     } finally {
       setExportingPdf(false);
     }
@@ -117,109 +134,116 @@ export default function AtsCvBuilderModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
       role="dialog"
       aria-modal="true"
     >
-      <div className="relative w-full max-w-4xl rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-4xl rounded-2xl bg-white border border-slate-200 shadow-elevated overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-l from-indigo-50 via-white to-emerald-50 px-6 py-4 border-b border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 px-4 sm:px-6 py-4 border-b border-slate-200">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl">📄</span>
-              <h2 className="text-lg font-black text-slate-900">
+            <div className="flex flex-wrap items-center gap-2">
+              <FileText size={18} className="text-primary-600" />
+              <h2 className="text-sm sm:text-base font-black text-slate-900">
                 منشئ ومُصدِّر السيرة الذاتية المتوافقة مع ATS
               </h2>
-              <span className="rounded-full bg-emerald-100 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-extrabold text-emerald-800">
-                ATS-Compliant Builder
+              <span className="rounded-md bg-secondary-50 border border-secondary-200 px-2 py-0.5 text-[10px] font-bold text-secondary-700">
+                ATS-Compliant
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              نسّق سيرتك الذاتية بهيكلية قياسية أحادية العمود مقروءة بنسبة 100% لأنظمة الفرز الآلي (ATS) وصدّرها فوراً كـ PDF
+              نسّق سيرتك الذاتية بهيكلية قياسية أحادية العمود مقروءة لأنظمة الفرز الآلي وصدّرها فوراً كـ PDF
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+          <div className="flex items-center justify-between sm:justify-end gap-2">
+            <div className="inline-flex rounded-xl bg-slate-200/70 p-1">
               <button
                 type="button"
                 onClick={() => setActiveTab("edit")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-extrabold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
                   activeTab === "edit"
-                    ? "bg-white text-indigo-700 shadow-sm"
+                    ? "bg-white text-slate-900 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                ✏️ التحرير والتخصيص
+                <PenLine size={13} />
+                <span>التحرير</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("preview")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-extrabold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
                   activeTab === "preview"
-                    ? "bg-white text-indigo-700 shadow-sm"
+                    ? "bg-white text-slate-900 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                👁️ معاينة ATS المباشرة
+                <Eye size={13} />
+                <span>معاينة ATS</span>
               </button>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100"
+              className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-100"
+              aria-label="إغلاق"
             >
-              ✕ إغلاق
+              <X size={16} />
             </button>
           </div>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {errorMsg && (
             <div className="alert-banner-error text-xs">
-              <span>⚠️</span>
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {loadingOptimize ? (
             <div className="py-12 text-center">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent mb-3" />
-              <p className="text-sm font-bold text-slate-600">
+              <div className="inline-block h-7 w-7 animate-spin rounded-full border-3 border-solid border-primary-600 border-r-transparent mb-3" />
+              <p className="text-xs sm:text-sm font-bold text-slate-600">
                 جاري تحسين الصياغة وتجهيز قالب ATS الذكي...
               </p>
             </div>
           ) : activeTab === "edit" ? (
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Contact & Role Info */}
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     الاسم الكامل
                   </label>
                   <input
                     type="text"
                     className="input-field !py-2 text-xs"
                     value={form.full_name}
-                    onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, full_name: e.target.value })
+                    }
                     placeholder="مثال: أحمد محمد"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
-                    المسمى الوظيفي المستهدف (Target Role)
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    المسمى الوظيفي المستهدف
                   </label>
                   <input
                     type="text"
                     className="input-field !py-2 text-xs"
                     value={form.target_role}
-                    onChange={(e) => setForm({ ...form, target_role: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, target_role: e.target.value })
+                    }
                     placeholder="Software Engineer"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     البريد الإلكتروني
                   </label>
                   <input
@@ -231,7 +255,7 @@ export default function AtsCvBuilderModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     رقم الهاتف (اختياري)
                   </label>
                   <input
@@ -243,43 +267,48 @@ export default function AtsCvBuilderModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     المدينة / الدولة (اختياري)
                   </label>
                   <input
                     type="text"
                     className="input-field !py-2 text-xs"
                     value={form.location}
-                    onChange={(e) => setForm({ ...form, location: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, location: e.target.value })
+                    }
                     placeholder="Amman, Jordan"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     رابط LinkedIn / GitHub (اختياري)
                   </label>
                   <input
                     type="text"
                     className="input-field !py-2 text-xs"
                     value={form.linkedin_url}
-                    onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, linkedin_url: e.target.value })
+                    }
                     placeholder="linkedin.com/in/username"
                   />
                 </div>
               </div>
 
               {/* Professional Summary */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200">
+              <div className="bg-white p-4 rounded-xl border border-slate-200">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <label className="text-xs font-black text-slate-800">
-                    الملخص المهني المتوافق مع ATS (Professional Summary)
+                    الملخص المهني المتوافق مع ATS
                   </label>
                   <button
                     type="button"
                     onClick={handleRegenerateSummary}
-                    className="rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs font-extrabold text-indigo-700 hover:bg-indigo-100"
+                    className="inline-flex items-center gap-1 rounded-lg bg-primary-50 border border-primary-200 px-2.5 py-1 text-xs font-bold text-primary-700 hover:bg-primary-100"
                   >
-                    ✨ توليد/تحسين بالذكاء الاصطناعي
+                    <Sparkles size={13} />
+                    <span>توليد/تحسين بالذكاء الاصطناعي</span>
                   </button>
                 </div>
                 <textarea
@@ -292,7 +321,7 @@ export default function AtsCvBuilderModal({
               </div>
 
               {/* Skills */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200">
+              <div className="bg-white p-4 rounded-xl border border-slate-200">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <label className="block text-xs font-black text-slate-800">
                     الكلمات المفتاحية والمهارات التقنية ({form.skills.length} مهارة)
@@ -300,7 +329,7 @@ export default function AtsCvBuilderModal({
                   <div className="flex items-center gap-1.5">
                     <input
                       type="text"
-                      className="input-field !py-1 !px-2.5 text-xs w-44"
+                      className="input-field !py-1.5 !px-2.5 text-xs w-40 sm:w-48"
                       value={newSkillInput}
                       onChange={(e) => setNewSkillInput(e.target.value)}
                       onKeyDown={(e) => {
@@ -308,7 +337,10 @@ export default function AtsCvBuilderModal({
                           e.preventDefault();
                           const trimmed = newSkillInput.trim();
                           if (trimmed && !form.skills.includes(trimmed)) {
-                            setForm({ ...form, skills: [...form.skills, trimmed] });
+                            setForm({
+                              ...form,
+                              skills: [...form.skills, trimmed],
+                            });
                             setNewSkillInput("");
                           }
                         }
@@ -320,13 +352,17 @@ export default function AtsCvBuilderModal({
                       onClick={() => {
                         const trimmed = newSkillInput.trim();
                         if (trimmed && !form.skills.includes(trimmed)) {
-                          setForm({ ...form, skills: [...form.skills, trimmed] });
+                          setForm({
+                            ...form,
+                            skills: [...form.skills, trimmed],
+                          });
                           setNewSkillInput("");
                         }
                       }}
-                      className="rounded-lg bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-xs font-extrabold text-indigo-700 hover:bg-indigo-100"
+                      className="inline-flex items-center gap-1 rounded-lg bg-primary-50 border border-primary-200 px-2.5 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-100"
                     >
-                      + إضافة
+                      <Plus size={13} />
+                      <span>إضافة</span>
                     </button>
                   </div>
                 </div>
@@ -334,7 +370,7 @@ export default function AtsCvBuilderModal({
                   {form.skills.map((skill, idx) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-1 text-xs font-bold text-indigo-800"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700"
                     >
                       <span>{skill}</span>
                       <button
@@ -345,10 +381,10 @@ export default function AtsCvBuilderModal({
                             skills: form.skills.filter((_, i) => i !== idx),
                           })
                         }
-                        className="text-indigo-400 hover:text-rose-600 font-black"
+                        className="text-slate-400 hover:text-danger"
                         title="حذف المهارة"
                       >
-                        ×
+                        <X size={12} />
                       </button>
                     </span>
                   ))}
@@ -357,12 +393,12 @@ export default function AtsCvBuilderModal({
             </div>
           ) : (
             /* Live ATS Resume Preview */
-            <div className="mx-auto max-w-2xl rounded-2xl border-2 border-slate-300 bg-white p-8 shadow-inner text-slate-900 space-y-4">
+            <div className="mx-auto max-w-2xl rounded-xl border border-slate-300 bg-white p-5 sm:p-8 text-slate-900 space-y-4">
               <div className="text-center border-b border-slate-300 pb-4">
-                <h3 className="text-2xl font-black text-slate-900">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                   {form.full_name || "Candidate Name"}
                 </h3>
-                <p className="text-sm font-bold text-indigo-700 mt-0.5">
+                <p className="text-xs sm:text-sm font-bold text-primary-700 mt-0.5">
                   {form.target_role || "Software Engineer"}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
@@ -374,16 +410,18 @@ export default function AtsCvBuilderModal({
 
               {form.summary && (
                 <div className="border-b border-slate-200 pb-3">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-800 mb-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-primary-800 mb-1">
                     PROFESSIONAL SUMMARY
                   </h4>
-                  <p className="text-xs text-slate-700 leading-relaxed">{form.summary}</p>
+                  <p className="text-xs text-slate-700 leading-relaxed">
+                    {form.summary}
+                  </p>
                 </div>
               )}
 
               {form.skills?.length > 0 && (
                 <div className="border-b border-slate-200 pb-3">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-800 mb-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-primary-800 mb-1">
                     TECHNICAL SKILLS & CORE COMPETENCIES
                   </h4>
                   <p className="text-xs text-slate-700 leading-relaxed">
@@ -394,17 +432,21 @@ export default function AtsCvBuilderModal({
 
               {form.experience?.length > 0 && (
                 <div className="border-b border-slate-200 pb-3 space-y-2">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-800 mb-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-primary-800 mb-1">
                     PROFESSIONAL EXPERIENCE
                   </h4>
                   {form.experience.map((exp, idx) => (
                     <div key={idx}>
                       <p className="text-xs font-bold text-slate-900">
                         {exp.title} {exp.company ? `— ${exp.company}` : ""}{" "}
-                        {exp.duration_months ? `(${exp.duration_months} months)` : ""}
+                        {exp.duration_months
+                          ? `(${exp.duration_months} months)`
+                          : ""}
                       </p>
                       {exp.description && (
-                        <p className="text-xs text-slate-600">{exp.description}</p>
+                        <p className="text-xs text-slate-600">
+                          {exp.description}
+                        </p>
                       )}
                     </div>
                   ))}
@@ -413,7 +455,7 @@ export default function AtsCvBuilderModal({
 
               {form.projects?.length > 0 && (
                 <div className="border-b border-slate-200 pb-3 space-y-2">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-800 mb-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-primary-800 mb-1">
                     KEY PROJECTS
                   </h4>
                   {form.projects.map((proj, idx) => (
@@ -425,7 +467,9 @@ export default function AtsCvBuilderModal({
                           : ""}
                       </p>
                       {proj.description && (
-                        <p className="text-xs text-slate-600">{proj.description}</p>
+                        <p className="text-xs text-slate-600">
+                          {proj.description}
+                        </p>
                       )}
                     </div>
                   ))}
@@ -434,12 +478,14 @@ export default function AtsCvBuilderModal({
 
               {form.education?.length > 0 && (
                 <div className="space-y-1">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-indigo-800 mb-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-primary-800 mb-1">
                     EDUCATION
                   </h4>
                   {form.education.map((edu, idx) => (
                     <p key={idx} className="text-xs font-bold text-slate-800">
-                      {[edu.degree, edu.institution, edu.year].filter(Boolean).join(" — ")}
+                      {[edu.degree, edu.institution, edu.year]
+                        .filter(Boolean)
+                        .join(" — ")}
                     </p>
                   ))}
                 </div>
@@ -449,15 +495,16 @@ export default function AtsCvBuilderModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 px-6 py-4 border-t border-slate-200">
-          <span className="text-xs font-semibold text-slate-500">
-            ✓ تنسيق قياسي متوافق مع قارئات السير الذاتية الآلية (ATS) باللغتين العربية والإنجليزية
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 px-4 sm:px-6 py-3.5 border-t border-slate-200">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <Check size={14} className="text-secondary-600 shrink-0" />
+            <span>تنسيق قياسي متوافق مع قارئات السير الذاتية الآلية (ATS)</span>
           </span>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="btn-outline !py-2.5 !px-4 !text-xs"
+              className="btn-outline !py-2 !px-3.5 !text-xs"
             >
               إلغاء
             </button>
@@ -465,11 +512,14 @@ export default function AtsCvBuilderModal({
               type="button"
               onClick={handleExportPdf}
               disabled={exportingPdf || loadingOptimize}
-              className="btn-primary !py-2.5 !px-5 !text-xs"
+              className="btn-primary !py-2 !px-4 !text-xs"
             >
-              {exportingPdf
-                ? "جاري توليد ملف PDF..."
-                : "⬇️ تصدير السيرة الذاتية كـ PDF متوافق مع ATS"}
+              <Download size={14} />
+              <span>
+                {exportingPdf
+                  ? "جاري توليد ملف PDF..."
+                  : "تصدير السيرة كـ PDF متوافق مع ATS"}
+              </span>
             </button>
           </div>
         </div>

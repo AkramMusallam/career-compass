@@ -21,7 +21,17 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
     role: Optional[str] = "candidate"
-    company_name: Optional[str] = None
+    company_name: Optional[str] = Field(None, max_length=200)
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: Optional[str]) -> str:
+        if not v:
+            return "candidate"
+        norm = v.strip().lower()
+        if norm not in {"candidate", "recruiter"}:
+            raise ValueError("Role must be 'candidate' or 'recruiter'")
+        return norm
 
     @field_validator("password")
     @classmethod
@@ -629,16 +639,31 @@ class RecruiterJobCreate(BaseModel):
 
 class RecruiterJobUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=2, max_length=200)
-    company_name: Optional[str] = None
-    field: Optional[str] = None
-    experience_level: Optional[str] = None
-    location: Optional[str] = None
-    work_type: Optional[str] = None
-    salary_range: Optional[str] = None
+    company_name: Optional[str] = Field(None, max_length=200)
+    field: Optional[str] = Field(None, max_length=150)
+    experience_level: Optional[str] = Field(None, max_length=100)
+    location: Optional[str] = Field(None, max_length=150)
+    work_type: Optional[str] = Field(None, max_length=100)
+    salary_range: Optional[str] = Field(None, max_length=100)
     required_skills: Optional[List[str]] = None
     bonus_skills: Optional[List[str]] = None
-    description: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=4000)
     status: Optional[str] = Field(None, max_length=50)  # "active" | "closed"
+
+    @field_validator("status")
+    @classmethod
+    def validate_job_status(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        norm = v.strip().lower()
+        if norm not in {"active", "closed"}:
+            raise ValueError("Status must be 'active' or 'closed'")
+        return norm
+
+
+class SwitchRoleRequest(BaseModel):
+    role: Optional[str] = "recruiter"
+    company_name: Optional[str] = Field(None, max_length=200)
 
 
 class RecruiterJobResponse(BaseModel):
@@ -689,6 +714,15 @@ class UpdateCandidatePipelineRequest(BaseModel):
     pipeline_status: str = Field(..., max_length=50)  # discovered | shortlisted | contacted | interviewed | offered | rejected
     notes: Optional[str] = Field(None, max_length=1000)
 
+    @field_validator("pipeline_status")
+    @classmethod
+    def validate_pipeline_status(cls, v: str) -> str:
+        norm = v.strip().lower()
+        allowed = {"discovered", "shortlisted", "contacted", "interviewed", "offered", "rejected"}
+        if norm not in allowed:
+            raise ValueError(f"pipeline_status must be one of {sorted(allowed)}")
+        return norm
+
 
 class CandidateProfileDetail(BaseModel):
     candidate_id: str
@@ -730,9 +764,27 @@ class PlanPricingTier(BaseModel):
 class CheckoutSessionRequest(BaseModel):
     plan_id: str = Field(..., max_length=50)  # "pro" | "enterprise"
     billing_cycle: str = Field("monthly", max_length=20)  # "monthly" | "annual"
-    success_url: Optional[str] = None
-    cancel_url: Optional[str] = None
-    test_token: Optional[str] = None  # allows instant simulation upgrade
+    success_url: Optional[str] = Field(None, max_length=500)
+    cancel_url: Optional[str] = Field(None, max_length=500)
+    test_token: Optional[str] = Field(None, max_length=100)  # allows instant simulation upgrade
+
+    @field_validator("billing_cycle")
+    @classmethod
+    def validate_billing_cycle(cls, v: str) -> str:
+        norm = v.strip().lower()
+        if norm not in {"monthly", "annual"}:
+            raise ValueError("billing_cycle must be 'monthly' or 'annual'")
+        return norm
+
+    @field_validator("success_url", "cancel_url")
+    @classmethod
+    def validate_redirect_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        norm = v.strip()
+        if not (norm.startswith("http://") or norm.startswith("https://")):
+            raise ValueError("Redirect URL must start with http:// or https://")
+        return norm
 
 
 class CheckoutSessionResponse(BaseModel):
@@ -768,7 +820,7 @@ class ExtensionMatchRequest(BaseModel):
     job_title: str = Field(..., min_length=2, max_length=300)
     company: Optional[str] = Field("", max_length=200)
     location: Optional[str] = Field("", max_length=200)
-    job_description: str = Field(..., min_length=5)
+    job_description: str = Field(..., min_length=5, max_length=15000)
     extracted_skills: Optional[List[str]] = Field(default_factory=list)
 
 

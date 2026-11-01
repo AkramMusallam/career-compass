@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Settings as SettingsIcon,
+  Lock,
+  Bell,
+  LogOut,
+  AlertTriangle,
+  AlertCircle,
+} from "lucide-react";
 
 import { getErrorMessage } from "../../api/client";
 import {
@@ -121,25 +129,30 @@ export default function Settings() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 animate-fade-in-up">
-      <div className="card !p-6">
-        <span className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-0.5 text-[11px] font-extrabold text-indigo-700">
-          ⚙️ إعدادات الحساب والأمان
+    <div className="mx-auto max-w-3xl space-y-5 animate-fade-in">
+      <div className="card">
+        <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-lg bg-primary-50 border border-primary-100 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">
+          <SettingsIcon size={13} />
+          <span>إعدادات الحساب والأمان</span>
         </span>
-        <h1 className="text-2xl font-black text-slate-900">إعدادات المنصة</h1>
+        <h1 className="text-xl sm:text-2xl font-black text-slate-900">إعدادات المنصة</h1>
         <p className="text-xs font-medium text-slate-500 mt-0.5">
           تحكم بكلمة المرور، التنبيهات البريدية، وتفضيلات الخصوصية
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="card">
-        <h2 className="mb-5 text-lg font-black text-slate-900">
-          🔐 تغيير كلمة المرور
-        </h2>
+        <div className="mb-4 flex items-center gap-2">
+          <Lock size={18} className="text-primary-600" />
+          <h2 className="text-base sm:text-lg font-black text-slate-900">
+            تغيير كلمة المرور
+          </h2>
+        </div>
 
         {errorMessage && (
           <div className="alert-banner-error mb-4" role="alert">
-            {errorMessage}
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
           </div>
         )}
 
@@ -176,7 +189,7 @@ export default function Settings() {
           )}
         </div>
 
-        <div className="mb-6">
+        <div className="mb-5">
           <label htmlFor="confirmNewPassword" className="label-text">
             تأكيد كلمة المرور الجديدة
           </label>
@@ -198,14 +211,17 @@ export default function Settings() {
         </button>
       </form>
 
-      <div className="card space-y-5">
-        <h2 className="text-lg font-black text-slate-900">
-          🔔 التفضيلات والخصوصية
-        </h2>
+      <div className="card space-y-4">
+        <div className="flex items-center gap-2">
+          <Bell size={18} className="text-secondary-600" />
+          <h2 className="text-base sm:text-lg font-black text-slate-900">
+            التفضيلات والخصوصية
+          </h2>
+        </div>
 
-        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 transition hover:bg-white">
+        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 transition-colors hover:bg-white">
           <div>
-            <p className="font-bold text-slate-800 text-sm">
+            <p className="font-bold text-slate-800 text-xs sm:text-sm">
               التنبيهات البريدية الأسبوعية
             </p>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -214,16 +230,16 @@ export default function Settings() {
           </div>
           <input
             type="checkbox"
-            className="h-5 w-5 rounded text-primary-600 focus:ring-primary-400"
+            className="h-4 w-4 rounded text-primary-600 focus:ring-primary-500"
             checked={emailNotifications}
             disabled={isSavingNotifications}
             onChange={(e) => handleNotificationsToggle(e.target.checked)}
           />
         </label>
 
-        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 transition hover:bg-white">
+        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 transition-colors hover:bg-white">
           <div>
-            <p className="font-bold text-slate-800 text-sm">
+            <p className="font-bold text-slate-800 text-xs sm:text-sm">
               المشاركة في متوسط الأقران المجهول (Benchmark)
             </p>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -232,7 +248,7 @@ export default function Settings() {
           </div>
           <input
             type="checkbox"
-            className="h-5 w-5 rounded text-primary-600 focus:ring-primary-400"
+            className="h-4 w-4 rounded text-primary-600 focus:ring-primary-500"
             checked={benchmarkOptIn}
             disabled={isSavingBenchmark}
             onChange={(e) => handleBenchmarkToggle(e.target.checked)}
@@ -242,45 +258,49 @@ export default function Settings() {
 
       <div className="card flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="font-black text-slate-900">إدارة الجلسة</h2>
+          <h2 className="font-black text-slate-900 text-sm sm:text-base">إدارة الجلسة</h2>
           <p className="text-xs text-slate-500 mt-0.5">
             تسجيل الخروج من جلستك الحالية على هذا المتصفح
           </p>
         </div>
         <button type="button" className="btn-outline" onClick={handleLogout}>
-          تسجيل الخروج
+          <LogOut size={15} />
+          <span>تسجيل الخروج</span>
         </button>
       </div>
 
-      <div className="rounded-3xl border-2 border-red-200/80 bg-red-50/60 p-6">
-        <h2 className="mb-1 text-lg font-black text-danger">⚠️ منطقة خطر</h2>
-        <p className="mb-4 text-sm font-medium text-slate-600">
+      <div className="rounded-2xl border border-red-200 bg-red-50/60 p-5 sm:p-6">
+        <div className="flex items-center gap-2 mb-1.5">
+          <AlertTriangle size={18} className="text-danger" />
+          <h2 className="text-base sm:text-lg font-black text-danger">منطقة خطر</h2>
+        </div>
+        <p className="mb-4 text-xs sm:text-sm font-medium text-slate-600">
           حذف الحساب نهائي ويؤدي إلى مسح كافة التحليلات والسير الذاتية المرتبطة به ولا يمكن التراجع عنه.
         </p>
         {!showDangerConfirm ? (
           <button
             type="button"
-            className="rounded-xl border-2 border-danger px-5 py-2.5 text-sm font-bold text-danger transition hover:bg-danger hover:text-white"
+            className="rounded-xl border border-danger px-4 py-2 text-xs sm:text-sm font-bold text-danger transition-colors hover:bg-danger hover:text-white"
             onClick={() => setShowDangerConfirm(true)}
           >
             حذف الحساب نهائياً
           </button>
         ) : (
-          <div className="rounded-2xl border border-red-200 bg-white p-5 shadow-sm">
-            <p className="mb-4 text-sm font-bold text-slate-800">
+          <div className="rounded-xl border border-red-200 bg-white p-4">
+            <p className="mb-3 text-xs sm:text-sm font-bold text-slate-800">
               هل أنت متأكد تماماً؟ سيتم مسح كافة بياناتك وسيرتك الذاتية فوراً.
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2.5">
               <button
                 type="button"
-                className="rounded-xl bg-danger px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-red-700"
+                className="rounded-xl bg-danger px-4 py-2 text-xs sm:text-sm font-bold text-white hover:bg-red-700"
                 onClick={handleDeleteAccount}
               >
                 نعم، احذف حسابي نهائياً
               </button>
               <button
                 type="button"
-                className="btn-outline"
+                className="btn-outline !py-2"
                 onClick={() => setShowDangerConfirm(false)}
               >
                 إلغاء

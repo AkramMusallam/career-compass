@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
+import { fetchLatestRoadmap, toggleMilestoneSkill } from "../services/api";
 
 export default function RoadmapScreen({ onBack, token }) {
+  const [analysisId, setAnalysisId] = useState(null);
   const [months, setMonths] = useState([
     {
       month: 1,
@@ -35,12 +37,45 @@ export default function RoadmapScreen({ onBack, token }) {
     },
   ]);
 
+  useEffect(() => {
+    if (!token) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const latest = await fetchLatestRoadmap(token);
+        if (!mounted || !latest || !Array.isArray(latest.roadmap) || !latest.roadmap.length) return;
+        setAnalysisId(latest.analysis_id || null);
+        const completedSet = new Set(latest.completed_skills || []);
+        setMonths(
+          latest.roadmap.map((rm) => ({
+            month: rm.month,
+            title: (rm.goals && rm.goals[0]) || `الشهر ${rm.month}`,
+            skills: (rm.skills_to_learn || []).map((sk) => ({
+              name: sk,
+              completed: completedSet.has(sk),
+            })),
+          }))
+        );
+      } catch (_err) {
+        // Offline fallback
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
+
   const toggleSkill = (monthIdx, skillIdx) => {
+    const currentSkill = months[monthIdx]?.skills?.[skillIdx];
+    const nextCompleted = currentSkill ? !currentSkill.completed : false;
     setMonths((prev) => {
       const next = JSON.parse(JSON.stringify(prev));
-      next[monthIdx].skills[skillIdx].completed = !next[monthIdx].skills[skillIdx].completed;
+      next[monthIdx].skills[skillIdx].completed = nextCompleted;
       return next;
     });
+    if (token && analysisId && currentSkill) {
+      toggleMilestoneSkill(token, analysisId, currentSkill.name, nextCompleted).catch(() => null);
+    }
   };
 
   const totalSkills = months.reduce((acc, m) => acc + m.skills.length, 0);

@@ -15,8 +15,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   // محاولة قراءة الوظيفة المفتوحة حالياً في التبويب النشط
   try {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs && tabs[0]) {
+      if (tabs && tabs[0] && tabs[0].id) {
         chrome.tabs.sendMessage(tabs[0].id, { type: "EXTRACT_LINKEDIN_JOB" }, (response) => {
+          if (chrome.runtime.lastError) {
+            // التبويب الحالي ليس صفحة LinkedIn نشطة
+            document.getElementById("job-title").textContent = "وظيفة تجريبية: Full Stack / Backend Engineer";
+            document.getElementById("job-company").textContent = "Asal Technologies (Palestine / Remote)";
+            return;
+          }
           if (response && response.title) {
             currentJobData = response;
             document.getElementById("job-title").textContent = response.title;

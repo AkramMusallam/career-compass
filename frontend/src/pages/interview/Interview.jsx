@@ -1,6 +1,30 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Square,
+  Send,
+  ArrowRight,
+  Sparkles,
+  Headphones,
+  Lightbulb,
+  Check,
+  CheckCircle2,
+  AlertTriangle,
+  Target,
+  Award,
+  Bot,
+  User,
+  Activity,
+  FileText,
+  Clock,
+  Radio,
+  RefreshCw,
+} from "lucide-react";
+import {
   chatInterview,
   getInterviewSession,
   evaluateInterview,
@@ -23,12 +47,13 @@ export default function Interview() {
   const [sessionStatus, setSessionStatus] = useState("in_progress"); // in_progress | completed
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // Phase 2 (Section 7.1): Voice & Audio Mock Interviews state
+  // Phase 2: Voice & Audio Mock Interviews state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [latestVoiceFeedback, setLatestVoiceFeedback] = useState(null);
   const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [mobileTab, setMobileTab] = useState("chat"); // "chat" | "report" on small screens
 
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -274,6 +299,7 @@ export default function Interview() {
       const res = await evaluateInterview(sessionId);
       setEvaluation(res.data);
       setSessionStatus("completed");
+      setMobileTab("report");
     } catch (err) {
       showToast(getErrorMessage(err, "تعذر تقييم المقابلة، يرجى المحاولة ثانية"), "error");
     } finally {
@@ -283,120 +309,188 @@ export default function Interview() {
 
   if (initialLoading) {
     return (
-      <div className="max-w-3xl mx-auto py-16 text-center">
-        <div className="inline-block h-9 w-9 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent" />
-        <p className="mt-3 text-sm font-bold text-slate-500">
-          جاري تجهيز استوديو المقابلة الذكية...
+      <div className="max-w-2xl mx-auto py-20 text-center">
+        <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-primary-600 border-r-transparent" />
+        <p className="mt-4 text-sm font-bold text-slate-600">
+          جاري إعداد استوديو المقابلة الذكية...
         </p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto flex flex-col h-[84vh] animate-fade-in-up">
-      {/* Studio Header */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-gradient-to-l from-indigo-50/95 via-white/95 to-emerald-50/85 px-6 py-4 shadow-md shadow-indigo-500/5 border border-indigo-100/90 backdrop-blur-xl">
-        <div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-xl">🎙️</span>
-            <h1 className="text-lg sm:text-xl font-black tracking-tight text-slate-900">
-              استوديو المقابلات التقنية والصوتية الذكي
-            </h1>
-            {sessionStatus === "completed" ? (
-              <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-0.5 text-xs font-extrabold text-emerald-700">
-                ✓ مكتملة ومقيّمة
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-0.5 text-xs font-extrabold text-indigo-700">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>جلسة مباشرة (نص + صوت AI)</span>
-              </span>
-            )}
+    <div className="max-w-6xl mx-auto flex flex-col h-[calc(100vh-8.5rem)] sm:h-[calc(100vh-9.5rem)] min-h-[580px] animate-fade-in pb-16 sm:pb-0">
+      {/* Studio Header Bar */}
+      <div className="mb-3.5 card p-3 sm:p-4 border-slate-200/90 shadow-sm shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center shrink-0 border border-primary-100">
+              <Headphones className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                  استوديو المقابلات التقنية والصوتية
+                </h1>
+                {sessionStatus === "completed" ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                    <CheckCircle2 className="w-3 h-3" />
+                    مكتملة ومقيّمة
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 border border-primary-200 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    جلسة مباشرة
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                الدور المستهدف:{" "}
+                <span className="font-bold text-primary-700">{jobTitle}</span>
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            الدور الوظيفي المستهدف:{" "}
-            <span className="font-extrabold text-indigo-700">{jobTitle}</span>
-          </p>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setTtsEnabled((v) => !v)}
-            className={`rounded-xl border px-3 py-2 text-xs font-extrabold transition ${
-              ttsEnabled
-                ? "border-indigo-300 bg-indigo-100 text-indigo-800"
-                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-            title="تفعيل أو إيقاف قراءة أسئلة المحاور صوتياً"
-          >
-            {ttsEnabled ? "🔊 القراءة الصوتية مفعّلة" : "🔇 قراءة الأسئلة صوتياً"}
-          </button>
-
-          {sessionStatus !== "completed" && (
+          <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
             <button
-              onClick={handleFinishAndEvaluate}
-              disabled={evaluating || loading}
-              className="btn-secondary !py-2 !px-4 !text-xs"
+              type="button"
+              onClick={() => setTtsEnabled((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                ttsEnabled
+                  ? "border-primary-300 bg-primary-50 text-primary-800"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+              title="تفعيل أو إيقاف قراءة أسئلة المحاور صوتياً"
             >
-              {evaluating
-                ? "جاري إصدار التقييم..."
-                : "🏁 إنهاء المقابلة وإصدار التقييم"}
+              {ttsEnabled ? (
+                <>
+                  <Volume2 className="w-3.5 h-3.5 text-primary-600" />
+                  <span className="hidden sm:inline">صوت المحاور: مفعل</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="hidden sm:inline">صوت المحاور: معطل</span>
+                </>
+              )}
             </button>
-          )}
-          <button
-            onClick={() => navigate(-1)}
-            className="btn-outline !py-2 !px-3.5 !text-xs"
-          >
-            العودة ←
-          </button>
+
+            {sessionStatus !== "completed" && (
+              <button
+                onClick={handleFinishAndEvaluate}
+                disabled={evaluating || loading}
+                className="btn-secondary !py-1.5 !px-3.5 !text-xs inline-flex items-center gap-1.5"
+              >
+                {evaluating ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>جاري التقييم...</span>
+                  </>
+                ) : (
+                  <>
+                    <Award className="w-3.5 h-3.5" />
+                    <span>إنهاء وإصدار التقييم</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            <button
+              onClick={() => navigate(-1)}
+              className="btn-outline !py-1.5 !px-3 !text-xs inline-flex items-center gap-1"
+            >
+              <span>العودة</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Latest Voice Delivery AI Feedback Banner */}
+      {/* Voice Delivery Feedback Bar */}
       {latestVoiceFeedback && (
-        <div className="mb-3 rounded-2xl border border-indigo-200/80 bg-gradient-to-l from-indigo-50/90 via-white to-violet-50/80 px-5 py-3 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🎧</span>
+        <div className="mb-3 rounded-2xl border border-primary-200/80 bg-gradient-to-l from-primary-50/70 via-white to-teal-50/50 p-3 sm:p-3.5 shadow-xs shrink-0">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+            <div className="flex items-start sm:items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
+                <Activity className="w-4 h-4" />
+              </div>
               <div>
-                <p className="text-xs font-black text-indigo-950">
+                <p className="text-xs font-bold text-slate-900">
                   تحليل الذكاء الاصطناعي للأداء الصوتي (Whisper & Vocal AI)
                 </p>
-                <p className="text-[11px] font-medium text-slate-600">
+                <p className="text-[11px] text-slate-600">
                   {latestVoiceFeedback.feedback_summary}
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="rounded-xl bg-white border border-indigo-200 px-2.5 py-1 font-extrabold text-indigo-700">
+
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="rounded-lg bg-white border border-slate-200 px-2 py-0.5 font-bold text-slate-700">
                 وضوح النطق: {latestVoiceFeedback.clarity_score}/10
               </span>
-              <span className="rounded-xl bg-white border border-emerald-200 px-2.5 py-1 font-extrabold text-emerald-700">
-                السرعة: {latestVoiceFeedback.pace_score}/10 ({latestVoiceFeedback.words_per_minute} كلمة/د)
+              <span className="rounded-lg bg-white border border-teal-200 px-2 py-0.5 font-bold text-teal-700">
+                السرعة: {latestVoiceFeedback.pace_score}/10 ({latestVoiceFeedback.words_per_minute} ك/د)
               </span>
-              <span className="rounded-xl bg-white border border-violet-200 px-2.5 py-1 font-extrabold text-violet-700">
+              <span className="rounded-lg bg-white border border-primary-200 px-2 py-0.5 font-bold text-primary-700">
                 الثقة الصوتية: {latestVoiceFeedback.confidence_score}/10
               </span>
             </div>
           </div>
           {latestVoiceFeedback.tips?.length > 0 && (
-            <p className="mt-1.5 text-[11px] font-bold text-indigo-700">
-              💡 نصيحة الإلقاء: {latestVoiceFeedback.tips[0]}
-            </p>
+            <div className="mt-2 pt-2 border-t border-primary-100 flex items-center gap-1.5 text-[11px] font-semibold text-primary-800">
+              <Lightbulb className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>نصيحة الإلقاء: {latestVoiceFeedback.tips[0]}</span>
+            </div>
           )}
         </div>
       )}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
-        {/* Chat Stream */}
-        <div className="flex-1 bg-white/85 backdrop-blur-xl p-5 rounded-3xl border border-slate-200/80 shadow-sm overflow-y-auto flex flex-col gap-4">
+      {/* Mobile Tabs Switcher if Evaluation Exists */}
+      {evaluation && (
+        <div className="flex sm:hidden items-center gap-2 mb-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileTab("chat")}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-xl border transition ${
+              mobileTab === "chat"
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-600 border-slate-200"
+            }`}
+          >
+            محادثة المقابلة
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("report")}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-xl border transition ${
+              mobileTab === "report"
+                ? "bg-slate-900 text-white border-slate-900"
+                : "bg-white text-slate-600 border-slate-200"
+            }`}
+          >
+            تقرير التقييم النهائي
+          </button>
+        </div>
+      )}
+
+      {/* Main Studio Area */}
+      <div className="flex-1 flex flex-col md:flex-row gap-3 overflow-hidden min-h-0">
+        {/* Chat Stream Column */}
+        <div
+          className={`flex-1 bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs overflow-y-auto flex flex-col gap-3.5 ${
+            evaluation && mobileTab !== "chat" ? "hidden md:flex" : "flex"
+          }`}
+        >
           {messages.length === 0 && (
-            <div className="text-center text-slate-400 my-auto py-12">
-              <span className="text-4xl block mb-3">💬</span>
-              <p className="font-bold text-slate-600">
-                أرسل رسالة ترحيب أو سجّل إجابتك صوتياً لبدء محاكاة المقابلة التقنية...
+            <div className="text-center text-slate-400 my-auto py-12 px-4">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 mb-3">
+                <Bot className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-700">
+                ابدأ محاكاة المقابلة التقنية
+              </p>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                أرسل رسالة ترحيبية أو تحدث صوتياً للبدء في طرح الأسئلة الفنية المناسبة لشاغر {jobTitle}.
               </p>
             </div>
           )}
@@ -410,25 +504,31 @@ export default function Interview() {
                   isUser ? "items-end" : "items-start"
                 }`}
               >
-                <span className="text-[11px] font-extrabold text-slate-400 mb-1 px-1.5 flex items-center gap-1">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 mb-1 px-1">
                   {isUser ? (
                     <>
-                      <span>👤 أنت (المرشح)</span>
+                      <span>أنت (المرشح)</span>
+                      <User className="w-3.5 h-3.5 text-slate-400" />
                       {msg.voice_feedback && (
-                        <span className="rounded-full bg-indigo-100 text-indigo-700 px-2 py-0.2 text-[10px]">
-                          🎙️ إجابة صوتية
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 text-primary-700 px-2 py-0.5 text-[10px] font-bold border border-primary-200">
+                          <Mic className="w-2.5 h-2.5" />
+                          إجابة صوتية
                         </span>
                       )}
                     </>
                   ) : (
-                    "🤖 المُحاور الذكي"
+                    <>
+                      <Bot className="w-3.5 h-3.5 text-primary-600" />
+                      <span>المُحاور الذكي</span>
+                    </>
                   )}
-                </span>
+                </div>
+
                 <div
-                  className={`p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-line shadow-sm ${
+                  className={`p-3.5 sm:p-4 rounded-2xl max-w-[90%] sm:max-w-[80%] text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-2xs ${
                     isUser
-                      ? "bg-gradient-to-l from-indigo-600 to-violet-600 text-white rounded-br-none shadow-indigo-500/15"
-                      : "bg-slate-50 text-slate-800 border border-slate-200/90 rounded-bl-none"
+                      ? "bg-slate-900 text-white rounded-br-xs"
+                      : "bg-slate-50 text-slate-800 border border-slate-200/90 rounded-bl-xs"
                   }`}
                 >
                   {msg.content}
@@ -439,11 +539,13 @@ export default function Interview() {
 
           {loading && (
             <div className="flex flex-col items-start">
-              <span className="text-[11px] font-extrabold text-slate-400 mb-1 px-1.5">
-                🤖 المُحاور الذكي
-              </span>
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 rounded-bl-none animate-pulse text-sm font-semibold">
-                المُحاور يحلل إجابتك ويكتب السؤال التالي...
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 mb-1 px-1">
+                <Bot className="w-3.5 h-3.5 text-primary-600" />
+                <span>المُحاور الذكي</span>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 rounded-bl-xs text-xs font-semibold flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-primary-600 animate-ping" />
+                <span>المُحاور يحلل إجابتك ويكتب السؤال التالي...</span>
               </div>
             </div>
           )}
@@ -451,35 +553,41 @@ export default function Interview() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Evaluation Panel (if completed) */}
+        {/* Evaluation Report Column (if completed) */}
         {evaluation && (
-          <div className="w-full md:w-96 bg-white/95 backdrop-blur-xl p-6 rounded-3xl border border-slate-200/90 overflow-y-auto flex flex-col gap-4 shadow-md">
+          <div
+            className={`w-full md:w-96 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 overflow-y-auto flex flex-col gap-4 shadow-xs ${
+              mobileTab !== "report" ? "hidden md:flex" : "flex"
+            }`}
+          >
+            {/* Header Score Card */}
             <div className="text-center pb-4 border-b border-slate-100">
-              <span className="text-xs font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                 النتيجة الإجمالية للمقابلة
               </span>
               <div className="inline-flex items-baseline gap-1">
-                <span className="text-4xl font-black text-indigo-600">
+                <span className="text-3xl sm:text-4xl font-black text-slate-900">
                   {evaluation.final_score}
                 </span>
-                <span className="text-slate-400 font-bold">/ 10</span>
+                <span className="text-slate-400 font-bold text-base">/ 10</span>
               </div>
-              <div className="mt-3 flex justify-center gap-2.5 text-xs">
-                <span className="bg-indigo-50 text-indigo-800 border border-indigo-100 px-3 py-1 rounded-xl font-bold">
-                  التقني: <b>{evaluation.technical_score}/10</b>
+              <div className="mt-3 flex justify-center gap-2 text-xs">
+                <span className="bg-primary-50 text-primary-800 border border-primary-100 px-3 py-1 rounded-xl font-bold">
+                  التقني: {evaluation.technical_score}/10
                 </span>
-                <span className="bg-emerald-50 text-emerald-800 border border-emerald-100 px-3 py-1 rounded-xl font-bold">
-                  التواصل: <b>{evaluation.communication_score}/10</b>
+                <span className="bg-teal-50 text-teal-800 border border-teal-100 px-3 py-1 rounded-xl font-bold">
+                  التواصل: {evaluation.communication_score}/10
                 </span>
               </div>
             </div>
 
             {/* Overall Feedback */}
             <div>
-              <h3 className="text-xs font-black text-slate-800 mb-1.5 flex items-center gap-1">
-                <span>💡</span> ملخص التقييم العام
+              <h3 className="text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+                <span>ملخص التقييم العام</span>
               </h3>
-              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
                 {evaluation.overall_feedback}
               </p>
             </div>
@@ -487,13 +595,14 @@ export default function Interview() {
             {/* Strengths */}
             {evaluation.strengths && evaluation.strengths.length > 0 && (
               <div>
-                <h3 className="text-xs font-black text-emerald-700 mb-1.5 flex items-center gap-1">
-                  <span>✨</span> نقاط القوة
+                <h3 className="text-xs font-bold text-emerald-700 mb-1.5 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>نقاط القوة المتميزة</span>
                 </h3>
                 <ul className="space-y-1.5 text-xs text-slate-600">
                   {evaluation.strengths.map((s, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-emerald-500 font-bold">✓</span>
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                       <span>{s}</span>
                     </li>
                   ))}
@@ -501,41 +610,42 @@ export default function Interview() {
               </div>
             )}
 
-            {/* Technical Mistakes / Gaps */}
-            {evaluation.technical_mistakes &&
-              evaluation.technical_mistakes.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-black text-amber-700 mb-1.5 flex items-center gap-1">
-                    <span>⚠️</span> نقاط التحسين التقني
-                  </h3>
-                  <ul className="space-y-1.5 text-xs text-slate-600">
-                    {evaluation.technical_mistakes.map((m, idx) => (
-                      <li key={idx} className="flex items-start gap-1.5">
-                        <span className="text-amber-500 font-bold">•</span>
-                        <span>{m}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+            {/* Technical Gaps / Improvements */}
+            {evaluation.technical_mistakes && evaluation.technical_mistakes.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-amber-700 mb-1.5 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                  <span>نقاط التحسين التقني</span>
+                </h3>
+                <ul className="space-y-1.5 text-xs text-slate-600">
+                  {evaluation.technical_mistakes.map((m, idx) => (
+                    <li key={idx} className="flex items-start gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0 mt-1.5" />
+                      <span>{m}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Model Answers */}
             {evaluation.model_answers && evaluation.model_answers.length > 0 && (
               <div className="pt-3 border-t border-slate-100">
-                <h3 className="text-xs font-black text-indigo-700 mb-2 flex items-center gap-1">
-                  <span>🎯</span> الإجابات النموذجية المقترحة
+                <h3 className="text-xs font-bold text-primary-700 mb-2 flex items-center gap-1.5">
+                  <Target className="w-3.5 h-3.5 text-primary-600" />
+                  <span>الإجابات النموذجية المقترحة</span>
                 </h3>
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {evaluation.model_answers.map((ma, idx) => (
                     <div
                       key={idx}
-                      className="bg-slate-50 p-3 rounded-2xl border border-slate-200/80 text-xs"
+                      className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 text-xs"
                     >
                       <p className="font-bold text-slate-800 mb-1">
-                        س: {ma.question}
+                        السؤال: {ma.question}
                       </p>
-                      <p className="text-slate-600 leading-relaxed">
-                        ج: {ma.model_answer}
+                      <p className="text-slate-600 leading-relaxed text-[11px]">
+                        نموذج الإجابة: {ma.model_answer}
                       </p>
                     </div>
                   ))}
@@ -546,16 +656,16 @@ export default function Interview() {
         )}
       </div>
 
-      {/* Live Voice Recording Banner */}
+      {/* Live Voice Recording Active Floating Bar */}
       {isRecording && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-3 text-xs">
+        <div className="mt-2.5 rounded-2xl border border-rose-200 bg-rose-50/95 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0 animate-fade-in shadow-xs">
           <div className="flex items-center gap-2.5">
             <span className="h-3 w-3 rounded-full bg-rose-600 animate-ping" />
-            <span className="font-black text-rose-800">
-              جاري التسجيل الصوتي ({recordingSeconds} ثانية)... تحدث بوضوح
+            <span className="text-xs font-bold text-rose-800">
+              جاري التسجيل الصوتي ({recordingSeconds} ث)... تحدث بوضوح
             </span>
             {liveTranscript && (
-              <span className="text-slate-600 italic truncate max-w-md">
+              <span className="text-[11px] text-slate-600 italic truncate max-w-xs sm:max-w-md">
                 &ldquo;{liveTranscript}&rdquo;
               </span>
             )}
@@ -563,30 +673,31 @@ export default function Interview() {
           <button
             type="button"
             onClick={stopAndSubmitVoiceRecording}
-            className="rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-extrabold text-white shadow-sm hover:bg-rose-700"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-rose-700 transition"
           >
-            ⏹️ إيقاف وإرسال الإجابة الصوتية
+            <Square className="w-3.5 h-3.5" />
+            <span>إيقاف وإرسال الإجابة الصوتية</span>
           </button>
         </div>
       )}
 
-      {/* Input Form */}
+      {/* Input Action Bar */}
       {sessionStatus !== "completed" ? (
-        <form onSubmit={sendMessage} className="flex gap-2.5 mt-3">
+        <form onSubmit={sendMessage} className="flex items-center gap-2 mt-2.5 shrink-0">
           <button
             type="button"
             onClick={
               isRecording ? stopAndSubmitVoiceRecording : startVoiceRecording
             }
             disabled={loading || evaluating}
-            className={`rounded-2xl px-4 py-3.5 text-xs font-extrabold border transition shrink-0 flex items-center gap-1.5 ${
+            className={`rounded-xl px-3.5 py-3 text-xs font-bold border transition shrink-0 inline-flex items-center gap-1.5 ${
               isRecording
                 ? "border-rose-300 bg-rose-600 text-white animate-pulse"
-                : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                : "border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100"
             }`}
             title="الإجابة بالصوت وتحليل النطق والسرعة والثقة الصوتية"
           >
-            <span>🎙️</span>
+            {isRecording ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             <span className="hidden sm:inline">
               {isRecording ? "إرسال الصوت" : "إجابة صوتية"}
             </span>
@@ -596,22 +707,24 @@ export default function Interview() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="اكتب إجابتك التقنية هنا أو اضغط (🎙️ إجابة صوتية) للتحدث مباشرة..."
-            className="input-field flex-1 text-sm py-3.5"
+            placeholder="اكتب إجابتك هنا أو استخدم التسجيل الصوتي..."
+            className="input-field flex-1 text-xs sm:text-sm py-3"
             disabled={loading || evaluating || isRecording}
             autoFocus
           />
+
           <button
             type="submit"
-            className="btn-primary whitespace-nowrap px-7"
+            className="btn-primary !py-3 !px-4 sm:!px-6 whitespace-nowrap shrink-0 inline-flex items-center gap-1.5 text-xs sm:text-sm"
             disabled={loading || evaluating || isRecording || !input.trim()}
           >
-            إرسال الإجابة ←
+            <span>إرسال</span>
+            <Send className="w-3.5 h-3.5 rotate-180" />
           </button>
         </form>
       ) : (
-        <div className="mt-3 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-center text-xs font-extrabold text-emerald-800">
-          تم إنهاء وتقييم هذه المقابلة بنجاح. يمكنك مراجعة التقرير الجانبي أو العودة لصفحة النتائج.
+        <div className="mt-2.5 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-center text-xs font-bold text-emerald-800 shrink-0">
+          تم إنهاء وتقييم هذه المقابلة بنجاح. يمكنك مراجعة تقرير التقييم المفصل أو العودة للوحة التحكم.
         </div>
       )}
     </div>

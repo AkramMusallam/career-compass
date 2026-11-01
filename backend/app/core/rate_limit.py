@@ -33,6 +33,12 @@ class SlidingWindowRateLimiter:
         now = time.monotonic()
         cutoff = now - window_seconds
         with self._lock:
+            # Periodic pruning to prevent unbounded memory growth from unique IPs
+            if len(self._hits) > 10000:
+                stale_keys = [k for k, q in self._hits.items() if not q or q[-1] <= cutoff]
+                for k in stale_keys:
+                    self._hits.pop(k, None)
+
             bucket = self._hits[key]
             while bucket and bucket[0] <= cutoff:
                 bucket.popleft()
@@ -47,8 +53,17 @@ rate_limiter = SlidingWindowRateLimiter()
 
 # المسارات الحساسة للمصادقة (حماية من Brute-Force و Email Bombing)
 AUTH_PATHS = {"/login", "/register", "/forgot-password", "/reset-password"}
-# المسارات الثقيلة (حماية للذكاء الاصطناعي والقرص والمعالج)
-HEAVY_PREFIXES = ("/upload-cv", "/extract", "/analyze", "/interview")
+# المسارات الثقيلة (حماية للذكاء الاصطناعي والقرص والمعالج وبوابات الدفع والتوظيف)
+HEAVY_PREFIXES = (
+    "/upload-cv",
+    "/extract",
+    "/analyze",
+    "/interview",
+    "/recruiter",
+    "/extension",
+    "/subscriptions/checkout-session",
+    "/subscriptions/webhook",
+)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

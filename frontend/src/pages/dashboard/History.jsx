@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  FolderArchive,
+  Scale,
+  X,
+  Plus,
+  ArrowLeft,
+  Calendar,
+  Inbox,
+  Sparkles,
+} from "lucide-react";
 
 import { getHistory } from "../../api/endpoints";
 
@@ -7,18 +17,17 @@ const PAGE_SIZE = 10;
 
 function getScoreBadgeClass(score) {
   if (score < 40) return "bg-red-50 text-red-700 border-red-200";
-  if (score < 70) return "bg-amber-50 text-amber-700 border-amber-200";
-  return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (score < 70) return "bg-accent-50 text-accent-700 border-accent-200";
+  return "bg-secondary-50 text-secondary-700 border-secondary-200";
 }
 
 export default function History() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState("loading"); // loading | loaded | error
+  const [status, setStatus] = useState("loading");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ total: 0, analyses: [] });
 
-  // وضع اختيار متعدد لمقارنة تحليلين بالضبط
   const [compareMode, setCompareMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 
@@ -61,26 +70,27 @@ export default function History() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <div className="space-y-5 animate-fade-in">
       {/* Header Card */}
-      <div className="card flex flex-wrap items-center justify-between gap-4">
+      <div className="card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 border border-indigo-200 px-3 py-0.5 text-[11px] font-extrabold text-indigo-700">
-            📂 الأرشيف المهني
+          <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-lg bg-primary-50 border border-primary-100 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">
+            <FolderArchive size={13} />
+            <span>الأرشيف المهني</span>
           </span>
-          <h1 className="text-2xl font-black text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900">
             سجل التحليلات{" "}
             {data.total > 0 && (
-              <span className="text-sm font-bold text-slate-400">
+              <span className="text-xs sm:text-sm font-bold text-slate-400">
                 ({data.total} تحليل محفوظ)
               </span>
             )}
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
           <select
-            className="input-field w-auto !py-2.5 !text-xs font-bold"
+            className="input-field w-auto !py-2 !px-3 !text-xs font-bold"
             value={sort}
             onChange={(e) => {
               setSort(e.target.value);
@@ -97,37 +107,49 @@ export default function History() {
               type="button"
               className={`${
                 compareMode ? "btn-primary" : "btn-outline"
-              } !py-2.5 !px-4 !text-xs`}
+              } !py-2 !px-3.5 !text-xs`}
               onClick={toggleCompareMode}
             >
-              {compareMode ? "✕ إلغاء المقارنة" : "⚖️ قارن تحليلين"}
+              {compareMode ? (
+                <>
+                  <X size={14} />
+                  <span>إلغاء المقارنة</span>
+                </>
+              ) : (
+                <>
+                  <Scale size={14} />
+                  <span>قارن تحليلين</span>
+                </>
+              )}
             </button>
           )}
 
           <Link
             to="/analysis/upload"
-            className="btn-secondary !py-2.5 !px-4 !text-xs"
+            className="btn-secondary !py-2 !px-3.5 !text-xs"
           >
-            + تحليل جديد
+            <Plus size={14} />
+            <span>تحليل جديد</span>
           </Link>
         </div>
       </div>
 
       {compareMode && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-5 py-4 shadow-sm backdrop-blur-md">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary-200 bg-primary-50/80 px-4 py-3.5">
           <div className="flex items-center gap-2.5">
-            <span className="text-xl">⚖️</span>
-            <p className="text-sm font-extrabold text-indigo-900">
+            <Scale size={18} className="text-primary-600 shrink-0" />
+            <p className="text-xs sm:text-sm font-bold text-slate-900">
               اختر تحليلين بالضبط للمقارنة المباشرة بين تطور مهاراتك ({selectedIds.length}/2)
             </p>
           </div>
           <button
             type="button"
-            className="btn-primary !py-2 !px-5 !text-xs"
+            className="btn-primary !py-2 !px-4 !text-xs"
             disabled={selectedIds.length !== 2}
             onClick={handleCompare}
           >
-            عرض المقارنة الآن ←
+            <span>عرض المقارنة الآن</span>
+            <ArrowLeft size={14} />
           </button>
         </div>
       )}
@@ -150,18 +172,19 @@ export default function History() {
       )}
 
       {status === "loaded" && data.analyses.length === 0 && (
-        <div className="card flex flex-col items-center gap-4 py-16 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
-            📭
+        <div className="card flex flex-col items-center gap-3 py-14 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+            <Inbox size={26} />
           </div>
           <div>
-            <p className="text-lg font-black text-slate-800">لم تقم بأي تحليل مهني بعد</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="text-base sm:text-lg font-black text-slate-800">لم تقم بأي تحليل مهني بعد</p>
+            <p className="mt-1 text-xs sm:text-sm text-slate-500">
               ارفع سيرتك الذاتية الآن واحصل على تقرير Career DNA وخطة تعلم مخصصة
             </p>
           </div>
           <Link to="/analysis/upload" className="btn-primary mt-2">
-            🚀 ابدأ أول تحليل الآن
+            <Sparkles size={16} />
+            <span>ابدأ أول تحليل الآن</span>
           </Link>
         </div>
       )}
@@ -175,19 +198,19 @@ export default function History() {
                 <div
                   key={item.analysis_id}
                   onClick={() => compareMode && toggleSelected(item.analysis_id)}
-                  className={`flex flex-wrap items-center justify-between gap-4 p-5 transition-colors ${
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-5 transition-colors ${
                     compareMode ? "cursor-pointer" : ""
                   } ${
                     isSelected
-                      ? "bg-indigo-50/70"
+                      ? "bg-primary-50/70"
                       : "hover:bg-slate-50/80"
                   }`}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3.5 min-w-0">
                     {compareMode && (
                       <input
                         type="checkbox"
-                        className="h-5 w-5 rounded text-primary-600 focus:ring-primary-400"
+                        className="h-4 w-4 rounded text-primary-600 focus:ring-primary-500"
                         checked={isSelected}
                         onChange={() => toggleSelected(item.analysis_id)}
                         onClick={(e) => e.stopPropagation()}
@@ -195,31 +218,32 @@ export default function History() {
                       />
                     )}
                     <div
-                      className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-2xl border font-black ${getScoreBadgeClass(
+                      className={`flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 flex-col items-center justify-center rounded-xl border font-black ${getScoreBadgeClass(
                         item.career_score
                       )}`}
                     >
-                      <span className="text-base leading-none">
+                      <span className="text-sm sm:text-base leading-none">
                         {Math.round(item.career_score)}
                       </span>
                       <span className="text-[9px] font-bold opacity-75">Score</span>
                     </div>
-                    <div>
-                      <p className="text-base font-black text-slate-900">
+                    <div className="min-w-0">
+                      <p className="text-sm sm:text-base font-bold text-slate-900 truncate">
                         {item.top_job_title}
                       </p>
-                      <p className="text-xs font-medium text-slate-400 mt-0.5">
-                        📅 {new Date(item.date).toLocaleString("ar-EG")}
+                      <p className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 mt-0.5">
+                        <Calendar size={12} />
+                        <span>{new Date(item.date).toLocaleString("ar-EG")}</span>
                       </p>
                     </div>
                   </div>
                   {!compareMode && (
                     <Link
                       to={`/results/${item.analysis_id}`}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200/80 bg-indigo-50/70 px-4 py-2 text-xs font-extrabold text-indigo-700 transition-all hover:bg-indigo-600 hover:text-white hover:shadow-sm"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700"
                     >
                       <span>عرض التقرير الكامل</span>
-                      <span>←</span>
+                      <ArrowLeft size={13} />
                     </Link>
                   )}
                 </div>

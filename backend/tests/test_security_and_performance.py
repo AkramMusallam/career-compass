@@ -180,3 +180,129 @@ def test_voice_interview_rejects_invalid_mime_type(client, registered_user_token
         files={"audio": ("exploit.exe", bad_file, "application/x-msdownload")},
     )
     assert voice_resp.status_code == 400
+
+
+def test_phase3_rbac_blocks_candidate_from_recruiter_endpoints(client, registered_user_token):
+    token, _ = registered_user_token
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Unprivileged candidate user must receive 403 Forbidden on recruiter endpoints
+    jobs_resp = client.get("/recruiter/jobs", headers=headers)
+    assert jobs_resp.status_code == 403
+
+    profile_resp = client.get("/recruiter/candidates/some-id/profile", headers=headers)
+    assert profile_resp.status_code == 403
+
+    # After switching to recruiter role, access is granted
+    switch_resp = client.post("/recruiter/switch-role?company_name=SecureCorp", headers=headers)
+    assert switch_resp.status_code == 200
+    jobs_after = client.get("/recruiter/jobs", headers=headers)
+    assert jobs_after.status_code == 200
+
+
+def test_jobs_matched_idor_protection(client, registered_user_token):
+    import uuid
+
+    token_a, _ = registered_user_token
+    headers_a = {"Authorization": f"Bearer {token_a}"}
+    extraction_id, assessment_id = _create_user_analysis(client, headers_a)
+    analyze_resp = client.post(
+        "/analyze",
+        headers=headers_a,
+        json={"extraction_id": extraction_id, "assessment_id": assessment_id},
+    )
+    assert analyze_resp.status_code == 200
+    analysis_id_a = analyze_resp.json()["analysis_id"]
+
+    # Create User B and attempt to read User A's matched jobs via analysis_id
+    email_b = f"idor.b.{uuid.uuid4().hex[:8]}@example.com"
+    client.post("/register", json={"full_name": "User B", "email": email_b, "password": "Passw0rd123"})
+    token_b = client.post("/login", json={"email": email_b, "password": "Passw0rd123"}).json()["access_token"]
+    headers_b = {"Authorization": f"Bearer {token_b}"}
+
+    idor_resp = client.get(f"/jobs/matched?analysis_id={analysis_id_a}", headers=headers_b)
+    assert idor_resp.status_code == 404
+
+
+def test_phase3_input_validation_and_newest_extraction_ranking(client):
+    import uuid
+
+    # 1. Privilege escalation via role='admin' in /register must be rejected (400/422)
+    bad_reg = client.post(
+        "/register",
+        json={
+            "full_name": "Attacker",
+            "email": f"attacker.{uuid.uuid4().hex[:8]}@example.com",
+            "password": "Passw0rd123",
+            "role": "admin",
+        },
+    )
+    assert bad_reg.status_code in (400, 422)
+
+    # 2. Register candidate who updates their CV skills over time
+    cand_email = f"cand.newest.{uuid.uuid4().hex[:8]}@example.com"
+    client.post("/register", json={"full_name": "Upgraded Candidate", "email": cand_email, "password": "Passw0rd123"})
+    cand_token = client.post("/login", json={"email": cand_email, "password": "Passw0rd123"}).json()["access_token"]
+    cand_headers = {"Authorization": f"Bearer {cand_token}"}
+
+    # Old extraction: only HTML
+    client.post("/extract/manual", headers=cand_headers, json={"skills": ["HTML"]})
+    # Newest extraction: Python, FastAPI, Docker, SQL
+    newest_ext = client.post(
+        "/extract/manual",
+        headers=cand_headers,
+        json={"skills": ["Python", "FastAPI", "Docker", "SQL"]},
+    )
+    assert newest_ext.status_code == 200
+    newest_ext_id = newest_ext.json()["extraction_id"]
+
+    # 3. Open redirect protection on checkout-session
+    bad_checkout = client.post(
+        "/subscriptions/checkout-session",
+        headers=cand_headers,
+        json={"plan_id": "pro", "billing_cycle": "monthly", "success_url": "javascript:alert(1)"},
+    )
+    assert bad_checkout.status_code in (400, 422)
+
+    # 4. Extension match-job accurately detects C++ and C# symbol skills
+    ext_match = client.post(
+        "/extension/match-job",
+        headers=cand_headers,
+        json={
+            "job_title": "Systems Engineer",
+            "company": "CoreTech",
+            "job_description": "We need strong experience in C++, C#, Python, and Docker for high-frequency systems.",
+        },
+    )
+    assert ext_match.status_code == 200
+    ext_data = ext_match.json()
+    all_detected = ext_data["matched_skills"] + ext_data["missing_skills"]
+    assert "C++" in all_detected
+    assert "C#" in all_detected
+
+    # 5. Recruiter ranks candidate using their newest extraction (not oldest)
+    rec_email = f"rec.newest.{uuid.uuid4().hex[:8]}@example.com"
+    client.post(
+        "/register",
+        json={"full_name": "Recruiter Newest", "email": rec_email, "password": "Passw0rd123", "role": "recruiter"},
+    )
+    rec_token = client.post("/login", json={"email": rec_email, "password": "Passw0rd123"}).json()["access_token"]
+    rec_headers = {"Authorization": f"Bearer {rec_token}"}
+
+    job_resp = client.post(
+        "/recruiter/jobs",
+        headers=rec_headers,
+        json={
+            "title": "Senior Python Engineer",
+            "required_skills": ["Python", "FastAPI", "Docker", "SQL"],
+            "description": "Build scalable APIs with Python and FastAPI.",
+        },
+    )
+    assert job_resp.status_code == 201
+    job_id = job_resp.json()["job_id"]
+
+    cands_resp = client.get(f"/recruiter/jobs/{job_id}/candidates", headers=rec_headers)
+    assert cands_resp.status_code == 200
+    matched_cand = next(c for c in cands_resp.json()["candidates"] if c["email"] == cand_email)
+    assert matched_cand["candidate_id"] == newest_ext_id
+    assert matched_cand["match_percentage"] >= 80

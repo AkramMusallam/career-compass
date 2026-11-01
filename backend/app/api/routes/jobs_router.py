@@ -28,6 +28,10 @@ def get_matched_jobs(
         {"analysis_id": analysis_id, "user_id": current_user.id}
     )
     if not analysis:
+        analysis = analysis_results_collection.find_one(
+            {"analysis_id": analysis_id, "user_id": str(current_user.id)}
+        )
+    if not analysis:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Analysis report not found",
@@ -36,7 +40,7 @@ def get_matched_jobs(
     candidate_skills: list[str] = list(analysis.get("skills") or [])
     if not candidate_skills and analysis.get("extraction_id"):
         extraction = extractions_collection.find_one(
-            {"extraction_id": analysis["extraction_id"], "user_id": current_user.id}
+            {"extraction_id": analysis["extraction_id"]}
         )
         if extraction and extraction.get("skills"):
             candidate_skills = list(extraction["skills"])
@@ -66,6 +70,13 @@ def get_matched_jobs(
         target_role=target_role,
         min_match_percentage=15,
     )
+
+    if not matched:
+        matched = match_candidate_to_job_postings(
+            candidate_skills=candidate_skills,
+            target_role=target_role,
+            min_match_percentage=0,
+        )
 
     return {
         "analysis_id": analysis_id,

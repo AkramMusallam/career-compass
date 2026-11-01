@@ -59,16 +59,31 @@ def get_recruiter_jobs(recruiter_id: int, status_filter: Optional[str] = None) -
         query["status"] = status_filter
 
     jobs = list(recruiter_jobs_collection.find(query).sort("created_at", -1))
+    if not jobs:
+        return []
+
+    job_ids = [j["job_id"] for j in jobs if "job_id" in j]
+    pipeline_by_job: Dict[str, Dict[str, int]] = {
+        jid: {"total": 0, "shortlisted": 0} for jid in job_ids
+    }
+    if job_ids:
+        for p in recruitment_pipeline_collection.find(
+            {"job_id": {"$in": job_ids}},
+            {"job_id": 1, "pipeline_status": 1, "_id": 0},
+        ):
+            jid = p.get("job_id")
+            if jid in pipeline_by_job:
+                pipeline_by_job[jid]["total"] += 1
+                if p.get("pipeline_status") == "shortlisted":
+                    pipeline_by_job[jid]["shortlisted"] += 1
+
     results = []
     for j in jobs:
         j.pop("_id", None)
         job_id = j["job_id"]
-        # عد المرشحين المفرزين في المسار
-        pipeline_items = list(recruitment_pipeline_collection.find({"job_id": job_id}))
-        shortlisted = sum(1 for p in pipeline_items if p.get("pipeline_status") == "shortlisted")
-
-        j["total_candidates_count"] = len(pipeline_items)
-        j["shortlisted_count"] = shortlisted
+        counts = pipeline_by_job.get(job_id, {"total": 0, "shortlisted": 0})
+        j["total_candidates_count"] = counts["total"]
+        j["shortlisted_count"] = counts["shortlisted"]
         results.append(j)
     return results
 
@@ -131,18 +146,24 @@ def discover_and_rank_candidates(
     req_skills = job.get("required_skills", [])
     bon_skills = job.get("bonus_skills", [])
 
-    # جلب جميع السير الذاتية المؤكدة أو المتاحة
-    extractions = list(extractions_collection.find().limit(200))
+    # جلب أحدث السير الذاتية المؤكدة أو المتاحة (مرتبة تنازلياً لأخذ أحدث استخراج لكل مستخدم)
+    extractions = list(
+        extractions_collection.find(
+            {},
+            {
+                "extraction_id": 1,
+                "user_id": 1,
+                "skills": 1,
+                "experience": 1,
+                "ats_score": 1,
+                "career_score": 1,
+            },
+        )
+        .sort("_id", -1)
+        .limit(200)
+    )
     if not extractions:
         return {"job_id": job_id, "job_title": job["title"], "total_matches": 0, "candidates": []}
-
-    # جلب أسماء المستخدمين وإيميلاتهم من SQL دفعة واحدة
-    user_ids = list({e.get("user_id") for e in extractions if e.get("user_id")})
-    user_map = {}
-    with SessionLocal() as db:
-        users = db.query(User).filter(User.id.in_(user_ids)).all()
-        for u in users:
-            user_map[u.id] = {"full_name": u.full_name, "email": u.email}
 
     # جلب مسار التوظيف الحالي للوظيفة
     pipeline_records = {
@@ -150,7 +171,7 @@ def discover_and_rank_candidates(
         for p in recruitment_pipeline_collection.find({"job_id": job_id})
     }
 
-    candidates = []
+    preliminary_candidates = []
     seen_users = set()
 
     for ext in extractions:
@@ -163,7 +184,6 @@ def discover_and_rank_candidates(
         candidate_id = ext.get("extraction_id") or str(ext.get("_id"))
         cand_skills = ext.get("skills", [])
         experience_list = ext.get("experience", [])
-        user_info = user_map.get(uid, {"full_name": "مرشح تقني", "email": "candidate@example.com"})
 
         # فلترة حسب المهارة المحددة إن وُجدت
         if skill_filter and not _is_job_skill_match(skill_filter, cand_skills):
@@ -185,16 +205,64 @@ def discover_and_rank_candidates(
         if final_percentage < min_match:
             continue
 
+        preliminary_candidates.append(
+            {
+                "ext": ext,
+                "uid": uid,
+                "candidate_id": candidate_id,
+                "cand_skills": cand_skills,
+                "experience_list": experience_list,
+                "matched_req": matched_req,
+                "missing_req": missing_req,
+                "matched_bon": matched_bon,
+                "final_percentage": final_percentage,
+            }
+        )
+
+    total_matches = len(preliminary_candidates)
+    # عكس الترتيب المبدئي للحفاظ على تسلسل إدراج المستخدمين عند تساوي النسب بعد أخذ أحدث سيرة ذاتية لكل مستخدم
+    preliminary_candidates.reverse()
+    # ترتيب المرشحين تنازلياً حسب أعلى نسبة تطابق وأخذ الشريحة المطلوبة فقط
+    preliminary_candidates.sort(key=lambda c: c["final_percentage"], reverse=True)
+    selected_candidates = preliminary_candidates[:limit]
+
+    # جلب أسماء المستخدمين وإيميلاتهم من SQL دفعة واحدة للمرشحين المطابقين فقط
+    user_ids = [c["uid"] for c in selected_candidates]
+    user_map: Dict[int, Dict[str, str]] = {}
+    if user_ids:
+        with SessionLocal() as db:
+            users = db.query(User).filter(User.id.in_(user_ids)).all()
+            for u in users:
+                user_map[u.id] = {"full_name": u.full_name, "email": u.email}
+
+    candidates = []
+    for item in selected_candidates:
+        ext = item["ext"]
+        uid = item["uid"]
+        candidate_id = item["candidate_id"]
+        cand_skills = item["cand_skills"]
+        experience_list = item["experience_list"]
+        matched_req = item["matched_req"]
+        missing_req = item["missing_req"]
+        matched_bon = item["matched_bon"]
+        final_percentage = item["final_percentage"]
+
+        user_info = user_map.get(uid, {"full_name": "مرشح تقني", "email": "candidate@example.com"})
+
         # تقدير سنوات الخبرة
         exp_years_val = len(experience_list) * 1.5
-        exp_summary = f"{len(experience_list)} أدوار وظيفية (~{int(exp_years_val)} سنوات خبرة)" if experience_list else "خريج جديد / مشاريع شخصية"
+        exp_summary = (
+            f"{len(experience_list)} أدوار وظيفية (~{int(exp_years_val)} سنوات خبرة)"
+            if experience_list
+            else "خريج جديد / مشاريع شخصية"
+        )
 
         # حالة المسار والملاحظات
         pipeline_info = pipeline_records.get(candidate_id, {})
         status_val = pipeline_info.get("pipeline_status", "discovered")
         notes_val = pipeline_info.get("notes", "")
 
-        # تحليل الملاءمة
+        # تحليل الملاءمة (استخدام القوالب الإقليمية الفورية لتجنب تأخير N استدعاءات LLM متزامنة)
         fit_eval = generate_candidate_fit_evaluation(
             candidate_name=user_info["full_name"],
             target_role=job["title"],
@@ -205,6 +273,7 @@ def discover_and_rank_candidates(
             matched_skills=matched_req + matched_bon,
             missing_skills=missing_req,
             match_percentage=final_percentage,
+            use_llm=False,
         )
 
         candidates.append({
@@ -225,13 +294,11 @@ def discover_and_rank_candidates(
             "updated_at": pipeline_info.get("updated_at"),
         })
 
-    # ترتيب المرشحين تنازلياً حسب أعلى نسبة تطابق
-    candidates.sort(key=lambda c: c["match_percentage"], reverse=True)
     return {
         "job_id": job_id,
         "job_title": job["title"],
-        "total_matches": len(candidates),
-        "candidates": candidates[:limit],
+        "total_matches": total_matches,
+        "candidates": candidates,
     }
 
 
@@ -267,7 +334,10 @@ def update_candidate_pipeline_status(
     return update_fields
 
 
-def get_candidate_profile_detail(candidate_id: str) -> Optional[Dict[str, Any]]:
+def get_candidate_profile_detail(
+    candidate_id: str,
+    recruiter_id: Optional[int] = None,
+) -> Optional[Dict[str, Any]]:
     """عرض الملف التقني الكامل للمرشح (سيرة ذاتية، مهارات، مشاريع)."""
     ext = extractions_collection.find_one({"extraction_id": candidate_id})
     if not ext:
@@ -286,6 +356,14 @@ def get_candidate_profile_detail(candidate_id: str) -> Optional[Dict[str, Any]]:
         full_name = user.full_name if user else "مرشح مسجل"
         email = user.email if user else "candidate@example.com"
 
+    pipeline_query: Dict[str, Any] = {"candidate_id": candidate_id}
+    if recruiter_id is not None:
+        pipeline_query["recruiter_id"] = recruiter_id
+    pipeline_doc = recruitment_pipeline_collection.find_one(
+        pipeline_query,
+        sort=[("updated_at", -1)],
+    )
+
     return {
         "candidate_id": candidate_id,
         "user_id": uid,
@@ -298,6 +376,6 @@ def get_candidate_profile_detail(candidate_id: str) -> Optional[Dict[str, Any]]:
         "projects": ext.get("projects", []),
         "education": ext.get("education", []),
         "career_score": ext.get("career_score", 80.0),
-        "pipeline_status": "discovered",
-        "notes": "",
+        "pipeline_status": pipeline_doc.get("pipeline_status", "discovered") if pipeline_doc else "discovered",
+        "notes": pipeline_doc.get("notes", "") if pipeline_doc else "",
     }

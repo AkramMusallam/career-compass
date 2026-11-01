@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from "react-native";
+import { sendInterviewChat } from "../services/api";
 
-export default function MockInterviewScreen({ onBack, token }) {
+export default function MockInterviewScreen({ onBack, token, sessionId }) {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -12,12 +13,26 @@ export default function MockInterviewScreen({ onBack, token }) {
   const [isRecording, setIsRecording] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!inputText.trim()) return;
-    const userMsg = { role: "user", content: inputText };
+    const text = inputText.trim();
+    const userMsg = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInputText("");
     setIsSending(true);
+
+    if (token && sessionId) {
+      try {
+        const res = await sendInterviewChat(token, sessionId, text);
+        if (res && Array.isArray(res.messages) && res.messages.length > 0) {
+          setMessages(res.messages);
+          setIsSending(false);
+          return;
+        }
+      } catch (_err) {
+        // Fallback to local simulated interviewer
+      }
+    }
 
     setTimeout(() => {
       setMessages((prev) => [

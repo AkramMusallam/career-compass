@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 import uuid
 from typing import Any, Dict, List, Optional
@@ -189,8 +190,9 @@ def create_checkout_session(
     duration_days = 365 if billing_cycle == "annual" else 30
     expires_at = (now + datetime.timedelta(days=duration_days)).isoformat()
 
-    # إذا تم ضبط مفاتيح Stripe الفعلية في البيئة
-    if settings.STRIPE_SECRET_KEY and not test_token:
+    # إذا تم ضبط مفاتيح Stripe الفعلية في البيئة (منع تجاوز الدفع عبر test_token في بيئة الإنتاج)
+    allow_sandbox_bypass = bool(test_token) and settings.ENV != "production"
+    if settings.STRIPE_SECRET_KEY and not allow_sandbox_bypass:
         try:
             import stripe
             stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -223,6 +225,8 @@ def create_checkout_session(
                 "mode": "payment",
             }
         except Exception as e:
+            if settings.ENV == "production":
+                raise ValueError("Payment gateway error") from e
             logger.warning("Stripe API call failed (%s), falling back to sandbox simulator", e)
 
     # وضع المحاكاة المباشر (Sandbox Mode / Development / Immediate Activation)
@@ -274,3 +278,69 @@ def cancel_subscription(user: User) -> Dict[str, Any]:
         "message": "تم إلغاء الاشتراك بنجاح والعودة للباقة المجانية.",
         "tier": "free",
     }
+
+
+def handle_webhook_event(body: bytes, stripe_signature: Optional[str] = None) -> Dict[str, Any]:
+    """معالجة إشعارات Stripe Webhook وتحديث حالة الاشتراكات بأمان."""
+    if len(body) > 65536:
+        raise ValueError("Webhook payload too large")
+
+    event: Dict[str, Any] = {}
+    if settings.STRIPE_WEBHOOK_SECRET and settings.ENV == "production":
+        if not stripe_signature:
+            raise ValueError("Missing Stripe signature")
+        try:
+            import stripe
+            event = stripe.Webhook.construct_event(
+                payload=body,
+                sig_header=stripe_signature,
+                secret=settings.STRIPE_WEBHOOK_SECRET,
+            )
+        except Exception as e:
+            raise ValueError(f"Invalid Stripe webhook signature: {e}") from e
+    elif body:
+        try:
+            parsed = json.loads(body.decode("utf-8"))
+            if isinstance(parsed, dict):
+                event = parsed
+        except Exception:
+            event = {}
+
+    event_type = event.get("type")
+    data_obj = (event.get("data") or {}).get("object") or {}
+    metadata = data_obj.get("metadata") or {}
+
+    if event_type == "checkout.session.completed":
+        user_id_raw = metadata.get("user_id")
+        plan_id = metadata.get("plan_id")
+        plan = get_plan_by_id(plan_id) if plan_id else None
+        if user_id_raw and plan and plan["id"] != "free":
+            try:
+                uid = int(user_id_raw)
+                with SessionLocal() as db:
+                    db_user = db.query(User).filter(User.id == uid).first()
+                    if db_user:
+                        db_user.subscription_tier = plan["id"]
+                        if plan["id"] == "enterprise":
+                            db_user.role = "recruiter"
+                        db.commit()
+            except (ValueError, TypeError):
+                pass
+    elif event_type == "customer.subscription.deleted":
+        user_id_raw = metadata.get("user_id")
+        if user_id_raw:
+            try:
+                uid = int(user_id_raw)
+                with SessionLocal() as db:
+                    db_user = db.query(User).filter(User.id == uid).first()
+                    if db_user:
+                        db_user.subscription_tier = "free"
+                        db.commit()
+                subscriptions_collection.update_many(
+                    {"user_id": uid, "status": "active"},
+                    {"$set": {"status": "canceled", "canceled_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}},
+                )
+            except (ValueError, TypeError):
+                pass
+
+    return {"status": "received", "length": len(body), "event_type": event_type}

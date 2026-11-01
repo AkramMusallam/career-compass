@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
+import { ShieldCheck, ArrowRight, AlertCircle } from "lucide-react";
 
 import CompassLogo from "../../components/layout/CompassLogo";
 import { resetPassword } from "../../api/endpoints";
@@ -44,31 +45,33 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
-      <div className="pointer-events-none absolute -top-24 right-1/4 h-80 w-80 rounded-full bg-indigo-500/10 blur-[100px]" />
-      <div className="pointer-events-none absolute bottom-10 left-1/4 h-80 w-80 rounded-full bg-emerald-500/10 blur-[100px]" />
-
-      <div className="relative z-10 w-full max-w-md">
-        <div className="mb-8 flex justify-center">
+    <div className="flex min-h-screen items-center justify-center bg-[#F7F8FA] px-4 py-10">
+      <div className="w-full max-w-md">
+        <div className="mb-6 flex justify-center">
           <Link to="/login">
-            <CompassLogo size={46} />
+            <CompassLogo size={42} />
           </Link>
         </div>
 
-        <div className="card p-8 sm:p-10">
+        <div className="card !p-6 sm:!p-8">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl border border-emerald-100">
-              🔑
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-secondary-50 text-secondary-600 border border-secondary-100">
+              <ShieldCheck size={22} />
             </div>
-            <h1 className="text-2xl font-black text-slate-900">تعيين كلمة مرور جديدة</h1>
-            <p className="mt-1.5 text-sm font-medium text-slate-500">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+              تعيين كلمة مرور جديدة
+            </h1>
+            <p className="mt-1.5 text-xs sm:text-sm font-medium text-slate-500">
               اختر كلمة مرور قوية لتأمين حسابك المهني
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 text-start">
             {status === "error" && (
-              <div className="alert-banner-error">{message}</div>
+              <div className="alert-banner-error">
+                <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                <span>{message}</span>
+              </div>
             )}
 
             <div>
@@ -113,7 +116,7 @@ export default function ResetPassword() {
 
             <button
               type="submit"
-              className="btn-primary w-full py-3.5 mt-2"
+              className="btn-primary w-full py-3 mt-2"
               disabled={!canSubmit}
             >
               {status === "loading" ? "جاري التحديث..." : "حفظ وتعيين كلمة المرور"}
@@ -122,9 +125,10 @@ export default function ResetPassword() {
             <div className="pt-2 text-center">
               <Link
                 to="/login"
-                className="text-sm font-extrabold text-primary-600 hover:text-primary-800 hover:underline"
+                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-primary-600"
               >
-                ← العودة لتسجيل الدخول
+                <ArrowRight size={15} />
+                <span>العودة لتسجيل الدخول</span>
               </Link>
             </div>
           </form>

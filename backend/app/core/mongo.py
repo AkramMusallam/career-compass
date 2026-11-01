@@ -53,9 +53,13 @@ def ensure_mongo_indexes() -> None:
         recruiter_jobs_collection.create_index("job_id", unique=True)
         recruiter_jobs_collection.create_index("recruiter_id")
         recruiter_jobs_collection.create_index("status")
+        recruiter_jobs_collection.create_index([("recruiter_id", 1), ("status", 1), ("created_at", -1)])
         recruitment_pipeline_collection.create_index([("job_id", 1), ("candidate_id", 1)], unique=True)
+        recruitment_pipeline_collection.create_index("recruiter_id")
+        recruitment_pipeline_collection.create_index("candidate_id")
         subscriptions_collection.create_index("subscription_id", unique=True)
         subscriptions_collection.create_index("user_id")
+        subscriptions_collection.create_index([("user_id", 1), ("status", 1), ("created_at", -1)])
     except Exception:
         pass
 

@@ -17,6 +17,7 @@ from app.core.mongo import (
     feedback_collection,
     mongo_db,
     recruiter_jobs_collection,
+    recruitment_pipeline_collection,
     subscriptions_collection,
     uploads_collection,
 )
@@ -98,11 +99,16 @@ def delete_account(
     user_name = current_user.full_name
     user_id = current_user.id
 
-    # Collect file paths before deletion
+    # Collect file paths and extraction IDs before deletion
     upload_paths = [
         doc.get("path")
         for doc in uploads_collection.find({"user_id": user_id}, {"path": 1, "_id": 0})
         if doc.get("path")
+    ]
+    user_extraction_ids = [
+        doc.get("extraction_id")
+        for doc in extractions_collection.find({"user_id": user_id}, {"extraction_id": 1, "_id": 0})
+        if doc.get("extraction_id")
     ]
 
     # 1. Delete the user in MySQL first so a relational DB error never leaves an active user with wiped MongoDB data
@@ -123,6 +129,9 @@ def delete_account(
     ):
         coll.delete_many({"user_id": user_id})
     recruiter_jobs_collection.delete_many({"recruiter_id": user_id})
+    recruitment_pipeline_collection.delete_many({"recruiter_id": user_id})
+    if user_extraction_ids:
+        recruitment_pipeline_collection.delete_many({"candidate_id": {"$in": user_extraction_ids}})
 
     # 3. Remove uploaded PDF files from disk
     for file_path in upload_paths:

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowRight, ArrowLeft, AlertCircle } from "lucide-react";
 
 import { getErrorMessage } from "../../api/client";
 import { getAssessmentQuestions, submitAssessment } from "../../api/endpoints";
@@ -14,18 +15,20 @@ function QuestionInput({ question, value, onChange }) {
         {question.options.map((option) => (
           <label
             key={option}
-            className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition ${
-              value === option ? "border-primary bg-primary-50" : "border-slate-200 hover:border-slate-300"
+            className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3.5 text-xs sm:text-sm transition-colors ${
+              value === option
+                ? "border-primary-500 bg-primary-50/80 text-primary-900"
+                : "border-slate-200 hover:border-slate-300 bg-white"
             }`}
           >
             <input
               type="radio"
               name={question.id}
-              className="h-4 w-4 text-primary focus:ring-primary-400"
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500"
               checked={value === option}
               onChange={() => onChange(option)}
             />
-            <span className="font-semibold text-slate-700">{option}</span>
+            <span className="font-bold text-slate-800">{option}</span>
           </label>
         ))}
       </div>
@@ -46,17 +49,19 @@ function QuestionInput({ question, value, onChange }) {
         {question.options.map((option) => (
           <label
             key={option}
-            className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition ${
-              selected.includes(option) ? "border-primary bg-primary-50" : "border-slate-200 hover:border-slate-300"
+            className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3.5 text-xs sm:text-sm transition-colors ${
+              selected.includes(option)
+                ? "border-primary-500 bg-primary-50/80 text-primary-900"
+                : "border-slate-200 hover:border-slate-300 bg-white"
             }`}
           >
             <input
               type="checkbox"
-              className="h-4 w-4 rounded text-primary focus:ring-primary-400"
+              className="h-4 w-4 rounded text-primary-600 focus:ring-primary-500"
               checked={selected.includes(option)}
               onChange={() => toggle(option)}
             />
-            <span className="font-semibold text-slate-700">{option}</span>
+            <span className="font-bold text-slate-800">{option}</span>
           </label>
         ))}
       </div>
@@ -66,7 +71,7 @@ function QuestionInput({ question, value, onChange }) {
   // scale
   const scaleValue = value ?? 3;
   return (
-    <div>
+    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
       <input
         type="range"
         min={1}
@@ -74,11 +79,13 @@ function QuestionInput({ question, value, onChange }) {
         step={1}
         value={scaleValue}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-primary"
+        className="w-full accent-primary-600"
       />
-      <div className="mt-2 flex justify-between text-xs font-bold text-slate-500">
+      <div className="mt-2 flex items-center justify-between text-xs font-bold text-slate-500">
         <span>1 - ضعيف</span>
-        <span className="text-lg text-primary">{scaleValue}</span>
+        <span className="rounded-lg bg-primary-600 px-2.5 py-0.5 text-sm font-black text-white">
+          {scaleValue}
+        </span>
         <span>5 - ممتاز</span>
       </div>
     </div>
@@ -89,7 +96,7 @@ export default function AssessmentQuestions() {
   const navigate = useNavigate();
   const { setAssessmentId } = useAnalysisFlow();
 
-  const [status, setStatus] = useState("loading"); // loading | ready | submitting | error
+  const [status, setStatus] = useState("loading");
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -148,9 +155,12 @@ export default function AssessmentQuestions() {
   const isAnswered =
     currentQuestion.type === "multiple_choice"
       ? Array.isArray(currentAnswer) && currentAnswer.length > 0
-      : currentAnswer !== undefined && currentAnswer !== null && currentAnswer !== "";
+      : currentAnswer !== undefined &&
+        currentAnswer !== null &&
+        currentAnswer !== "";
 
-  const setAnswer = (value) => setAnswers((prev) => ({ ...prev, [currentQuestion.id]: value }));
+  const setAnswer = (value) =>
+    setAnswers((prev) => ({ ...prev, [currentQuestion.id]: value }));
 
   const goNext = async () => {
     if (currentQuestion.required && !isAnswered) {
@@ -164,11 +174,11 @@ export default function AssessmentQuestions() {
       return;
     }
 
-    // التحقق من كل الأسئلة الإلزامية قبل الإنهاء
     const firstMissingIndex = questions.findIndex((q) => {
       const a = answers[q.id];
       if (!q.required) return false;
-      if (q.type === "multiple_choice") return !Array.isArray(a) || a.length === 0;
+      if (q.type === "multiple_choice")
+        return !Array.isArray(a) || a.length === 0;
       return a === undefined || a === null || a === "";
     });
     if (firstMissingIndex !== -1) {
@@ -180,7 +190,10 @@ export default function AssessmentQuestions() {
     setStatus("submitting");
     setErrorMessage("");
     try {
-      const payload = Object.entries(answers).map(([question_id, value]) => ({ question_id, value }));
+      const payload = Object.entries(answers).map(([question_id, value]) => ({
+        question_id,
+        value,
+      }));
       const res = await submitAssessment(payload);
       setAssessmentId(res.data.assessment_id);
       navigate("/analysis/loading", { state: { stage: "analyze" } });
@@ -199,48 +212,82 @@ export default function AssessmentQuestions() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl animate-fade-in">
       <Stepper currentStep="assessment" />
 
       <div className="card">
-        <div className="mb-4">
-          <div className="mb-1 flex justify-between text-xs font-bold text-slate-500">
+        <div className="mb-5">
+          <div className="mb-1.5 flex justify-between text-xs font-bold text-slate-500">
             <span>
               السؤال {currentIndex + 1} من {questions.length}
             </span>
+            <span>{Math.round(((currentIndex + 1) / questions.length) * 100)}%</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
             <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+              className="h-full rounded-full bg-primary-600 transition-all"
+              style={{
+                width: `${((currentIndex + 1) / questions.length) * 100}%`,
+              }}
             />
           </div>
         </div>
 
-        <h2 className="mb-4 text-lg font-black text-slate-800">{currentQuestion.text}</h2>
+        <h2 className="mb-4 text-base sm:text-lg font-black text-slate-900">
+          {currentQuestion.text}
+        </h2>
 
-        <QuestionInput question={currentQuestion} value={currentAnswer} onChange={setAnswer} />
+        <QuestionInput
+          question={currentQuestion}
+          value={currentAnswer}
+          onChange={setAnswer}
+        />
 
-        {showRequiredError && <p className="error-text mt-3">هذا السؤال إلزامي</p>}
+        {showRequiredError && (
+          <p className="error-text mt-3">هذا السؤال إلزامي</p>
+        )}
         {errorMessage && (
           <div className="alert-banner-error mt-3" role="alert">
-            {errorMessage}
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <span>{errorMessage}</span>
           </div>
         )}
 
-        <div className="mt-6 flex items-center justify-between gap-3">
-          <button type="button" className="btn-outline" onClick={goPrevious} disabled={currentIndex === 0}>
-            السابق
+        <div className="mt-6 flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={goPrevious}
+            disabled={currentIndex === 0}
+          >
+            <ArrowRight size={15} />
+            <span>السابق</span>
           </button>
 
           <div className="flex items-center gap-3">
             {!currentQuestion.required && !isLast && (
-              <button type="button" onClick={skip} className="text-sm font-bold text-slate-400 hover:text-slate-600">
+              <button
+                type="button"
+                onClick={skip}
+                className="text-xs sm:text-sm font-bold text-slate-400 hover:text-slate-600"
+              >
                 تخطي
               </button>
             )}
-            <button type="button" className="btn-primary" onClick={goNext} disabled={status === "submitting"}>
-              {status === "submitting" ? <Spinner /> : isLast ? "إنهاء" : "التالي"}
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={goNext}
+              disabled={status === "submitting"}
+            >
+              {status === "submitting" ? (
+                <Spinner />
+              ) : (
+                <>
+                  <span>{isLast ? "إنهاء" : "التالي"}</span>
+                  <ArrowLeft size={15} />
+                </>
+              )}
             </button>
           </div>
         </div>

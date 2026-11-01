@@ -72,7 +72,7 @@ export const exportAnalysisPdf = (analysisId) =>
   apiClient.get(`/history/${analysisId}/export/pdf`, { responseType: "blob" });
 
 // ============================================================
-// Batch 1.2: Feedback Loop (👍/👎) على التوصيات
+// Batch 1.2: Feedback Loop (Positive/Negative) على التوصيات
 // ============================================================
 export const submitAnalysisFeedback = (analysisId, data) =>
   apiClient.post(`/history/${analysisId}/feedback`, data);

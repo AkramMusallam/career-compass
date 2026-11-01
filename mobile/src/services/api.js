@@ -5,6 +5,7 @@ export async function fetchProfile(token) {
   const resp = await fetch(`${API_BASE_URL}/profile`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json();
 }
 
@@ -12,8 +13,21 @@ export async function fetchLatestRoadmap(token) {
   const resp = await fetch(`${API_BASE_URL}/history?limit=1`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const data = await resp.json();
-  return data && data.length > 0 ? data[0] : null;
+  const latestItem =
+    Array.isArray(data) && data.length > 0
+      ? data[0]
+      : data && Array.isArray(data.analyses) && data.analyses.length > 0
+      ? data.analyses[0]
+      : null;
+  if (!latestItem || !latestItem.analysis_id) return null;
+
+  const detailResp = await fetch(`${API_BASE_URL}/history/${latestItem.analysis_id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!detailResp.ok) return latestItem;
+  return detailResp.json();
 }
 
 export async function toggleMilestoneSkill(token, analysisId, skill, completed) {

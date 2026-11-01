@@ -1,4 +1,15 @@
 import { useEffect, useState } from "react";
+import {
+  Briefcase,
+  Building2,
+  MapPin,
+  Clock,
+  DollarSign,
+  ExternalLink,
+  Check,
+  Mic,
+  RefreshCw,
+} from "lucide-react";
 import { getErrorMessage } from "../../../api/client";
 import { getMatchedJobs } from "../../../api/endpoints";
 
@@ -7,110 +18,162 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let isMounted = true;
-    if (!analysisId) return;
+  const fetchJobs = () => {
+    if (!analysisId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError("");
 
     getMatchedJobs(analysisId)
       .then((res) => {
-        if (isMounted) {
-          setJobs(res.data.jobs || []);
-          setLoading(false);
-        }
+        setJobs(res.data.jobs || []);
+        setLoading(false);
       })
       .catch((err) => {
-        if (isMounted) {
-          setError(getErrorMessage(err, "تعذر جلب شواغر الوظائف المطابقة"));
-          setLoading(false);
-        }
+        setError(getErrorMessage(err, "تعذر جلب شواغر الوظائف المطابقة"));
+        setLoading(false);
       });
+  };
 
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    fetchJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisId]);
 
   if (loading) {
     return (
-      <section className="card">
-        <h2 className="mb-3 font-black text-slate-800">
-          فرص العمل الحقيقية المطابقة لملفك (Live Job Matches)
+      <section className="card" id="companies-section">
+        <h2 className="mb-3 text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+          <Briefcase size={18} className="text-primary-600" />
+          <span>الشركات والشواغر المقترحة للتقديم (Live Job Matches)</span>
         </h2>
         <div className="py-8 text-center text-slate-400">
-          <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-primary border-r-transparent mb-2" />
+          <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-primary-600 border-r-transparent mb-2" />
           <p className="text-xs font-bold">
-            جاري البحث في قاعدة الشواغر النشطة ومطابقة المهارات...
+            جاري البحث في قاعدة الشواغر النشطة والشركات المقترحة...
           </p>
         </div>
       </section>
     );
   }
 
-  if (error || jobs.length === 0) {
-    return null;
+  if (error) {
+    return (
+      <section className="card" id="companies-section">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+            <Briefcase size={18} className="text-primary-600" />
+            <span>الشركات والشواغر المقترحة للتقديم المباشر</span>
+          </h2>
+        </div>
+        <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 text-center">
+          <p className="text-xs sm:text-sm font-bold text-red-700 mb-3">{error}</p>
+          <button
+            type="button"
+            onClick={fetchJobs}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-red-300 bg-white px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50 transition"
+          >
+            <RefreshCw size={14} />
+            <span>إعادة المحاولة</span>
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  if (jobs.length === 0) {
+    return (
+      <section className="card" id="companies-section">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+            <Briefcase size={18} className="text-primary-600" />
+            <span>الشركات والشواغر المقترحة للتقديم المباشر</span>
+          </h2>
+        </div>
+        <div className="rounded-xl border border-accent-200 bg-accent-50/60 p-4 text-center">
+          <p className="text-xs sm:text-sm font-bold text-accent-800">
+            لم يتم العثور على شواغر بنسبة تطابق مباشرة لمهاراتك في الوقت الحالي. سيتم تحديث الشواغر تلقائياً عند إضافة مهارات جديدة لسجلك.
+          </p>
+        </div>
+      </section>
+    );
   }
 
   return (
-    <section className="card">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
+    <section className="card" id="companies-section">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div>
-          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span>💼</span>
-            <span>فرص عمل حقيقية مطابقة لملفك (Live Job Matches)</span>
+          <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+            <Briefcase size={18} className="text-primary-600" />
+            <span>الشركات والشواغر المقترحة للتقديم المباشر</span>
           </h2>
           <p className="text-xs font-medium text-slate-500 mt-0.5">
-            تمت مطابقة مهاراتك مع أحدث الشواغر المفتوحة في السوق
+            تمت مطابقة مهاراتك مع أحدث الشواغر المفتوحة في السوق للتقديم المباشر
           </p>
         </div>
-        <span className="bg-indigo-50 text-indigo-700 text-xs font-extrabold px-3.5 py-1.5 rounded-full border border-indigo-200">
+        <span className="bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1 rounded-full border border-primary-200">
           {jobs.length} وظيفة متطابقة
         </span>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
+      <div className="grid gap-3.5 sm:grid-cols-1 md:grid-cols-2">
         {jobs.map((item) => {
           const isHighMatch = item.match_percentage >= 70;
           return (
             <div
               key={item.id}
-              className="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all"
+              className="flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-4 hover:border-primary-300 transition-colors"
             >
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <div>
-                    <h3 className="font-black text-slate-900 text-sm">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-slate-900 text-sm truncate">
                       {item.title}
                     </h3>
                     <a
                       href={
                         item.company_url ||
                         item.apply_url ||
-                        `https://www.google.com/search?q=${encodeURIComponent(item.company)}`
+                        `https://www.google.com/search?q=${encodeURIComponent(
+                          item.company
+                        )}`
                       }
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-800 hover:underline transition-colors mt-0.5"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-800 hover:underline mt-0.5"
                       title={`زيارة الموقع التعريفي لشركة ${item.company}`}
                     >
-                      <span>🏢 {item.company}</span>
-                      <span className="text-[10px] text-slate-400">↗</span>
+                      <Building2 size={13} />
+                      <span>{item.company}</span>
+                      <ExternalLink size={11} className="text-slate-400" />
                     </a>
                   </div>
                   <span
-                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-black ${
+                    className={`shrink-0 rounded-lg px-2.5 py-0.5 text-xs font-black ${
                       isHighMatch
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                        : "bg-indigo-100 text-indigo-800 border border-indigo-200"
+                        ? "bg-secondary-50 text-secondary-700 border border-secondary-200"
+                        : "bg-primary-50 text-primary-700 border border-primary-200"
                     }`}
                   >
                     {Math.round(item.match_percentage)}% توافق
                   </span>
                 </div>
 
-                <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500 mb-3">
-                  <span className="flex items-center gap-1">📍 {item.location}</span>
-                  <span className="flex items-center gap-1">⏱️ {item.type}</span>
-                  <span className="flex items-center gap-1">💰 {item.salary_range}</span>
+                <div className="flex flex-wrap gap-2.5 text-[11px] font-semibold text-slate-500 mb-2.5">
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin size={12} className="text-slate-400" />
+                    <span>{item.location}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Clock size={12} className="text-slate-400" />
+                    <span>{item.type}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <DollarSign size={12} className="text-slate-400" />
+                    <span>{item.salary_range}</span>
+                  </span>
                 </div>
 
                 <p className="text-xs text-slate-600 line-clamp-2 mb-3 leading-relaxed">
@@ -127,9 +190,10 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
                         {item.matched_skills.map((s) => (
                           <span
                             key={s}
-                            className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-emerald-200"
+                            className="inline-flex items-center gap-1 bg-secondary-50 text-secondary-700 text-[10px] font-bold px-2 py-0.5 rounded border border-secondary-200"
                           >
-                            ✓ {s}
+                            <Check size={10} />
+                            <span>{s}</span>
                           </span>
                         ))}
                       </div>
@@ -145,9 +209,9 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
                         {item.missing_skills.map((s) => (
                           <span
                             key={s}
-                            className="bg-amber-50 text-amber-700 text-[10px] font-semibold px-2 py-0.5 rounded-md border border-amber-200"
+                            className="bg-accent-50 text-accent-700 text-[10px] font-semibold px-2 py-0.5 rounded border border-accent-200"
                           >
-                            • {s}
+                            {s}
                           </span>
                         ))}
                       </div>
@@ -156,7 +220,7 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 mt-auto">
                 <span className="text-[10px] text-slate-400 font-bold">
                   {item.posted_date}
                 </span>
@@ -164,24 +228,27 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
                   <button
                     type="button"
                     onClick={() => onStartInterview && onStartInterview(item.title)}
-                    className="btn-outline !py-1.5 !px-3 !text-xs"
+                    className="btn-outline !py-1.5 !px-2.5 !text-xs"
                     title="محاكاة مقابلة لهذا الشاغر"
                   >
-                    🎙️ محاكاة مقابلة
+                    <Mic size={13} />
+                    <span>محاكاة مقابلة</span>
                   </button>
                   <a
                     href={
                       item.apply_url && item.apply_url.startsWith("http")
                         ? item.apply_url
-                        : `https://www.google.com/search?q=${encodeURIComponent(`${item.company} careers ${item.title}`)}`
+                        : `https://www.google.com/search?q=${encodeURIComponent(
+                            `${item.company} careers ${item.title}`
+                          )}`
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-primary !py-1.5 !px-3.5 !text-xs inline-flex items-center gap-1"
+                    className="btn-primary !py-1.5 !px-3 !text-xs"
                     title={`التقديم المباشر لشاغر ${item.title} في ${item.company}`}
                   >
-                    <span>التقديم</span>
-                    <span>↗</span>
+                    <span>التقديم في {item.company}</span>
+                    <ExternalLink size={12} />
                   </a>
                 </div>
               </div>

@@ -1,5 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  AlertCircle,
+  ArrowLeft,
+  ShieldCheck,
+  CheckCircle2,
+} from "lucide-react";
 
 import { getErrorMessage } from "../../api/client";
 import CompassLogo from "../../components/layout/CompassLogo";
@@ -17,7 +23,7 @@ function getPasswordStrength(password) {
 
   if (score <= 1) return { label: "ضعيفة", score, color: "bg-danger" };
   if (score <= 2) return { label: "متوسطة", score, color: "bg-warning" };
-  return { label: "قوية", score, color: "bg-emerald-500" };
+  return { label: "قوية", score, color: "bg-secondary-600" };
 }
 
 export default function Register() {
@@ -75,7 +81,7 @@ export default function Register() {
     try {
       await register(fullName, email, password);
       await login(email, password);
-      showToast("تم إنشاء الحساب بنجاح، مرحباً بك!");
+      showToast("تم إنشاء الحساب بنجاح، مرحباً بك");
       navigate("/dashboard", { replace: true });
     } catch (error) {
       setErrorMessage(
@@ -87,31 +93,33 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-12">
+    <div className="min-h-screen grid lg:grid-cols-12 bg-[#F7F8FA]">
       {/* Right Side (RTL): Registration Form */}
-      <div className="lg:col-span-6 xl:col-span-5 flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-14">
+      <div className="lg:col-span-6 xl:col-span-5 flex flex-col justify-center px-4 py-8 sm:px-10 lg:px-14">
         <div className="w-full max-w-md mx-auto">
           <div className="mb-6 flex items-center justify-between">
-            <CompassLogo size={44} />
-            <span className="chip !text-[11px]">حساب مجاني 🚀</span>
+            <CompassLogo size={40} />
+            <span className="chip text-[11px] text-primary-700 bg-primary-50 border-primary-200">
+              حساب مجاني
+            </span>
           </div>
 
-          <div className="card !p-7 sm:!p-9">
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mb-1.5">
+          <div className="card !p-6 sm:!p-8">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 mb-1.5">
               إنشاء حساب جديد
             </h1>
-            <p className="mb-6 text-sm font-medium text-slate-500">
+            <p className="mb-5 text-xs sm:text-sm font-medium text-slate-500">
               ابدأ رحلتك نحو المسار المهني الأنسب خلال دقائق معدودة
             </p>
 
             {errorMessage && (
               <div className="alert-banner-error mb-5" role="alert">
-                <span aria-hidden="true">⚠️</span>
+                <AlertCircle size={18} className="shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            <form onSubmit={handleSubmit} noValidate className="space-y-3.5">
               <div>
                 <label htmlFor="fullName" className="label-text">
                   الاسم الكامل
@@ -208,10 +216,10 @@ export default function Register() {
                 )}
               </div>
 
-              <label className="flex items-start gap-2.5 pt-1 text-xs sm:text-sm font-medium text-slate-600 cursor-pointer">
+              <label className="flex items-start gap-2.5 pt-1 text-xs font-medium text-slate-600 cursor-pointer">
                 <input
                   type="checkbox"
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary-400"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                   checked={agreedToTerms}
                   onChange={(e) => setAgreedToTerms(e.target.checked)}
                 />
@@ -223,19 +231,26 @@ export default function Register() {
 
               <button
                 type="submit"
-                className="btn-primary w-full py-3.5 text-base"
+                className="btn-primary w-full py-3 text-sm sm:text-base mt-2"
                 disabled={!isValid || isLoading}
               >
-                {isLoading ? <Spinner /> : "إنشاء حساب والبدء الآن ←"}
+                {isLoading ? (
+                  <Spinner />
+                ) : (
+                  <>
+                    <span>إنشاء حساب والبدء الآن</span>
+                    <ArrowLeft size={16} />
+                  </>
+                )}
               </button>
             </form>
 
-            <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-              <p className="text-sm font-medium text-slate-500">
+            <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+              <p className="text-xs sm:text-sm font-medium text-slate-500">
                 لديك حساب بالفعل؟{" "}
                 <Link
                   to="/login"
-                  className="font-black text-primary-600 hover:text-primary-700 hover:underline"
+                  className="font-extrabold text-primary-600 hover:text-primary-700 hover:underline"
                 >
                   تسجيل الدخول
                 </Link>
@@ -245,55 +260,55 @@ export default function Register() {
         </div>
       </div>
 
-      {/* Left Side (RTL): Luminous Pastel & Indigo Aurora Showcase Panel */}
-      <div className="hidden lg:flex lg:col-span-6 xl:col-span-7 relative overflow-hidden bg-gradient-to-br from-indigo-50 via-violet-50/70 to-emerald-50/80 border-r border-indigo-100/80 p-12 xl:p-16 flex-col justify-between">
-        <div className="pointer-events-none absolute -top-24 -left-24 h-96 w-96 rounded-full bg-indigo-400/20 blur-[100px]" />
-        <div className="pointer-events-none absolute top-1/3 right-0 h-96 w-96 rounded-full bg-violet-400/15 blur-[110px]" />
-        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-80 w-80 rounded-full bg-emerald-400/20 blur-[100px]" />
-
-        <div className="relative z-10">
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-white/80 backdrop-blur-md px-4 py-1.5 text-xs font-extrabold text-emerald-700 shadow-sm">
-            ✨ خطوتك الأولى نحو مستقبل مهني أقوى
+      {/* Left Side (RTL): Executive Showcase Panel */}
+      <div className="hidden lg:flex lg:col-span-6 xl:col-span-7 bg-slate-900 text-white p-12 xl:p-16 flex-col justify-between border-r border-slate-800">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-800 px-3.5 py-1.5 text-xs font-bold text-secondary-300">
+            خطوتك الأولى نحو مستقبل مهني أقوى
           </span>
-          <h2 className="mt-6 text-4xl xl:text-5xl font-black leading-tight text-slate-900 max-w-2xl">
-            انتقل من التشتت المهني إلى{" "}
-            <span className="text-gradient">خارطة طريق واضحة</span>
+          <h2 className="mt-6 text-3xl xl:text-4xl font-black leading-tight text-white max-w-xl">
+            انتقل من التشتت المهني إلى خارطة طريق واضحة
           </h2>
-          <p className="mt-4 text-base font-medium text-slate-600 max-w-xl leading-relaxed">
+          <p className="mt-3 text-sm xl:text-base font-medium text-slate-300 max-w-xl leading-relaxed">
             في 3 خطوات فقط: ارفع سيرتك الذاتية أو أدخل مهاراتك يدوياً، أجب عن أسئلة التقييم الذكية، واحصل على تقرير شامل مع فرص عمل حقيقية.
           </p>
         </div>
 
-        <div className="relative z-10 space-y-4 my-8 max-w-xl">
+        <div className="space-y-4 my-8 max-w-xl">
           {[
             {
               step: "01",
               title: "استخراج ذكي وتقييم ATS",
               desc: "قراءة فورية لملفات PDF وLinkedIn بالعربية والإنجليزية مع قياس توافق ATS.",
+              badgeClass: "bg-primary-500/20 text-primary-300 border-primary-500/30",
             },
             {
               step: "02",
               title: "تحليل البصمة المهنية وفجوة المهارات",
               desc: "تحديد أفضل 5 مسارات وظيفية مناسبة لك وتصنيف المهارات الناقصة حسب الأولوية.",
+              badgeClass: "bg-secondary-500/20 text-secondary-300 border-secondary-500/30",
             },
             {
               step: "03",
               title: "خارطة تعلم + مقابلات تجريبية بالذكاء الاصطناعي",
               desc: "خطة عملية لمدة 3 أشهر مع كورسات مقترحة ومحاكي مقابلات تفاعلي.",
+              badgeClass: "bg-accent-500/20 text-accent-300 border-accent-500/30",
             },
           ].map((item) => (
             <div
               key={item.step}
-              className="flex items-start gap-4 rounded-3xl border border-white/90 bg-white/75 backdrop-blur-xl p-5 shadow-md shadow-indigo-500/5"
+              className="flex items-start gap-4 rounded-2xl border border-slate-800 bg-slate-800/50 p-5"
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-xs font-black text-white shadow-md shadow-indigo-500/20">
+              <span
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-xs font-black ${item.badgeClass}`}
+              >
                 {item.step}
               </span>
               <div>
-                <h3 className="font-black text-slate-900 text-base">
+                <h3 className="font-bold text-white text-sm sm:text-base">
                   {item.title}
                 </h3>
-                <p className="mt-1 text-xs font-medium text-slate-500 leading-relaxed">
+                <p className="mt-1 text-xs text-slate-400 leading-relaxed">
                   {item.desc}
                 </p>
               </div>
@@ -301,9 +316,15 @@ export default function Register() {
           ))}
         </div>
 
-        <div className="relative z-10 flex items-center justify-between text-xs font-semibold text-slate-500 border-t border-indigo-200/60 pt-6">
-          <span>حماية كاملة للبيانات وخصوصية تامة</span>
-          <span className="font-black text-emerald-700">✓ مجاني بالكامل</span>
+        <div className="flex items-center justify-between text-xs font-medium text-slate-400 border-t border-slate-800 pt-5">
+          <span className="inline-flex items-center gap-1.5">
+            <ShieldCheck size={15} className="text-secondary-400" />
+            حماية كاملة للبيانات وخصوصية تامة
+          </span>
+          <span className="inline-flex items-center gap-1 font-bold text-secondary-300">
+            <CheckCircle2 size={14} />
+            مجاني بالكامل للبدء
+          </span>
         </div>
       </div>
     </div>

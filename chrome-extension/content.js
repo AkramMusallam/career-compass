@@ -61,7 +61,12 @@ function injectCareerCompassBadge() {
       box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
       z-index: 9999;
     `;
-    badge.innerHTML = `🧭 <span>افحص التوافق عبر Career Compass</span>`;
+    const iconSpan = document.createElement("span");
+    iconSpan.textContent = "🧭";
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = "افحص التوافق عبر Career Compass";
+    badge.appendChild(iconSpan);
+    badge.appendChild(labelSpan);
     badge.addEventListener("click", () => {
       alert("افتح إضافة Career Compass من شريط أدوات المتصفح لمطابقة هذه الوظيفة مع سيرتك الذاتية وتوليد خطاب التقديم!");
     });
@@ -69,5 +74,11 @@ function injectCareerCompassBadge() {
   }
 }
 
-// تشغيل الحقن بعد تحميل الصفحة
+// تشغيل الحقن بعد تحميل الصفحة ومراقبة تنقلات SPA على LinkedIn
 setTimeout(injectCareerCompassBadge, 2000);
+const observer = new MutationObserver(() => {
+  injectCareerCompassBadge();
+});
+if (document.body) {
+  observer.observe(document.body, { childList: true, subtree: true });
+}

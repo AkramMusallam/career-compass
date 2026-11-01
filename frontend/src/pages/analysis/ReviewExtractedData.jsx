@@ -1,5 +1,15 @@
 import { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
+import {
+  FileText,
+  X,
+  Plus,
+  Trash2,
+  AlertCircle,
+  Briefcase,
+  ArrowRight,
+  ArrowLeft,
+} from "lucide-react";
 
 import { getErrorMessage } from "../../api/client";
 import { confirmExtraction, getAtsScore } from "../../api/endpoints";
@@ -20,42 +30,61 @@ function AtsScoreSection({ extractionId, onOpenAtsBuilder }) {
           setLoading(false);
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (isMounted) setLoading(false);
       });
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [extractionId]);
 
-  if (loading) return <div className="card"><h2 className="mb-3 font-black text-slate-800">ATS Score</h2><p className="text-slate-500">جاري تقييم السيرة الذاتية (ATS)...</p></div>;
+  if (loading)
+    return (
+      <div className="card">
+        <h2 className="mb-2 text-sm font-black text-slate-800">ATS Score</h2>
+        <p className="text-xs text-slate-500">جاري تقييم السيرة الذاتية (ATS)...</p>
+      </div>
+    );
   if (!scoreData) return null;
 
   return (
-    <section className="card bg-primary-50 border-primary-100">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <h2 className="font-black text-primary-900">مقياس توافق السيرة الذاتية (ATS Score)</h2>
+    <section className="card !bg-primary-50/70 !border-primary-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+        <h2 className="text-sm sm:text-base font-black text-slate-900">
+          مقياس توافق السيرة الذاتية (ATS Score)
+        </h2>
         {onOpenAtsBuilder && (
           <button
             type="button"
             onClick={onOpenAtsBuilder}
-            className="rounded-xl bg-gradient-to-l from-indigo-600 to-violet-600 px-4 py-2 text-xs font-extrabold text-white shadow-sm hover:opacity-95 transition"
+            className="btn-primary !py-2 !px-3.5 !text-xs"
           >
-            📄 بناء وتصدير سيرة ذاتية متوافقة مع ATS
+            <FileText size={14} />
+            <span>بناء وتصدير سيرة ذاتية متوافقة مع ATS</span>
           </button>
         )}
       </div>
-      <div className="flex items-center gap-4 mb-4">
-        <div className={`text-4xl font-black ${scoreData.score >= 70 ? 'text-green-600' : 'text-warning'}`}>
+      <div className="flex items-center gap-4 mb-3">
+        <div
+          className={`text-3xl sm:text-4xl font-black ${
+            scoreData.score >= 70 ? "text-secondary-600" : "text-accent-600"
+          }`}
+        >
           {scoreData.score}%
         </div>
-        <p className="text-sm text-slate-600">
+        <p className="text-xs sm:text-sm text-slate-600">
           هذا التقييم يوضح مدى توافق سيرتك الذاتية مع أنظمة الفرز الآلي (ATS).
         </p>
       </div>
       {scoreData.feedback && scoreData.feedback.length > 0 && (
         <div>
-          <h3 className="font-bold text-slate-700 mb-2">ملاحظات التحسين:</h3>
-          <ul className="list-disc list-inside space-y-1 text-sm text-slate-600">
-            {scoreData.feedback.map((f, i) => <li key={i}>{f}</li>)}
+          <h3 className="font-bold text-xs sm:text-sm text-slate-800 mb-1.5">
+            ملاحظات التحسين:
+          </h3>
+          <ul className="list-disc list-inside space-y-1 text-xs sm:text-sm text-slate-600">
+            {scoreData.feedback.map((f, i) => (
+              <li key={i}>{f}</li>
+            ))}
           </ul>
         </div>
       )}
@@ -63,16 +92,14 @@ function AtsScoreSection({ extractionId, onOpenAtsBuilder }) {
   );
 }
 
-
 function SkillsSection({ skills, setSkills }) {
   const [newSkill, setNewSkill] = useState("");
 
   const addSkill = () => {
     const trimmed = newSkill.trim();
-    // منع إضافة مهارة مكررة بحالة أحرف مختلفة فقط (مثال: "Python" ثم "python") — الباك إند
-    // يُطبّعها وقت التأكيد (/extract/confirm) بأي حال، لكن بدون هذا التحقق هنا كان المستخدم
-    // يشوف شريحتين مختلفتين ظاهرياً بالواجهة ثم تندمجان بصمت بدون أي تنبيه له، وهو أمر مربك.
-    const isDuplicate = skills.some((s) => s.toLowerCase() === trimmed.toLowerCase());
+    const isDuplicate = skills.some(
+      (s) => s.toLowerCase() === trimmed.toLowerCase()
+    );
     if (trimmed && !isDuplicate) {
       setSkills([...skills, trimmed]);
     }
@@ -81,26 +108,28 @@ function SkillsSection({ skills, setSkills }) {
 
   return (
     <section className="card">
-      <h2 className="mb-3 font-black text-slate-800">المهارات</h2>
+      <h2 className="mb-3 text-base font-black text-slate-900">المهارات</h2>
       {skills.length === 0 && (
-        <p className="mb-3 text-sm text-slate-400">لم يتم العثور على مهارات، أضف مهاراتك يدوياً</p>
+        <p className="mb-3 text-xs sm:text-sm text-slate-400">
+          لم يتم العثور على مهارات، أضف مهاراتك يدوياً
+        </p>
       )}
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-1.5">
         {skills.map((skill) => (
           <span key={skill} className="chip">
-            {skill}
+            <span>{skill}</span>
             <button
               type="button"
               onClick={() => setSkills(skills.filter((s) => s !== skill))}
-              className="mr-1 text-primary-600 hover:text-danger"
+              className="mr-1 rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-danger"
               aria-label={`حذف ${skill}`}
             >
-              ✕
+              <X size={12} />
             </button>
           </span>
         ))}
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
           className="input-field"
@@ -115,7 +144,8 @@ function SkillsSection({ skills, setSkills }) {
           }}
         />
         <button type="button" className="btn-outline shrink-0" onClick={addSkill}>
-          + إضافة مهارة
+          <Plus size={15} />
+          <span>إضافة مهارة</span>
         </button>
       </div>
     </section>
@@ -126,18 +156,22 @@ function ProjectsSection({ projects, setProjects }) {
   const updateProject = (index, patch) => {
     setProjects(projects.map((p, i) => (i === index ? { ...p, ...patch } : p)));
   };
-  const removeProject = (index) => setProjects(projects.filter((_, i) => i !== index));
-  const addProject = () => setProjects([...projects, { title: "", description: "", technologies: [] }]);
+  const removeProject = (index) =>
+    setProjects(projects.filter((_, i) => i !== index));
+  const addProject = () =>
+    setProjects([...projects, { title: "", description: "", technologies: [] }]);
 
   return (
     <section className="card">
-      <h2 className="mb-3 font-black text-slate-800">المشاريع</h2>
+      <h2 className="mb-3 text-base font-black text-slate-900">المشاريع</h2>
       {projects.length === 0 && (
-        <p className="mb-3 text-sm text-slate-400">لم يتم العثور على مشاريع، أضف مشاريعك يدوياً</p>
+        <p className="mb-3 text-xs sm:text-sm text-slate-400">
+          لم يتم العثور على مشاريع، أضف مشاريعك يدوياً
+        </p>
       )}
       <div className="space-y-3">
         {projects.map((project, index) => (
-          <div key={index} className="rounded-xl border border-slate-200 p-4">
+          <div key={index} className="rounded-xl border border-slate-200 p-3.5 sm:p-4">
             <div className="mb-2 flex items-center gap-2">
               <input
                 type="text"
@@ -149,10 +183,10 @@ function ProjectsSection({ projects, setProjects }) {
               <button
                 type="button"
                 onClick={() => removeProject(index)}
-                className="shrink-0 rounded-full p-2 text-slate-400 hover:bg-danger-50 hover:text-danger"
+                className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-danger"
                 aria-label="حذف المشروع"
               >
-                🗑️
+                <Trash2 size={16} />
               </button>
             </div>
             <textarea
@@ -160,7 +194,9 @@ function ProjectsSection({ projects, setProjects }) {
               rows={2}
               placeholder="وصف المشروع"
               value={project.description}
-              onChange={(e) => updateProject(index, { description: e.target.value })}
+              onChange={(e) =>
+                updateProject(index, { description: e.target.value })
+              }
             />
             <input
               type="text"
@@ -190,24 +226,35 @@ function ProjectsSection({ projects, setProjects }) {
         ))}
       </div>
       <button type="button" className="btn-outline mt-3" onClick={addProject}>
-        + إضافة مشروع
+        <Plus size={15} />
+        <span>إضافة مشروع</span>
       </button>
     </section>
   );
 }
 
 function EducationSection({ education, setEducation }) {
-  const update = (index, patch) => setEducation(education.map((e, i) => (i === index ? { ...e, ...patch } : e)));
-  const remove = (index) => setEducation(education.filter((_, i) => i !== index));
-  const add = () => setEducation([...education, { degree: "", institution: "", year: "" }]);
+  const update = (index, patch) =>
+    setEducation(education.map((e, i) => (i === index ? { ...e, ...patch } : e)));
+  const remove = (index) =>
+    setEducation(education.filter((_, i) => i !== index));
+  const add = () =>
+    setEducation([...education, { degree: "", institution: "", year: "" }]);
 
   return (
     <section className="card">
-      <h2 className="mb-3 font-black text-slate-800">التعليم</h2>
-      {education.length === 0 && <p className="mb-3 text-sm text-slate-400">لم يتم العثور على بيانات تعليمية</p>}
+      <h2 className="mb-3 text-base font-black text-slate-900">التعليم</h2>
+      {education.length === 0 && (
+        <p className="mb-3 text-xs sm:text-sm text-slate-400">
+          لم يتم العثور على بيانات تعليمية
+        </p>
+      )}
       <div className="space-y-3">
         {education.map((edu, index) => (
-          <div key={index} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 p-4">
+          <div
+            key={index}
+            className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-slate-200 p-3.5 sm:p-4"
+          >
             <input
               type="text"
               className="input-field flex-1"
@@ -222,44 +269,63 @@ function EducationSection({ education, setEducation }) {
               value={edu.institution}
               onChange={(e) => update(index, { institution: e.target.value })}
             />
-            <input
-              type="number"
-              className="input-field w-28"
-              placeholder="السنة"
-              value={edu.year || ""}
-              onChange={(e) => update(index, { year: e.target.value ? Number(e.target.value) : null })}
-            />
-            <button
-              type="button"
-              onClick={() => remove(index)}
-              className="rounded-full p-2 text-slate-400 hover:bg-danger-50 hover:text-danger"
-              aria-label="حذف"
-            >
-              🗑️
-            </button>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                className="input-field sm:w-28"
+                placeholder="السنة"
+                value={edu.year || ""}
+                onChange={(e) =>
+                  update(index, {
+                    year: e.target.value ? Number(e.target.value) : null,
+                  })
+                }
+              />
+              <button
+                type="button"
+                onClick={() => remove(index)}
+                className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-danger"
+                aria-label="حذف"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
         ))}
       </div>
       <button type="button" className="btn-outline mt-3" onClick={add}>
-        + إضافة
+        <Plus size={15} />
+        <span>إضافة</span>
       </button>
     </section>
   );
 }
 
 function ExperienceSection({ experience, setExperience }) {
-  const update = (index, patch) => setExperience(experience.map((e, i) => (i === index ? { ...e, ...patch } : e)));
-  const remove = (index) => setExperience(experience.filter((_, i) => i !== index));
-  const add = () => setExperience([...experience, { title: "", company: "", duration_months: 0, description: "" }]);
+  const update = (index, patch) =>
+    setExperience(
+      experience.map((e, i) => (i === index ? { ...e, ...patch } : e))
+    );
+  const remove = (index) =>
+    setExperience(experience.filter((_, i) => i !== index));
+  const add = () =>
+    setExperience([
+      ...experience,
+      { title: "", company: "", duration_months: 0, description: "" },
+    ]);
 
   return (
     <section className="card">
-      <h2 className="mb-3 font-black text-slate-800">الخبرة</h2>
-      {experience.length === 0 && <p className="mb-3 text-sm text-slate-400">لم يتم العثور على خبرات عملية</p>}
+      <h2 className="mb-3 text-base font-black text-slate-900">الخبرة</h2>
+      {experience.length === 0 && (
+        <p className="mb-3 text-xs sm:text-sm text-slate-400">
+          لم يتم العثور على خبرات عملية
+        </p>
+      )}
       <div className="space-y-3">
         {experience.map((exp, index) => (
-          <div key={index} className="rounded-xl border border-slate-200 p-4">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
+          <div key={index} className="rounded-xl border border-slate-200 p-3.5 sm:p-4">
+            <div className="mb-2 flex flex-col sm:flex-row sm:items-center gap-2">
               <input
                 type="text"
                 className="input-field flex-1"
@@ -274,21 +340,25 @@ function ExperienceSection({ experience, setExperience }) {
                 value={exp.company}
                 onChange={(e) => update(index, { company: e.target.value })}
               />
-              <input
-                type="number"
-                className="input-field w-32"
-                placeholder="المدة (أشهر)"
-                value={exp.duration_months || 0}
-                onChange={(e) => update(index, { duration_months: Number(e.target.value) })}
-              />
-              <button
-                type="button"
-                onClick={() => remove(index)}
-                className="rounded-full p-2 text-slate-400 hover:bg-danger-50 hover:text-danger"
-                aria-label="حذف"
-              >
-                🗑️
-              </button>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  className="input-field sm:w-32"
+                  placeholder="المدة (أشهر)"
+                  value={exp.duration_months || 0}
+                  onChange={(e) =>
+                    update(index, { duration_months: Number(e.target.value) })
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => remove(index)}
+                  className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-danger"
+                  aria-label="حذف"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
             <textarea
               className="input-field"
@@ -301,7 +371,8 @@ function ExperienceSection({ experience, setExperience }) {
         ))}
       </div>
       <button type="button" className="btn-outline mt-3" onClick={add}>
-        + إضافة
+        <Plus size={15} />
+        <span>إضافة</span>
       </button>
     </section>
   );
@@ -340,7 +411,11 @@ export default function ReviewExtractedData() {
         })),
         education: education
           .filter((e) => e.degree)
-          .map((e) => ({ degree: e.degree, institution: e.institution || "", year: e.year || null })),
+          .map((e) => ({
+            degree: e.degree,
+            institution: e.institution || "",
+            year: e.year || null,
+          })),
         experience: experience
           .filter((e) => e.title)
           .map((e) => ({
@@ -359,27 +434,31 @@ export default function ReviewExtractedData() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5 animate-fade-in">
       <Stepper currentStep="review" />
 
       <div>
-        <h1 className="text-xl font-black text-slate-800">مراجعة البيانات المستخرجة</h1>
-        <p className="text-sm text-slate-500">
+        <h1 className="text-lg sm:text-xl font-black text-slate-900">
+          مراجعة البيانات المستخرجة
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
           راجع البيانات التي استخرجناها من سيرتك الذاتية وعدّلها إن لزم — دقة هذه الخطوة تؤثر مباشرة على دقة النتيجة
         </p>
       </div>
 
       {errorMessage && (
         <div className="alert-banner-error" role="alert">
-          <span aria-hidden="true">⚠️</span>
+          <AlertCircle size={18} className="shrink-0 mt-0.5" />
           <span>{errorMessage}</span>
         </div>
       )}
 
       {extractedData?.is_linkedin && (
-        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-xs font-bold shadow-sm">
-          <span className="text-base">💼</span>
-          <span>تم التعرّف على الملف كملف شخصي مُصدَّر من <b>LinkedIn</b>، وجرى استخراج المهارات والخبرات بنجاح.</span>
+        <div className="flex items-center gap-2.5 p-3.5 bg-primary-50 border border-primary-200 text-primary-800 rounded-xl text-xs font-bold">
+          <Briefcase size={16} className="shrink-0 text-primary-600" />
+          <span>
+            تم التعرّف على الملف كملف شخصي مُصدَّر من <b>LinkedIn</b>، وجرى استخراج المهارات والخبرات بنجاح.
+          </span>
         </div>
       )}
 
@@ -390,7 +469,10 @@ export default function ReviewExtractedData() {
       <SkillsSection skills={skills} setSkills={setSkills} />
       <ProjectsSection projects={projects} setProjects={setProjects} />
       <EducationSection education={education} setEducation={setEducation} />
-      <ExperienceSection experience={experience} setExperience={setExperience} />
+      <ExperienceSection
+        experience={experience}
+        setExperience={setExperience}
+      />
 
       {showAtsBuilder && (
         <AtsCvBuilderModal
@@ -404,15 +486,28 @@ export default function ReviewExtractedData() {
       )}
 
       {skills.length === 0 && (
-        <p className="text-sm font-semibold text-warning">يجب وجود مهارة واحدة على الأقل للمتابعة</p>
+        <p className="text-xs sm:text-sm font-bold text-accent-600">
+          يجب وجود مهارة واحدة على الأقل للمتابعة
+        </p>
       )}
 
-      <div className="flex justify-between gap-3">
-        <button type="button" className="btn-outline" onClick={() => navigate("/analysis/upload")}>
-          السابق
+      <div className="flex justify-between gap-3 pt-2">
+        <button
+          type="button"
+          className="btn-outline"
+          onClick={() => navigate("/analysis/upload")}
+        >
+          <ArrowRight size={15} />
+          <span>السابق</span>
         </button>
-        <button type="button" className="btn-primary" disabled={!canContinue} onClick={handleConfirm}>
-          {isSaving ? "جاري الحفظ..." : "تأكيد ومتابعة"}
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={!canContinue}
+          onClick={handleConfirm}
+        >
+          <span>{isSaving ? "جاري الحفظ..." : "تأكيد ومتابعة"}</span>
+          <ArrowLeft size={15} />
         </button>
       </div>
     </div>

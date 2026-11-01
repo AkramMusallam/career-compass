@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -18,6 +18,7 @@ from app.schemas.schemas import (
     RecruiterJobCreate,
     RecruiterJobResponse,
     RecruiterJobUpdate,
+    SwitchRoleRequest,
     UpdateCandidatePipelineRequest,
 )
 from app.services import recruiter_service
@@ -26,7 +27,14 @@ router = APIRouter(prefix="/recruiter", tags=["Recruiter Portal (B2B)"])
 
 
 def require_recruiter_or_active(current_user: User = Depends(get_current_user)) -> User:
-    """التحقق من صلاحية مسؤول التوظيف (أو تفعيل الدور تلقائياً للمستخدمين عند الطلب)."""
+    """التحقق من صلاحية مسؤول التوظيف أو اشتراك الشركات."""
+    role = getattr(current_user, "role", "candidate") or "candidate"
+    tier = getattr(current_user, "subscription_tier", "free") or "free"
+    if role not in ("recruiter", "admin") and tier != "enterprise":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Recruiter or Enterprise access required. Please activate recruiter mode first.",
+        )
     return current_user
 
 
@@ -137,7 +145,7 @@ def get_candidate_profile(
     current_user: User = Depends(require_recruiter_or_active),
 ):
     """معاينة الملف التقني المفصّل للمرشح."""
-    profile_data = recruiter_service.get_candidate_profile_detail(candidate_id)
+    profile_data = recruiter_service.get_candidate_profile_detail(candidate_id, recruiter_id=current_user.id)
     if not profile_data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate profile not found")
     return CandidateProfileDetail(**profile_data)
@@ -145,7 +153,8 @@ def get_candidate_profile(
 
 @router.post("/switch-role", status_code=status.HTTP_200_OK)
 def switch_to_recruiter(
-    company_name: Optional[str] = Query(None),
+    company_name: Optional[str] = Query(None, max_length=200),
+    payload: Optional[SwitchRoleRequest] = Body(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -155,8 +164,9 @@ def switch_to_recruiter(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user.role = "recruiter"
-    if company_name:
-        user.company_name = company_name
+    resolved_company = company_name or (payload.company_name if payload else None)
+    if resolved_company:
+        user.company_name = resolved_company.strip()[:200]
     db.commit()
     db.refresh(user)
 
