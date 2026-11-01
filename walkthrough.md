@@ -49,50 +49,50 @@ flowchart LR
 
 ### أولاً: الأداء وقواعد البيانات (Performance & Scalability)
 1. **تحرير اتصالات قاعدة البيانات فوراً في المصادقة:**
-   - تعديل [`get_current_user`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/core/security.py#L71-L103) ليستخدم جلسة قصيرة العمر (`with SessionLocal() as db:`) مع `db.expunge(user)` لإغلاق الاتصال خلال `<2ms` بدلاً من إبقائه مفتوحاً طوال فترة طلبات الذكاء الاصطناعي وتوليد الـ PDF.
-   - تحديث [`profile.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/profile.py) و[`settings_router.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/settings_router.py) لاستخدام `db.merge(current_user)` بأمان.
+   - تعديل [`get_current_user`](file:///C:/Users/msi/Downloads/career-compass/backend/app/core/security.py#L71-L103) ليستخدم جلسة قصيرة العمر (`with SessionLocal() as db:`) مع `db.expunge(user)` لإغلاق الاتصال خلال `<2ms` بدلاً من إبقائه مفتوحاً طوال فترة طلبات الذكاء الاصطناعي وتوليد الـ PDF.
+   - تحديث [`profile.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/profile.py) و[`settings_router.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/settings_router.py) لاستخدام `db.merge(current_user)` بأمان.
 2. **توسيع مجمع الاتصالات وتفعيل WAL:**
-   - تحديث [`database.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/core/database.py) لدعم `QueuePool(pool_size=25, max_overflow=50, pool_timeout=30, pool_recycle=1800)` على MySQL، وتفعيل `PRAGMA journal_mode=WAL` و `PRAGMA busy_timeout=5000` على SQLite.
+   - تحديث [`database.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/core/database.py) لدعم `QueuePool(pool_size=25, max_overflow=50, pool_timeout=30, pool_recycle=1800)` على MySQL، وتفعيل `PRAGMA journal_mode=WAL` و `PRAGMA busy_timeout=5000` على SQLite.
 3. **القضاء الجذري على مشكلة `N+1 Queries`:**
-   - إضافة `joinedload(Job.skills).joinedload(JobSkill.skill)` و `selectinload(Question.options)` في [`analyze.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/analyze.py#L46-L56).
-   - إضافة `selectinload(Question.options)` في [`assessment.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/assessment.py#L22-L26).
-   - إضافة `joinedload(Course.skill)` في [`recommendation_engine.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/services/recommendation_engine.py#L387-L396).
+   - إضافة `joinedload(Job.skills).joinedload(JobSkill.skill)` و `selectinload(Question.options)` في [`analyze.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/analyze.py#L46-L56).
+   - إضافة `selectinload(Question.options)` في [`assessment.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/assessment.py#L22-L26).
+   - إضافة `joinedload(Course.skill)` في [`recommendation_engine.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/services/recommendation_engine.py#L387-L396).
 4. **إسقاط الحقول (`MongoDB Projection`) والتخزين المؤقت (`TTL Cache`):**
-   - إنشاء [`benchmark_cache.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/core/benchmark_cache.py) وتحديث [`benchmark.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/benchmark.py) لاستخدام إسقاط الحقول (`{"career_score": 1, "top_jobs": {"$slice": 1}, "_id": 0}`) مع تخزين مؤقت لمدة 30 ثانية وإبطال فوري عند تغيير إعدادات المشاركة.
-   - إضافة Projection في [`profile.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/profile.py) لتجنب سحب خارطة الطريق الكاملة عند عرض الملخص والشارات.
+   - إنشاء [`benchmark_cache.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/core/benchmark_cache.py) وتحديث [`benchmark.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/benchmark.py) لاستخدام إسقاط الحقول (`{"career_score": 1, "top_jobs": {"$slice": 1}, "_id": 0}`) مع تخزين مؤقت لمدة 30 ثانية وإبطال فوري عند تغيير إعدادات المشاركة.
+   - إضافة Projection في [`profile.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/profile.py) لتجنب سحب خارطة الطريق الكاملة عند عرض الملخص والشارات.
 5. **تعدد العمال وتقسيم حزم الفرونت إند:**
-   - تحديث [`backend/Dockerfile`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/Dockerfile) لتشغيل `--workers 4`.
-   - تحديث [`vite.config.js`](file:///C:/Users/msi/Downloads/career-compass/career-compass/frontend/vite.config.js) لفصل `vendor-charts` (`recharts` + `d3`) و `vendor-react` عن الحزمة الرئيسية.
+   - تحديث [`backend/Dockerfile`](file:///C:/Users/msi/Downloads/career-compass/backend/Dockerfile) لتشغيل `--workers 4`.
+   - تحديث [`vite.config.js`](file:///C:/Users/msi/Downloads/career-compass/frontend/vite.config.js) لفصل `vendor-charts` (`recharts` + `d3`) و `vendor-react` عن الحزمة الرئيسية.
 
 ### ثانياً: الأمان (Security Hardening)
 1. **إزالة الأسرار المكشوفة وإلزامية مفاتيح الإنتاج:**
-   - تطهير [`backend/.env`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/.env) من كلمة مرور تطبيق Gmail المكشوفة.
-   - تحديث [` backend/.dockerignore`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/.dockerignore) لمنع نسخ `.env` و `*.db` و `tests/` إلى صورة Docker.
-   - إلزامية `JWT_SECRET_KEY` في [`docker-compose.prod.yml`](file:///C:/Users/msi/Downloads/career-compass/career-compass/docker-compose.prod.yml) عبر `${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}`.
+   - تطهير [`backend/.env`](file:///C:/Users/msi/Downloads/career-compass/backend/.env) من كلمة مرور تطبيق Gmail المكشوفة.
+   - تحديث [` backend/.dockerignore`](file:///C:/Users/msi/Downloads/career-compass/backend/.dockerignore) لمنع نسخ `.env` و `*.db` و `tests/` إلى صورة Docker.
+   - إلزامية `JWT_SECRET_KEY` في [`docker-compose.prod.yml`](file:///C:/Users/msi/Downloads/career-compass/docker-compose.prod.yml) عبر `${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}`.
 2. **نظام تحديد معدل الطلبات (`SlidingWindowRateLimiter`) وترويسات الأمان (`OWASP Headers`):**
-   - إنشاء [`rate_limit.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/core/rate_limit.py) وربطه في [`main.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/main.py) لحماية مسارات المصادقة (`15 طلب/دقيقة`) والمسارات الثقيلة (`35 طلب/دقيقة`) وإضافة ترويسات `X-Content-Type-Options: nosniff` و `X-Frame-Options: DENY` و `Referrer-Policy` و `Permissions-Policy`.
-   - إضافة ترويسات الأمان وضغط `gzip` في [`nginx.conf`](file:///C:/Users/msi/Downloads/career-compass/career-compass/nginx.conf) و [`frontend/nginx.conf`](file:///C:/Users/msi/Downloads/career-compass/career-compass/frontend/nginx.conf).
+   - إنشاء [`rate_limit.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/core/rate_limit.py) وربطه في [`main.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/main.py) لحماية مسارات المصادقة (`15 طلب/دقيقة`) والمسارات الثقيلة (`35 طلب/دقيقة`) وإضافة ترويسات `X-Content-Type-Options: nosniff` و `X-Frame-Options: DENY` و `Referrer-Policy` و `Permissions-Policy`.
+   - إضافة ترويسات الأمان وضغط `gzip` في [`nginx.conf`](file:///C:/Users/msi/Downloads/career-compass/nginx.conf) و [`frontend/nginx.conf`](file:///C:/Users/msi/Downloads/career-compass/frontend/nginx.conf).
 3. **إبطال رموز JWT الفوري عند تغيير كلمة المرور:**
-   - تضمين بصمة مشفرة لكلمة المرور (`pwh`) داخل رمز الـ JWT في [`security.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/core/security.py#L46-L68) والتحقق منها في `get_current_user`، بحيث يُبطل أي رمز قديم فوراً (`401 Unauthorized`) بمجرد تغيير كلمة المرور.
+   - تضمين بصمة مشفرة لكلمة المرور (`pwh`) داخل رمز الـ JWT في [`security.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/core/security.py#L46-L68) والتحقق منها في `get_current_user`، بحيث يُبطل أي رمز قديم فوراً (`401 Unauthorized`) بمجرد تغيير كلمة المرور.
 4. **فحص ملفات الصوت وتحصين استدعاءات الذكاء الاصطناعي:**
-   - إضافة فحص صارم لحجم الملف الصوتي (`MAX_UPLOAD_MB`) ونوع `content_type` في [`interview.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/interview.py#L221-L246).
-   - إضافة حدود طول صارمة (`max_length`) في [`schemas.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/schemas/schemas.py) وعزل المدخلات غير الموثوقة داخل وسوم `<candidate_cv>` و `<job_description>` في [`cv_extraction.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/services/cv_extraction.py).
+   - إضافة فحص صارم لحجم الملف الصوتي (`MAX_UPLOAD_MB`) ونوع `content_type` في [`interview.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/interview.py#L221-L246).
+   - إضافة حدود طول صارمة (`max_length`) في [`schemas.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/schemas/schemas.py) وعزل المدخلات غير الموثوقة داخل وسوم `<candidate_cv>` و `<job_description>` في [`cv_extraction.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/services/cv_extraction.py).
 
 ### ثالثاً: الاعتمادية والتشغيل (Reliability & Operations)
 1. **العمليات الذرية في MongoDB وترتيب حذف الحساب:**
-   - استبدال `$set` الكامل لمصفوفة المحادثات بعملية `$push` الذرية (`{"$push": {"messages": {"$each": [...]}}}`) في [`interview.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/interview.py) لمنع فقدان الرسائل المتزامنة.
-   - إصلاح ترتيب حذف الحساب في [`profile.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/profile.py#L140-L163) ليتم حذف سجل MySQL واعتماده (`db.commit()`) أولاً قبل مسح وثائق MongoDB وملفات الـ PDF.
+   - استبدال `$set` الكامل لمصفوفة المحادثات بعملية `$push` الذرية (`{"$push": {"messages": {"$each": [...]}}}`) في [`interview.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/interview.py) لمنع فقدان الرسائل المتزامنة.
+   - إصلاح ترتيب حذف الحساب في [`profile.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/profile.py#L140-L163) ليتم حذف سجل MySQL واعتماده (`db.commit()`) أولاً قبل مسح وثائق MongoDB وملفات الـ PDF.
 2. **فحص الصحة العميق (`Deep Healthcheck`) وتنظيف الملفات المؤقتة:**
-   - ترقية [`GET /health`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/main.py#L96-L111) لفحص اتصال SQL و MongoDB فعلياً.
-   - إضافة التنظيف التلقائي لملفات السير الذاتية الأقدم من 30 يوماً في [`cv.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/api/routes/cv.py).
+   - ترقية [`GET /health`](file:///C:/Users/msi/Downloads/career-compass/backend/app/main.py#L96-L111) لفحص اتصال SQL و MongoDB فعلياً.
+   - إضافة التنظيف التلقائي لملفات السير الذاتية الأقدم من 30 يوماً في [`cv.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/api/routes/cv.py).
 3. **إدارة هجرات قواعد البيانات (`Alembic`):**
-   - إنشاء الهجرة التأسيسية الكاملة للجداول الـ 7 في [`0001_initial_schema.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/alembic/versions/0001_initial_schema.py).
+   - إنشاء الهجرة التأسيسية الكاملة للجداول الـ 7 في [`0001_initial_schema.py`](file:///C:/Users/msi/Downloads/career-compass/backend/alembic/versions/0001_initial_schema.py).
 
 ### رابعاً: قابلية الصيانة وهيكلة الكود (Maintainability)
 1. **توحيد عميل الذكاء الاصطناعي (`llm_client.py`):**
-   - توحيد كافة استدعاءات Ollama ومعالجة الـ JSON في [`llm_client.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/services/llm_client.py) وإزالة التكرار من [`cv_extraction.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/services/cv_extraction.py) و [`recommendation_engine.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/services/recommendation_engine.py).
+   - توحيد كافة استدعاءات Ollama ومعالجة الـ JSON في [`llm_client.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/services/llm_client.py) وإزالة التكرار من [`cv_extraction.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/services/cv_extraction.py) و [`recommendation_engine.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/services/recommendation_engine.py).
 2. **فصل منطق المقابلات وتقسيم مكونات الواجهة:**
-   - استخراج منطق تحليل الصوت وتقييم المقابلات إلى [`interview_service.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/app/services/interview_service.py).
-   - تقسيم [`Results.jsx`](file:///C:/Users/msi/Downloads/career-compass/career-compass/frontend/src/pages/analysis/Results.jsx) إلى مكونات فرعية مستقلة: [`JobCard.jsx`](file:///C:/Users/msi/Downloads/career-compass/career-compass/frontend/src/components/features/results/JobCard.jsx)، [`LiveJobMatchingSection.jsx`](file:///C:/Users/msi/Downloads/career-compass/career-compass/frontend/src/components/features/results/LiveJobMatchingSection.jsx)، و [`CoverLetterModal.jsx`](file:///C:/Users/msi/Downloads/career-compass/career-compass/frontend/src/components/features/results/CoverLetterModal.jsx).
+   - استخراج منطق تحليل الصوت وتقييم المقابلات إلى [`interview_service.py`](file:///C:/Users/msi/Downloads/career-compass/backend/app/services/interview_service.py).
+   - تقسيم [`Results.jsx`](file:///C:/Users/msi/Downloads/career-compass/frontend/src/pages/analysis/Results.jsx) إلى مكونات فرعية مستقلة: [`JobCard.jsx`](file:///C:/Users/msi/Downloads/career-compass/frontend/src/components/features/results/JobCard.jsx)، [`LiveJobMatchingSection.jsx`](file:///C:/Users/msi/Downloads/career-compass/frontend/src/components/features/results/LiveJobMatchingSection.jsx)، و [`CoverLetterModal.jsx`](file:///C:/Users/msi/Downloads/career-compass/frontend/src/components/features/results/CoverLetterModal.jsx).
 3. **إضافة اختبارات الأمان والأداء الآلية:**
-   - إضافة [`test_security_and_performance.py`](file:///C:/Users/msi/Downloads/career-compass/career-compass/backend/tests/test_security_and_performance.py) للتحقق المستمر من عدم عودة مشاكل `N+1`، وإبطال التوكن عند تغيير كلمة المرور، وعمل الـ Rate Limiter، وفحص ملفات الصوت، وترويسات الأمان.
+   - إضافة [`test_security_and_performance.py`](file:///C:/Users/msi/Downloads/career-compass/backend/tests/test_security_and_performance.py) للتحقق المستمر من عدم عودة مشاكل `N+1`، وإبطال التوكن عند تغيير كلمة المرور، وعمل الـ Rate Limiter، وفحص ملفات الصوت، وترويسات الأمان.
