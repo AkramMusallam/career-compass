@@ -29,6 +29,32 @@ function formatCardNumber(value) {
   return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
 }
 
+function isValidLuhn(digits) {
+  if (!digits || digits.length < 13 || digits.length > 19 || /^0+$/.test(digits)) {
+    return false;
+  }
+  let sum = 0;
+  let shouldDouble = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let digit = parseInt(digits.charAt(i), 10);
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return sum % 10 === 0;
+}
+
+function detectCardBrand(value) {
+  const digits = (value || "").replace(/\D/g, "");
+  if (digits.startsWith("4")) return "VISA";
+  if (/^5[1-5]/.test(digits) || /^2[2-7]/.test(digits)) return "MASTERCARD";
+  if (/^3[47]/.test(digits)) return "AMEX";
+  return "";
+}
+
 function formatExpiry(value) {
   const digits = value.replace(/\D/g, "").slice(0, 4);
   if (digits.length >= 3) {
@@ -110,6 +136,9 @@ export default function PricingPlans() {
       const rawDigits = cardNumber.replace(/\D/g, "");
       if (rawDigits.length !== 16) {
         return "يرجى إدخال رقم بطاقة بنكية صحيح مكون من 16 رقماً.";
+      }
+      if (!isValidLuhn(rawDigits)) {
+        return "رقم البطاقة البنكية غير صالح (فشل التحقق المصرفي Luhn Check). يمكنك استخدام زر البطاقة القياسية (4242) للتجربة.";
       }
       const expParts = cardExpiry.split("/");
       if (expParts.length !== 2 || expParts[0].length !== 2 || expParts[1].length !== 2) {
@@ -799,9 +828,16 @@ export default function PricingPlans() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        رقم البطاقة البنكية (16 رقماً) *
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-700">
+                          رقم البطاقة البنكية (16 رقماً) *
+                        </label>
+                        {detectCardBrand(cardNumber) && (
+                          <span className="px-2 py-0.5 rounded bg-slate-900 text-white text-[10px] font-black tracking-wider">
+                            {detectCardBrand(cardNumber)}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         required

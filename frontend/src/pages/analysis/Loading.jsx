@@ -41,12 +41,16 @@ export default function Loading() {
 
   const [messageIndex, setMessageIndex] = useState(0);
   const [phase, setPhase] = useState("processing");
+  const [errorDetail, setErrorDetail] = useState("");
+  const [isQuotaError, setIsQuotaError] = useState(false);
   const [waitAttempt, setWaitAttempt] = useState(0);
   const startedRef = useRef(false);
   const messages = stage === "extract" ? EXTRACT_MESSAGES : ANALYZE_MESSAGES;
 
   const runStep = async () => {
     setPhase("processing");
+    setErrorDetail("");
+    setIsQuotaError(false);
     try {
       if (stage === "extract") {
         if (!fileId) {
@@ -98,6 +102,8 @@ export default function Loading() {
       }
     } catch (error) {
       setPhase("error");
+      setErrorDetail(getErrorMessage(error, "حدث خطأ أثناء المعالجة"));
+      setIsQuotaError(error?.response?.status === 403);
       // eslint-disable-next-line no-console
       console.error(getErrorMessage(error));
     }
@@ -167,17 +173,26 @@ export default function Loading() {
       )}
 
       {phase === "error" && (
-        <div className="card max-w-md">
-          <p className="mb-4 text-sm sm:text-base font-bold text-danger">
-            حدث خطأ أثناء المعالجة
+        <div className="card max-w-md space-y-4">
+          <p className="text-sm sm:text-base font-bold text-danger leading-relaxed">
+            {errorDetail || "حدث خطأ أثناء المعالجة"}
           </p>
-          <div className="flex justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-3">
             <button className="btn-outline" onClick={() => navigate("/dashboard")}>
-              العودة
+              العودة للوحة التحكم
             </button>
-            <button className="btn-primary" onClick={handleRetry}>
-              إعادة المحاولة
-            </button>
+            {isQuotaError ? (
+              <button
+                className="btn-primary"
+                onClick={() => navigate("/pricing")}
+              >
+                ترقية الباقة الآن (AI Pro)
+              </button>
+            ) : (
+              <button className="btn-primary" onClick={handleRetry}>
+                إعادة المحاولة
+              </button>
+            )}
           </div>
         </div>
       )}
