@@ -25,18 +25,12 @@ from app.schemas.schemas import (
     SuggestedCourseOut,
 )
 from app.services.recommendation_engine import UserProfileInput, calculate_recommendation
-from app.services.subscription_service import check_user_quota
 
 router = APIRouter(tags=["Analysis"])
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
 def analyze(payload: AnalyzeRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    try:
-        check_user_quota(current_user, "analysis")
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
-
     extraction = extractions_collection.find_one(
         {"extraction_id": payload.extraction_id, "user_id": current_user.id}
     )

@@ -2,91 +2,20 @@ import { useState, useEffect } from "react";
 import {
   Crown,
   Check,
-  Zap,
   HelpCircle,
-  CreditCard,
-  ShieldCheck,
-  Lock,
-  Receipt,
-  X,
-  Building2,
+  Clock,
   Sparkles,
-  CheckCircle2,
-  AlertCircle,
+  ShieldCheck,
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-import { useToast } from "../../context/ToastContext";
-import { getErrorMessage } from "../../api/client";
 import {
   getSubscriptionPlans,
   getCurrentSubscription,
-  createCheckoutSession,
-  cancelSubscription,
 } from "../../api/endpoints";
 
-function formatCardNumber(value) {
-  const digits = value.replace(/\D/g, "").slice(0, 16);
-  return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
-}
-
-function isValidLuhn(digits) {
-  if (!digits || digits.length < 13 || digits.length > 19 || /^0+$/.test(digits)) {
-    return false;
-  }
-  let sum = 0;
-  let shouldDouble = false;
-  for (let i = digits.length - 1; i >= 0; i--) {
-    let digit = parseInt(digits.charAt(i), 10);
-    if (shouldDouble) {
-      digit *= 2;
-      if (digit > 9) digit -= 9;
-    }
-    sum += digit;
-    shouldDouble = !shouldDouble;
-  }
-  return sum % 10 === 0;
-}
-
-function detectCardBrand(value) {
-  const digits = (value || "").replace(/\D/g, "");
-  if (digits.startsWith("4")) return "VISA";
-  if (/^5[1-5]/.test(digits) || /^2[2-7]/.test(digits)) return "MASTERCARD";
-  if (/^3[47]/.test(digits)) return "AMEX";
-  return "";
-}
-
-function formatExpiry(value) {
-  const digits = value.replace(/\D/g, "").slice(0, 4);
-  if (digits.length >= 3) {
-    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}`;
-  }
-  return digits;
-}
-
 export default function PricingPlans() {
-  const { user, updateStoredUser } = useAuth();
-  const { showToast } = useToast();
-
   const [plans, setPlans] = useState([]);
   const [currentSub, setCurrentSub] = useState(null);
-  const [billingCycle, setBillingCycle] = useState("annual");
   const [isLoading, setIsLoading] = useState(true);
-
-  // Checkout Modal State
-  const [checkoutPlan, setCheckoutPlan] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("card"); // "card" | "palpay" | "jawwalpay" | "reflect" | "paypal"
-  const [cardholderName, setCardholderName] = useState(user?.full_name || "");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
-  const [cardCvc, setCardCvc] = useState("");
-  const [walletProvider, setWalletProvider] = useState("palpay"); // "palpay" | "jawwalpay" | "reflect"
-  const [walletPhone, setWalletPhone] = useState("");
-  const [walletOtp, setWalletOtp] = useState("");
-  const [paypalEmail, setPaypalEmail] = useState(user?.email || "");
-  const [companyName, setCompanyName] = useState(user?.company_name || "");
-  const [checkoutError, setCheckoutError] = useState("");
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [latestReceipt, setLatestReceipt] = useState(null);
 
   useEffect(() => {
     loadPlansAndSub();
@@ -108,307 +37,101 @@ export default function PricingPlans() {
     }
   };
 
-  const openCheckoutModal = (plan) => {
-    if (!plan || plan.id === "free") return;
-    setCheckoutPlan(plan);
-    setPaymentMethod("card");
-    setCardholderName(user?.full_name || "");
-    setPaypalEmail(user?.email || "");
-    setCompanyName(user?.company_name || "");
-    setCheckoutError("");
-    setLatestReceipt(null);
-  };
-
-  const fillTestCard = () => {
-    setCardholderName(user?.full_name || "Akram Musallam");
-    setCardNumber("4242 4242 4242 4242");
-    setCardExpiry("12/28");
-    setCardCvc("424");
-    setCheckoutError("");
-  };
-
-  const validatePaymentForm = () => {
-    if (checkoutPlan?.id === "enterprise" && (!companyName || companyName.trim().length < 2)) {
-      return "يرجى إدخال اسم الشركة أو المؤسسة لتفعيل بوابة التوظيف B2B.";
-    }
-
-    if (paymentMethod === "card") {
-      if (!cardholderName || cardholderName.trim().length < 3) {
-        return "يرجى إدخال اسم حامل البطاقة كما يظهر على البطاقة البنكية.";
-      }
-      const rawDigits = cardNumber.replace(/\D/g, "");
-      if (rawDigits.length !== 16) {
-        return "يرجى إدخال رقم بطاقة بنكية صحيح مكون من 16 رقماً.";
-      }
-      if (!isValidLuhn(rawDigits)) {
-        return "رقم البطاقة البنكية غير صالح (فشل التحقق المصرفي Luhn Check). يمكنك استخدام زر البطاقة القياسية (4242) للتجربة.";
-      }
-      const expParts = cardExpiry.split("/");
-      if (expParts.length !== 2 || expParts[0].length !== 2 || expParts[1].length !== 2) {
-        return "يرجى إدخال تاريخ انتهاء البطاقة بالصيغة الصحيحة (MM/YY).";
-      }
-      const month = parseInt(expParts[0], 10);
-      const year = 2000 + parseInt(expParts[1], 10);
-      const now = new Date();
-      if (isNaN(month) || month < 1 || month > 12) {
-        return "شهر انتهاء البطاقة غير صحيح (يجب أن يكون بين 01 و 12).";
-      }
-      if (year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth() + 1)) {
-        return "البطاقة البنكية المدخلة منتهية الصلاحية.";
-      }
-      const cleanCvc = cardCvc.replace(/\D/g, "");
-      if (cleanCvc.length < 3 || cleanCvc.length > 4) {
-        return "يرجى إدخال رمز الأمان الخلفي (CVC/CVV) المكون من 3 أو 4 أرقام.";
-      }
-    } else if (paymentMethod === "palestine_wallet") {
-      const cleanPhone = walletPhone.replace(/\D/g, "");
-      if (cleanPhone.length < 9 || cleanPhone.length > 12) {
-        return "يرجى إدخال رقم الجوال الفلسطيني المربوط بالمحفظة (مثال: 0599123456 أو 0569123456).";
-      }
-      if (walletOtp.replace(/\D/g, "").length < 4) {
-        return "يرجى إدخال رمز التأكيد (OTP) المكون من 4 أرقام لإتمام الدفع عبر المحفظة.";
-      }
-    } else if (paymentMethod === "paypal") {
-      if (!paypalEmail || !paypalEmail.includes("@")) {
-        return "يرجى إدخال بريد إلكتروني صحيح مرتبط بحساب PayPal.";
-      }
-    }
-    return "";
-  };
-
-  const handleConfirmPayment = async (e) => {
-    e.preventDefault();
-    if (!checkoutPlan) return;
-
-    const validationError = validatePaymentForm();
-    if (validationError) {
-      setCheckoutError(validationError);
-      return;
-    }
-
-    try {
-      setIsProcessingPayment(true);
-      setCheckoutError("");
-
-      const rawDigits = cardNumber.replace(/\D/g, "");
-      const cleanPhone = walletPhone.replace(/\D/g, "");
-      const effectiveMethod =
-        paymentMethod === "palestine_wallet" ? walletProvider : paymentMethod;
-      const last4 =
-        paymentMethod === "card"
-          ? rawDigits.slice(-4)
-          : paymentMethod === "palestine_wallet"
-          ? cleanPhone.slice(-4)
-          : "";
-
-      const res = await createCheckoutSession({
-        plan_id: checkoutPlan.id,
-        billing_cycle: billingCycle,
-        payment_method: effectiveMethod,
-        cardholder_name:
-          paymentMethod === "card"
-            ? cardholderName.trim()
-            : paymentMethod === "palestine_wallet"
-            ? walletPhone.trim()
-            : paypalEmail.trim(),
-        card_last4: last4 || undefined,
-        company_name: checkoutPlan.id === "enterprise" ? companyName.trim() : undefined,
-      });
-
-      // إذا أعاد الخادم رابط بوابة دفع Stripe خارجية حقيقية، يتم توجيه المتصفح إليها فوراً
-      if (res.data?.mode === "payment" && res.data?.checkout_url) {
-        window.location.href = res.data.checkout_url;
-        return;
-      }
-
-      updateStoredUser({
-        subscription_tier: checkoutPlan.id,
-        role: checkoutPlan.id === "enterprise" ? "recruiter" : user?.role || "candidate",
-        company_name:
-          checkoutPlan.id === "enterprise"
-            ? companyName.trim() || user?.company_name
-            : user?.company_name,
-      });
-
-      setLatestReceipt(
-        res.data?.invoice || {
-          invoice_id: `INV-${Date.now().toString().slice(-6)}`,
-          plan_name_ar: checkoutPlan.name_ar,
-          billing_cycle: billingCycle,
-          amount_usd:
-            billingCycle === "annual"
-              ? checkoutPlan.price_annual
-              : checkoutPlan.price_monthly,
-          payment_method: paymentMethod,
-          card_last4: last4,
-          created_at: new Date().toISOString(),
-        }
-      );
-
-      showToast(
-        `تمت عملية الدفع بنجاح وتفعيل باقة ${checkoutPlan.name_ar}`,
-        "success"
-      );
-      await loadPlansAndSub();
-    } catch (err) {
-      setCheckoutError(getErrorMessage(err, "تعذر إتمام عملية الدفع، يرجى التحقق من البيانات والمحاولة مجدداً."));
-    } finally {
-      setIsProcessingPayment(false);
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!window.confirm("هل أنت متأكد من رغبتك في إلغاء التجديد التلقائي للاشتراك؟")) return;
-    try {
-      await cancelSubscription();
-      updateStoredUser({ subscription_tier: "free" });
-      showToast("تم إلغاء الاشتراك والعودة للباقة المجانية", "info");
-      await loadPlansAndSub();
-    } catch {
-      showToast("تعذر إلغاء الاشتراك", "error");
-    }
-  };
-
-  const activeTier = currentSub?.tier || user?.subscription_tier || "free";
   const usage = currentSub?.usage || { analyses_used: 0, interviews_used: 0 };
-  const limits = currentSub?.limits || { max_analyses: 3, max_interviews: 2 };
-  const invoices = currentSub?.invoices || [];
 
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       {/* Title & Header */}
       <div className="text-center space-y-3 max-w-2xl mx-auto pt-2">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-50 border border-accent-200 text-accent-700 text-xs font-bold">
-          <Crown size={14} />
-          <span>باقات الاشتراك وبوابة الدفع الآمن</span>
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+          <Clock size={14} />
+          <span>نظام الاشتراكات والدفع الإلكتروني — قريباً (قيد التطوير)</span>
         </div>
         <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-          استثمر في مستقبلك التقني بالذكاء الاصطناعي
+          باقات المنصة المستقبلية
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-          اختر الباقة المناسبة لاحتياجاتك؛ من فحص السيرة الذاتية المجاني وحتى المقابلات الصوتية غير المحدودة وبوابة اكتشاف الكفاءات للشركات.
+          جميع أدوات الذكاء الاصطناعي (تحليل السيرة الذاتية، المقابلات الصوتية التفاعلية، وبوابة التوظيف) متاحة ومفتوحة مجاناً بالكامل لجميع المستخدمين خلال المرحلة الحالية، لحين إطلاق بوابة الدفع الإلكتروني قريباً.
         </p>
-
-        {/* Billing Cycle Switcher */}
-        <div className="flex items-center justify-center gap-3 pt-3">
-          <span
-            className={`text-xs font-bold ${
-              billingCycle === "monthly" ? "text-slate-900" : "text-slate-400"
-            }`}
-          >
-            فاتورة شهرية
-          </span>
-          <button
-            type="button"
-            onClick={() =>
-              setBillingCycle(billingCycle === "monthly" ? "annual" : "monthly")
-            }
-            className="w-12 h-7 bg-slate-900 rounded-full p-1 relative transition-colors"
-            aria-label="تبديل دورة الفوترة"
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                billingCycle === "annual"
-                  ? "transform -translate-x-5 bg-secondary-400"
-                  : ""
-              }`}
-            />
-          </button>
-          <span
-            className={`text-xs font-bold flex items-center gap-1.5 ${
-              billingCycle === "annual" ? "text-slate-900" : "text-slate-400"
-            }`}
-          >
-            <span>فاتورة سنوية</span>
-            <span className="px-2 py-0.5 rounded-md bg-secondary-50 border border-secondary-200 text-secondary-700 text-[10px] font-black">
-              وفر 20%
-            </span>
-          </span>
-        </div>
       </div>
 
-      {/* Current Subscription & Quota Usage Banner */}
-      {currentSub && (
-        <div className="card max-w-6xl mx-auto !p-5 bg-slate-900 text-white border border-slate-800">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-secondary-500/20 border border-secondary-500/40 text-secondary-300 text-[11px] font-bold">
-                  باقتك النشطة حالياً
-                </span>
-                {currentSub.expires_at && activeTier !== "free" && (
-                  <span className="text-[11px] text-slate-400">
-                    تتجدد في: {new Date(currentSub.expires_at).toLocaleDateString("ar-EG")}
-                  </span>
-                )}
-              </div>
-              <h2 className="text-lg sm:text-xl font-black text-white">
-                {currentSub.tier_label}
-              </h2>
+      {/* Coming Soon & Free Access Banner */}
+      <div className="card max-w-6xl mx-auto !p-5 bg-slate-900 text-white border border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-secondary-500/20 border border-secondary-500/40 text-secondary-300 text-[11px] font-bold">
+                <Sparkles size={12} />
+                <span>المرحلة التجريبية المفتوحة</span>
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-bold">
+                <Clock size={12} />
+                <span>الدفع الإلكتروني قيد التطوير — Coming Soon</span>
+              </span>
             </div>
+            <h2 className="text-base sm:text-lg font-black text-white">
+              جميع الميزات الاحترافية مفتوحة لحسابك مجاناً حالياً بدون أي رسوم
+            </h2>
+            <p className="text-xs text-slate-400">
+              تم إيقاف بوابة الدفع مؤقتاً لأنها قيد التطوير والربط المصرفي، ويمكنك استخدام كافة ميزات المنصة بلا حدود.
+            </p>
+          </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-6 bg-slate-800/80 p-3.5 rounded-xl border border-slate-700">
-              <div>
-                <p className="text-[11px] text-slate-400 font-semibold">تحليلات السيرة الذاتية المستهلكة</p>
-                <p className="text-sm sm:text-base font-black text-white mt-0.5">
-                  {usage.analyses_used}{" "}
-                  <span className="text-xs font-normal text-slate-400">
-                    / {limits.max_analyses > 1000 ? "غير محدود ∞" : `${limits.max_analyses} تحليلات`}
-                  </span>
-                </p>
-              </div>
-              <div className="border-r border-slate-700 pr-3 sm:pr-6">
-                <p className="text-[11px] text-slate-400 font-semibold">جلسات المقابلات التقنية</p>
-                <p className="text-sm sm:text-base font-black text-secondary-400 mt-0.5">
-                  {usage.interviews_used}{" "}
-                  <span className="text-xs font-normal text-slate-400">
-                    / {limits.max_interviews > 1000 ? "غير محدود ∞" : `${limits.max_interviews} مقابلات`}
-                  </span>
-                </p>
-              </div>
+          <div className="grid grid-cols-2 gap-3 sm:gap-6 bg-slate-800/80 p-3.5 rounded-xl border border-slate-700 shrink-0">
+            <div>
+              <p className="text-[11px] text-slate-400 font-semibold">تحليلات السيرة الذاتية المنجزة</p>
+              <p className="text-sm sm:text-base font-black text-white mt-0.5">
+                {usage.analyses_used}{" "}
+                <span className="text-xs font-normal text-secondary-400">
+                  (متاح بلا حدود ∞)
+                </span>
+              </p>
+            </div>
+            <div className="border-r border-slate-700 pr-3 sm:pr-6">
+              <p className="text-[11px] text-slate-400 font-semibold">جلسات المقابلات التقنية</p>
+              <p className="text-sm sm:text-base font-black text-secondary-400 mt-0.5">
+                {usage.interviews_used}{" "}
+                <span className="text-xs font-normal text-secondary-400">
+                  (متاح بلا حدود ∞)
+                </span>
+              </p>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Pricing Cards Grid */}
+      {/* Pricing Cards Grid (Preview Only - Payment Disabled / Coming Soon) */}
       {isLoading ? (
         <div className="py-20 text-center text-slate-500 font-bold text-sm">
-          جاري تحميل الباقات والأسعار...
+          جاري تحميل الباقات...
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-6xl mx-auto items-stretch">
           {plans.map((plan) => {
-            const isCurrent = activeTier === plan.id;
-            const price =
-              billingCycle === "annual"
-                ? Math.round(plan.price_annual / 12)
-                : plan.price_monthly;
+            const isFree = plan.id === "free";
             const isPro = plan.id === "pro";
-            const isEnterprise = plan.id === "enterprise";
 
             return (
               <div
                 key={plan.id}
                 className={`relative rounded-2xl p-6 sm:p-7 flex flex-col justify-between transition-colors ${
                   isPro
-                    ? "bg-slate-900 text-white shadow-elevated border-2 border-primary-500"
+                    ? "bg-slate-900 text-white shadow-elevated border-2 border-slate-700"
                     : "bg-white text-slate-900 border border-slate-200/90 shadow-card"
                 }`}
               >
-                {plan.badge && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                    <span
-                      className={`px-3 py-0.5 rounded-full text-[11px] font-bold shadow-xs ${
-                        isPro
-                          ? "bg-primary-600 text-white"
-                          : "bg-slate-100 text-slate-700 border border-slate-200"
-                      }`}
-                    >
-                      {plan.badge}
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                  {isFree ? (
+                    <span className="px-3 py-0.5 rounded-full text-[11px] font-bold shadow-xs bg-secondary-50 text-secondary-700 border border-secondary-200">
+                      مفعّلة ومفتوحة حالياً
                     </span>
-                  </div>
-                )}
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[11px] font-bold shadow-xs bg-amber-500 text-slate-950">
+                      <Clock size={11} />
+                      <span>قريباً — Coming Soon</span>
+                    </span>
+                  )}
+                </div>
 
                 <div className="space-y-5">
                   <div>
@@ -428,18 +151,22 @@ export default function PricingPlans() {
                     </p>
                   </div>
 
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl sm:text-4xl font-black">${price}</span>
-                    <span
-                      className={`text-xs font-semibold ${
-                        isPro ? "text-slate-400" : "text-slate-500"
-                      }`}
-                    >
-                      / شهرياً{" "}
-                      {billingCycle === "annual" &&
-                        plan.price_annual > 0 &&
-                        `(يُدفع $${plan.price_annual} سنوياً)`}
-                    </span>
+                  <div className="flex items-baseline gap-1.5">
+                    {isFree ? (
+                      <>
+                        <span className="text-3xl sm:text-4xl font-black text-emerald-600">مجاناً</span>
+                        <span className="text-xs font-semibold text-slate-500">
+                          / متاح بالكامل حالياً
+                        </span>
+                      </>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                        <Clock size={15} className={isPro ? "text-amber-400" : "text-amber-600"} />
+                        <span className={`text-sm font-black ${isPro ? "text-amber-300" : "text-amber-700"}`}>
+                          قريباً — قيد التطوير
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div
@@ -483,47 +210,23 @@ export default function PricingPlans() {
                     isPro ? "border-slate-800" : "border-slate-100"
                   }`}
                 >
-                  {isCurrent ? (
-                    <div className="space-y-2 text-center">
-                      <span
-                        className={`w-full inline-flex items-center justify-center gap-1.5 py-2.5 rounded-xl font-bold text-xs border ${
-                          isPro
-                            ? "bg-secondary-500/20 text-secondary-300 border-secondary-500/30"
-                            : "bg-secondary-50 text-secondary-700 border-secondary-200"
-                        }`}
-                      >
-                        <Check size={14} />
-                        <span>هذه باقتك الحالية</span>
-                      </span>
-                      {plan.id !== "free" && (
-                        <button
-                          onClick={handleCancel}
-                          className="text-[11px] text-slate-400 hover:text-red-400 transition underline"
-                        >
-                          إلغاء التجديد التلقائي
-                        </button>
-                      )}
-                    </div>
+                  {isFree ? (
+                    <span className="w-full inline-flex items-center justify-center gap-1.5 py-3 rounded-xl font-bold text-xs bg-secondary-50 text-secondary-700 border border-secondary-200">
+                      <ShieldCheck size={15} />
+                      <span>متاح ومفعّل مجاناً للجميع حالياً</span>
+                    </span>
                   ) : (
                     <button
-                      onClick={() => openCheckoutModal(plan)}
-                      disabled={plan.id === "free"}
-                      className={`w-full inline-flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-bold transition-colors ${
+                      type="button"
+                      disabled
+                      className={`w-full inline-flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-bold cursor-not-allowed opacity-80 ${
                         isPro
-                          ? "bg-primary-600 text-white hover:bg-primary-500"
-                          : isEnterprise
-                          ? "bg-slate-900 text-white hover:bg-slate-800"
-                          : "bg-slate-100 text-slate-500 cursor-default"
+                          ? "bg-slate-800 text-amber-300 border border-slate-700"
+                          : "bg-slate-100 text-slate-500 border border-slate-200"
                       }`}
                     >
-                      {plan.id === "free" ? (
-                        "الباقة الأساسية المجانية"
-                      ) : (
-                        <>
-                          <CreditCard size={14} />
-                          <span>اشترك الآن وانتقل للدفع</span>
-                        </>
-                      )}
+                      <Clock size={14} />
+                      <span>قريباً — قيد التطوير (Coming Soon)</span>
                     </button>
                   )}
                 </div>
@@ -533,522 +236,33 @@ export default function PricingPlans() {
         </div>
       )}
 
-      {/* Invoices & Billing History Table */}
-      {invoices.length > 0 && (
-        <div className="card max-w-6xl mx-auto space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <Receipt size={18} className="text-primary-600" />
-              <h3 className="text-base font-black text-slate-900">
-                سجل الفواتير والمدفوعات السابقة
-              </h3>
-            </div>
-            <span className="text-xs font-bold text-slate-400">
-              {invoices.length} فاتورة مسجلة
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-slate-500 font-bold">
-                  <th className="py-2.5 px-3">رقم الفاتورة</th>
-                  <th className="py-2.5 px-3">الباقة</th>
-                  <th className="py-2.5 px-3">الدورة</th>
-                  <th className="py-2.5 px-3">المبلغ المدفوع</th>
-                  <th className="py-2.5 px-3">وسيلة الدفع</th>
-                  <th className="py-2.5 px-3">التاريخ</th>
-                  <th className="py-2.5 px-3">الحالة</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                {invoices.map((inv) => (
-                  <tr key={inv.invoice_id} className="hover:bg-slate-50/80">
-                    <td className="py-3 px-3 font-mono font-bold text-slate-900" dir="ltr">
-                      {inv.invoice_id}
-                    </td>
-                    <td className="py-3 px-3 font-bold">{inv.plan_name_ar}</td>
-                    <td className="py-3 px-3">
-                      {inv.billing_cycle === "annual" ? "سنوي" : "شهري"}
-                    </td>
-                    <td className="py-3 px-3 font-black text-emerald-700">
-                      ${Number(inv.amount_usd || 0).toFixed(2)} USD
-                    </td>
-                    <td className="py-3 px-3" dir="ltr">
-                      {inv.payment_method === "paypal"
-                        ? "PayPal"
-                        : inv.payment_method === "palpay"
-                        ? `PalPay •••• ${inv.card_last4 || "0599"}`
-                        : inv.payment_method === "jawwalpay"
-                        ? `Jawwal Pay •••• ${inv.card_last4 || "0599"}`
-                        : inv.payment_method === "reflect"
-                        ? `Reflect •••• ${inv.card_last4 || "0599"}`
-                        : `Card •••• ${inv.card_last4 || "4242"}`}
-                    </td>
-                    <td className="py-3 px-3">
-                      {inv.created_at
-                        ? new Date(inv.created_at).toLocaleDateString("ar-EG")
-                        : "—"}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          inv.status === "active" || inv.status === "paid"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {inv.status === "active" || inv.status === "paid"
-                          ? "مدفوعة ومفعّلة"
-                          : inv.status === "canceled"
-                          ? "ملغاة"
-                          : "مؤرشفة"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       {/* FAQ Section */}
       <div className="card max-w-4xl mx-auto space-y-5">
         <div className="flex items-center justify-center gap-2">
           <HelpCircle size={18} className="text-primary-600" />
           <h3 className="text-base sm:text-lg font-black text-slate-900 text-center">
-            الأسئلة الشائعة حول الاشتراكات والفوترة
+            معلومات حول الباقات والمرحلة الحالية
           </h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs text-slate-600 leading-relaxed">
           <div className="space-y-1">
             <h4 className="font-bold text-slate-800 text-xs sm:text-sm">
-              كيف تتم معالجة عمليات الدفع في فلسطين والمنطقة؟
+              لماذا يظهر الدفع الإلكتروني كـ «قريباً — قيد التطوير»؟
             </h4>
             <p>
-              ندعم الدفع المباشر عبر بطاقات بنك فلسطين والبنوك المحلية (Visa / Mastercard)، والمحافظ الإلكترونية الفلسطينية (PalPay محفظتي، Jawwal Pay، Reflect)، بالإضافة إلى PayPal، مع إصدار فاتورة فورية لكل عملية.
+              نعمل حالياً على استكمال الربط الرسمي مع بوابات الدفع المعتمدة محلياً ودولياً، ولذلك قمنا بفتح كافة ميزات المنصة مجاناً لجميع المستخدمين دون الحاجة لإدخال أي وسيلة دفع.
             </p>
           </div>
           <div className="space-y-1">
             <h4 className="font-bold text-slate-800 text-xs sm:text-sm">
-              هل يمكنني إلغاء الاشتراك في أي وقت؟
+              هل هناك أي حد أقصى لتحليل السيرة الذاتية أو المقابلات حالياً؟
             </h4>
             <p>
-              نعم، بنقرة واحدة من لوحة التحكم يمكنك إلغاء التجديد التلقائي دون أي التزامات مع الاحتفاظ بسجل فواتيرك وتقاريرك.
-            </p>
-          </div>
-          <div className="space-y-1">
-            <h4 className="font-bold text-slate-800 text-xs sm:text-sm">
-              ما هي بوابة الشركات B2B؟
-            </h4>
-            <p>
-              باقة مخصصة لمسؤولي التوظيف تتيح نشر شواغر غير محدودة، ومطابقة وترتيب الكفاءات آلياً بحسب مهارات السير الذاتية وخبراتهم.
-            </p>
-          </div>
-          <div className="space-y-1">
-            <h4 className="font-bold text-slate-800 text-xs sm:text-sm">
-              هل هناك دعم للمؤسسات والجامعات؟
-            </h4>
-            <p>
-              نوفر باقات تعليمية وتراخيص مجمعة لكليات تكنولوجيا المعلومات ومراكز التدريب المهني في المنطقة.
+              لا، خلال هذه المرحلة يمكنك إجراء تحليلات السيرة الذاتية ومقابلات الذكاء الاصطناعي التفاعلية واستخدام بوابة التوظيف بدون أي قيود.
             </p>
           </div>
         </div>
       </div>
-
-      {/* SECURE CHECKOUT & PAYMENT GATEWAY MODAL */}
-      {checkoutPlan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-5 sm:p-7 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto space-y-5">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center">
-                  <Lock size={18} className="text-secondary-400" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-slate-900">
-                    بوابة الدفع الإلكتروني الآمن
-                  </h3>
-                  <p className="text-[11px] font-medium text-slate-500">
-                    مشفر بتقنية SSL 256-bit ومتوافق مع معايير PCI-DSS
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCheckoutPlan(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {latestReceipt ? (
-              /* Payment Success Receipt View */
-              <div className="space-y-5 py-3 text-center">
-                <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center">
-                  <CheckCircle2 size={30} />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-lg font-black text-slate-900">
-                    تمت عملية الدفع وتفعيل الباقة بنجاح!
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    تم إصدار الفاتورة الضريبية وتحديث صلاحيات حسابك فوراً
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-right space-y-2.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">رقم الفاتورة المرجعي:</span>
-                    <span className="font-mono font-bold text-slate-900" dir="ltr">
-                      {latestReceipt.invoice_id}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">الباقة المفعّلة:</span>
-                    <span className="font-bold text-slate-900">
-                      {latestReceipt.plan_name_ar}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">دورة الفوترة:</span>
-                    <span className="font-bold text-slate-900">
-                      {latestReceipt.billing_cycle === "annual" ? "سنوية (خصم 20%)" : "شهرية"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">وسيلة الدفع:</span>
-                    <span className="font-bold text-slate-900" dir="ltr">
-                      {latestReceipt.payment_method === "paypal"
-                        ? "PayPal Express"
-                        : latestReceipt.payment_method === "palpay"
-                        ? `PalPay •••• ${latestReceipt.card_last4}`
-                        : latestReceipt.payment_method === "jawwalpay"
-                        ? `Jawwal Pay •••• ${latestReceipt.card_last4}`
-                        : latestReceipt.payment_method === "reflect"
-                        ? `Reflect •••• ${latestReceipt.card_last4}`
-                        : `Card •••• ${latestReceipt.card_last4}`}
-                    </span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t border-slate-200 text-sm">
-                    <span className="font-bold text-slate-800">الإجمالي المدفوع:</span>
-                    <span className="font-black text-emerald-600">
-                      ${Number(latestReceipt.amount_usd || 0).toFixed(2)} USD
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setCheckoutPlan(null)}
-                  className="btn-primary w-full py-3 rounded-xl text-xs font-bold"
-                >
-                  العودة إلى لوحة الباقات
-                </button>
-              </div>
-            ) : (
-              /* Checkout Form View */
-              <form onSubmit={handleConfirmPayment} className="space-y-4">
-                {/* Order Summary Box */}
-                <div className="rounded-xl bg-slate-900 text-white p-4 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] font-bold text-secondary-400 uppercase tracking-wider block">
-                      ملخص الاشتراك المختار
-                    </span>
-                    <h4 className="text-sm sm:text-base font-black mt-0.5">
-                      {checkoutPlan.name_ar}
-                    </h4>
-                    <p className="text-[11px] text-slate-300 mt-0.5">
-                      {billingCycle === "annual"
-                        ? "دورة فوترة سنوية (شاملة خصم 20%)"
-                        : "دورة فوترة شهرية مرنة"}
-                    </p>
-                  </div>
-                  <div className="text-left">
-                    <span className="text-2xl font-black text-white">
-                      $
-                      {billingCycle === "annual"
-                        ? checkoutPlan.price_annual
-                        : checkoutPlan.price_monthly}
-                    </span>
-                    <span className="block text-[10px] text-slate-400">
-                      USD / {billingCycle === "annual" ? "سنوياً" : "شهرياً"}
-                    </span>
-                  </div>
-                </div>
-
-                {checkoutError && (
-                  <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-xs font-bold text-red-700 flex items-center gap-2">
-                    <AlertCircle size={16} className="shrink-0" />
-                    <span>{checkoutError}</span>
-                  </div>
-                )}
-
-                {/* Enterprise Company Name Field */}
-                {checkoutPlan.id === "enterprise" && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      اسم الشركة أو المؤسسة (لتفعيل بوابة التوظيف B2B) *
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        required
-                        placeholder="مثال: شركة عسل للتقنيات (Asal Technologies)"
-                        value={companyName}
-                        onChange={(e) => setCompanyName(e.target.value)}
-                        className="input-field w-full text-xs"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Payment Method Selector Tabs */}
-                <div className="grid grid-cols-3 gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("card")}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition ${
-                      paymentMethod === "card"
-                        ? "border-primary-600 bg-primary-50/70 text-primary-800"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <CreditCard size={14} />
-                    <span>بطاقة بنكية</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("palestine_wallet")}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition ${
-                      paymentMethod === "palestine_wallet"
-                        ? "border-primary-600 bg-primary-50/70 text-primary-800"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <Zap size={14} />
-                    <span>PalPay / Jawwal</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("paypal")}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition ${
-                      paymentMethod === "paypal"
-                        ? "border-primary-600 bg-primary-50/70 text-primary-800"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <ShieldCheck size={14} />
-                    <span>PayPal</span>
-                  </button>
-                </div>
-
-                {paymentMethod === "card" ? (
-                  <div className="space-y-3 pt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-500">
-                        بطاقات بنك فلسطين والبنوك المحلية (Visa / Mastercard)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={fillTestCard}
-                        className="text-[11px] font-bold text-primary-600 hover:text-primary-800 underline"
-                      >
-                        تعبئة بطاقة اختبارية قياسية (4242)
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        اسم حامل البطاقة *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="الاسم الكامل كما يظهر على البطاقة"
-                        value={cardholderName}
-                        onChange={(e) => setCardholderName(e.target.value)}
-                        className="input-field w-full text-xs"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-bold text-slate-700">
-                          رقم البطاقة البنكية (16 رقماً) *
-                        </label>
-                        {detectCardBrand(cardNumber) && (
-                          <span className="px-2 py-0.5 rounded bg-slate-900 text-white text-[10px] font-black tracking-wider">
-                            {detectCardBrand(cardNumber)}
-                          </span>
-                        )}
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        dir="ltr"
-                        placeholder="4242 •••• •••• ••••"
-                        value={cardNumber}
-                        onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
-                        className="input-field w-full text-xs font-mono tracking-wider text-left"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          تاريخ الانتهاء (MM/YY) *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          dir="ltr"
-                          placeholder="12/28"
-                          value={cardExpiry}
-                          onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
-                          className="input-field w-full text-xs font-mono text-left"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          رمز الأمان (CVC) *
-                        </label>
-                        <input
-                          type="password"
-                          required
-                          dir="ltr"
-                          maxLength={4}
-                          placeholder="•••"
-                          value={cardCvc}
-                          onChange={(e) =>
-                            setCardCvc(e.target.value.replace(/\D/g, "").slice(0, 4))
-                          }
-                          className="input-field w-full text-xs font-mono text-left"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : paymentMethod === "palestine_wallet" ? (
-                  <div className="space-y-3 pt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-500">
-                        الدفع الفوري عبر المحافظ الفلسطينية المعتمدة
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setWalletPhone("0599123456");
-                          setWalletOtp("1234");
-                          setCheckoutError("");
-                        }}
-                        className="text-[11px] font-bold text-primary-600 hover:text-primary-800 underline"
-                      >
-                        تعبئة محفظة ورمز OTP تجريبي
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        اختر المحفظة الإلكترونية *
-                      </label>
-                      <select
-                        value={walletProvider}
-                        onChange={(e) => setWalletProvider(e.target.value)}
-                        className="input-field w-full text-xs font-bold"
-                      >
-                        <option value="palpay">PalPay محفظتي (بنك فلسطين)</option>
-                        <option value="jawwalpay">Jawwal Pay (جوال باي)</option>
-                        <option value="reflect">Reflect (ريفلكت — البنك العربي)</option>
-                      </select>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          رقم الجوال المربوط بالمحفظة *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          dir="ltr"
-                          placeholder="0599123456"
-                          value={walletPhone}
-                          onChange={(e) =>
-                            setWalletPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
-                          }
-                          className="input-field w-full text-xs font-mono text-left"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          رمز التأكيد الفوري (OTP) *
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          dir="ltr"
-                          placeholder="1234"
-                          value={walletOtp}
-                          onChange={(e) =>
-                            setWalletOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                          }
-                          className="input-field w-full text-xs font-mono text-left"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3 pt-1">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        البريد الإلكتروني لحساب PayPal *
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        dir="ltr"
-                        placeholder="name@example.com"
-                        value={paypalEmail}
-                        onChange={(e) => setPaypalEmail(e.target.value)}
-                        className="input-field w-full text-xs text-left"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setCheckoutPlan(null)}
-                    className="btn-outline !py-2.5 !px-4 !text-xs"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isProcessingPayment}
-                    className="btn-primary flex-1 !py-3 !px-5 !text-xs inline-flex items-center justify-center gap-2"
-                  >
-                    <Lock size={14} />
-                    <span>
-                      {isProcessingPayment
-                        ? "جاري معالجة الدفع وتوثيق الفاتورة..."
-                        : `تأكيد الدفع ($${
-                            billingCycle === "annual"
-                              ? checkoutPlan.price_annual
-                              : checkoutPlan.price_monthly
-                          } USD)`}
-                    </span>
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

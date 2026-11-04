@@ -22,7 +22,7 @@ const NAV_ITEMS = [
   { to: "/analysis/upload", label: "تحليل سيرة جديد", shortLabel: "تحليل", Icon: FilePlus2 },
   { to: "/history", label: "سجل التحليلات", shortLabel: "السجل", Icon: History },
   { to: "/recruiter", label: "بوابة التوظيف للشركات", shortLabel: "التوظيف", Icon: Building2 },
-  { to: "/pricing", label: "الباقات والاشتراكات", shortLabel: "الباقات", Icon: Crown },
+  { to: "/pricing", label: "الباقات والاشتراكات", shortLabel: "الباقات", Icon: Crown, badge: "قريباً" },
   { to: "/profile", label: "الملف الشخصي", shortLabel: "ملفي", Icon: User },
   { to: "/settings", label: "الإعدادات والأمان", shortLabel: "الإعدادات", Icon: Settings },
 ];
@@ -99,7 +99,14 @@ export default function AppLayout() {
                     />
                     <span>{item.label}</span>
                   </div>
-                  {active && <ChevronLeft size={15} className="text-primary-500" />}
+                  <div className="flex items-center gap-1.5">
+                    {item.badge && (
+                      <span className="rounded-full bg-amber-100 border border-amber-200 px-2 py-0.5 text-[10px] font-extrabold text-amber-800">
+                        {item.badge}
+                      </span>
+                    )}
+                    {active && <ChevronLeft size={15} className="text-primary-500" />}
+                  </div>
                 </Link>
               );
             })}
@@ -235,6 +242,11 @@ export default function AppLayout() {
                         className={active ? "text-primary-600" : "text-slate-400"}
                       />
                       <span>{item.label}</span>
+                      {item.badge && (
+                        <span className="mr-auto rounded-full bg-amber-100 border border-amber-200 px-2 py-0.5 text-[10px] font-extrabold text-amber-800">
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
