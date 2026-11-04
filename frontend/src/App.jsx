@@ -24,7 +24,6 @@ const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const SharedResults = lazy(() => import("./pages/shared/SharedResults"));
 const UploadCV = lazy(() => import("./pages/analysis/UploadCV"));
 const RecruiterPortal = lazy(() => import("./pages/recruiter/RecruiterPortal"));
-const PricingPlans = lazy(() => import("./pages/subscription/PricingPlans"));
 
 function PublicOnlyRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -75,7 +74,7 @@ export default function App() {
           <Route path="/compare" element={<CompareAnalyses />} />
           <Route path="/history" element={<History />} />
           <Route path="/recruiter" element={<RecruiterPortal />} />
-          <Route path="/pricing" element={<PricingPlans />} />
+          <Route path="/pricing" element={<Navigate to="/dashboard" replace />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />
         </Route>

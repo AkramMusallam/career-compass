@@ -11,9 +11,12 @@ import {
   Target,
   TrendingUp,
   Mic,
+  Crown,
+  Clock,
 } from "lucide-react";
 import { getHistory, getProfile } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 
 function getReadinessLabel(score) {
   if (!score || score <= 0)
@@ -43,6 +46,7 @@ function getReadinessLabel(score) {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [profile, setProfile] = useState(null);
   const [recentAnalyses, setRecentAnalyses] = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -235,7 +239,7 @@ export default function Dashboard() {
       )}
 
       {/* AI Capabilities Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card hover:border-primary-200">
           <div className="w-11 h-11 rounded-xl bg-primary-50 text-primary-600 border border-primary-100 flex items-center justify-center mb-4">
             <Target size={22} />
@@ -271,6 +275,35 @@ export default function Dashboard() {
             تدرب على مقابلات العمل لأي وظيفة مرشحة لك مع مُحاور ذكي يقيّم إجاباتك التقنية ومهارات التواصل ويقدم إجابات نموذجية.
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            showToast(
+              "الباقات والاشتراكات قيد التطوير حالياً — جميع ميزات المنصة مفتوحة مجاناً بالكامل!",
+              "info"
+            )
+          }
+          className="card text-right relative border-dashed border-amber-200 bg-amber-50/30 hover:bg-amber-50/60 transition-colors cursor-pointer flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="w-11 h-11 rounded-xl bg-amber-100/80 text-amber-700 border border-amber-200 flex items-center justify-center">
+                <Crown size={22} />
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-2.5 py-1 text-[11px] font-extrabold text-amber-800">
+                <Clock size={12} />
+                <span>قيد التطوير</span>
+              </span>
+            </div>
+            <h3 className="text-base font-black text-slate-800 mb-1.5">
+              الباقات والاشتراكات
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed">
+              هذا القسم قيد التطوير حالياً؛ كافة ميزات المنصة وأدوات الذكاء الاصطناعي متاحة ومفتوحة مجاناً بالكامل.
+            </p>
+          </div>
+        </button>
       </div>
     </div>
   );
