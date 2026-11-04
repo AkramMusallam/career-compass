@@ -790,8 +790,9 @@ class CheckoutSessionRequest(BaseModel):
     @classmethod
     def validate_payment_method(cls, v: str) -> str:
         norm = (v or "card").strip().lower()
-        if norm not in {"card", "paypal"}:
-            raise ValueError("payment_method must be 'card' or 'paypal'")
+        allowed = {"card", "paypal", "jawwalpay", "palpay", "reflect"}
+        if norm not in allowed:
+            raise ValueError(f"payment_method must be one of {sorted(allowed)}")
         return norm
 
     @field_validator("success_url", "cancel_url")

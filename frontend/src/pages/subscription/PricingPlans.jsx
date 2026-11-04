@@ -74,11 +74,14 @@ export default function PricingPlans() {
 
   // Checkout Modal State
   const [checkoutPlan, setCheckoutPlan] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("card"); // "card" | "paypal"
+  const [paymentMethod, setPaymentMethod] = useState("card"); // "card" | "palpay" | "jawwalpay" | "reflect" | "paypal"
   const [cardholderName, setCardholderName] = useState(user?.full_name || "");
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvc, setCardCvc] = useState("");
+  const [walletProvider, setWalletProvider] = useState("palpay"); // "palpay" | "jawwalpay" | "reflect"
+  const [walletPhone, setWalletPhone] = useState("");
+  const [walletOtp, setWalletOtp] = useState("");
   const [paypalEmail, setPaypalEmail] = useState(user?.email || "");
   const [companyName, setCompanyName] = useState(user?.company_name || "");
   const [checkoutError, setCheckoutError] = useState("");
@@ -157,6 +160,14 @@ export default function PricingPlans() {
       if (cleanCvc.length < 3 || cleanCvc.length > 4) {
         return "يرجى إدخال رمز الأمان الخلفي (CVC/CVV) المكون من 3 أو 4 أرقام.";
       }
+    } else if (paymentMethod === "palestine_wallet") {
+      const cleanPhone = walletPhone.replace(/\D/g, "");
+      if (cleanPhone.length < 9 || cleanPhone.length > 12) {
+        return "يرجى إدخال رقم الجوال الفلسطيني المربوط بالمحفظة (مثال: 0599123456 أو 0569123456).";
+      }
+      if (walletOtp.replace(/\D/g, "").length < 4) {
+        return "يرجى إدخال رمز التأكيد (OTP) المكون من 4 أرقام لإتمام الدفع عبر المحفظة.";
+      }
     } else if (paymentMethod === "paypal") {
       if (!paypalEmail || !paypalEmail.includes("@")) {
         return "يرجى إدخال بريد إلكتروني صحيح مرتبط بحساب PayPal.";
@@ -180,14 +191,27 @@ export default function PricingPlans() {
       setCheckoutError("");
 
       const rawDigits = cardNumber.replace(/\D/g, "");
-      const last4 = paymentMethod === "card" ? rawDigits.slice(-4) : "PAYP";
+      const cleanPhone = walletPhone.replace(/\D/g, "");
+      const effectiveMethod =
+        paymentMethod === "palestine_wallet" ? walletProvider : paymentMethod;
+      const last4 =
+        paymentMethod === "card"
+          ? rawDigits.slice(-4)
+          : paymentMethod === "palestine_wallet"
+          ? cleanPhone.slice(-4)
+          : "";
 
       const res = await createCheckoutSession({
         plan_id: checkoutPlan.id,
         billing_cycle: billingCycle,
-        payment_method: paymentMethod,
-        cardholder_name: paymentMethod === "card" ? cardholderName.trim() : paypalEmail.trim(),
-        card_last4: last4,
+        payment_method: effectiveMethod,
+        cardholder_name:
+          paymentMethod === "card"
+            ? cardholderName.trim()
+            : paymentMethod === "palestine_wallet"
+            ? walletPhone.trim()
+            : paypalEmail.trim(),
+        card_last4: last4 || undefined,
         company_name: checkoutPlan.id === "enterprise" ? companyName.trim() : undefined,
       });
 
@@ -553,7 +577,13 @@ export default function PricingPlans() {
                     <td className="py-3 px-3" dir="ltr">
                       {inv.payment_method === "paypal"
                         ? "PayPal"
-                        : `•••• ${inv.card_last4 || "4242"}`}
+                        : inv.payment_method === "palpay"
+                        ? `PalPay •••• ${inv.card_last4 || "0599"}`
+                        : inv.payment_method === "jawwalpay"
+                        ? `Jawwal Pay •••• ${inv.card_last4 || "0599"}`
+                        : inv.payment_method === "reflect"
+                        ? `Reflect •••• ${inv.card_last4 || "0599"}`
+                        : `Card •••• ${inv.card_last4 || "4242"}`}
                     </td>
                     <td className="py-3 px-3">
                       {inv.created_at
@@ -594,10 +624,10 @@ export default function PricingPlans() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs text-slate-600 leading-relaxed">
           <div className="space-y-1">
             <h4 className="font-bold text-slate-800 text-xs sm:text-sm">
-              كيف تتم معالجة عمليات الدفع؟
+              كيف تتم معالجة عمليات الدفع في فلسطين والمنطقة؟
             </h4>
             <p>
-              تتم معالجة الدفع عبر بوابات Stripe و PayPal العالمية المشفرة بأعلى معايير الأمان PCI-DSS، مع إصدار فاتورة ضريبية فورية لكل عملية.
+              ندعم الدفع المباشر عبر بطاقات بنك فلسطين والبنوك المحلية (Visa / Mastercard)، والمحافظ الإلكترونية الفلسطينية (PalPay محفظتي، Jawwal Pay، Reflect)، بالإضافة إلى PayPal، مع إصدار فاتورة فورية لكل عملية.
             </p>
           </div>
           <div className="space-y-1">
@@ -694,6 +724,12 @@ export default function PricingPlans() {
                     <span className="font-bold text-slate-900" dir="ltr">
                       {latestReceipt.payment_method === "paypal"
                         ? "PayPal Express"
+                        : latestReceipt.payment_method === "palpay"
+                        ? `PalPay •••• ${latestReceipt.card_last4}`
+                        : latestReceipt.payment_method === "jawwalpay"
+                        ? `Jawwal Pay •••• ${latestReceipt.card_last4}`
+                        : latestReceipt.payment_method === "reflect"
+                        ? `Reflect •••• ${latestReceipt.card_last4}`
                         : `Card •••• ${latestReceipt.card_last4}`}
                     </span>
                   </div>
@@ -771,30 +807,42 @@ export default function PricingPlans() {
                 )}
 
                 {/* Payment Method Selector Tabs */}
-                <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <div className="grid grid-cols-3 gap-2 pt-1">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod("card")}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-bold transition ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition ${
                       paymentMethod === "card"
                         ? "border-primary-600 bg-primary-50/70 text-primary-800"
                         : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                     }`}
                   >
-                    <CreditCard size={15} />
-                    <span>بطاقة بنكية (Stripe)</span>
+                    <CreditCard size={14} />
+                    <span>بطاقة بنكية</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("palestine_wallet")}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition ${
+                      paymentMethod === "palestine_wallet"
+                        ? "border-primary-600 bg-primary-50/70 text-primary-800"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Zap size={14} />
+                    <span>PalPay / Jawwal</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setPaymentMethod("paypal")}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border text-xs font-bold transition ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-[11px] sm:text-xs font-bold transition ${
                       paymentMethod === "paypal"
                         ? "border-primary-600 bg-primary-50/70 text-primary-800"
                         : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                     }`}
                   >
-                    <ShieldCheck size={15} />
-                    <span>PayPal Express</span>
+                    <ShieldCheck size={14} />
+                    <span>PayPal</span>
                   </button>
                 </div>
 
@@ -802,7 +850,7 @@ export default function PricingPlans() {
                   <div className="space-y-3 pt-1">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-slate-500">
-                        بيانات البطاقة الائتمانية (Visa / Mastercard)
+                        بطاقات بنك فلسطين والبنوك المحلية (Visa / Mastercard)
                       </span>
                       <button
                         type="button"
@@ -877,6 +925,75 @@ export default function PricingPlans() {
                           value={cardCvc}
                           onChange={(e) =>
                             setCardCvc(e.target.value.replace(/\D/g, "").slice(0, 4))
+                          }
+                          className="input-field w-full text-xs font-mono text-left"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : paymentMethod === "palestine_wallet" ? (
+                  <div className="space-y-3 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-500">
+                        الدفع الفوري عبر المحافظ الفلسطينية المعتمدة
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWalletPhone("0599123456");
+                          setWalletOtp("1234");
+                          setCheckoutError("");
+                        }}
+                        className="text-[11px] font-bold text-primary-600 hover:text-primary-800 underline"
+                      >
+                        تعبئة محفظة ورمز OTP تجريبي
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        اختر المحفظة الإلكترونية *
+                      </label>
+                      <select
+                        value={walletProvider}
+                        onChange={(e) => setWalletProvider(e.target.value)}
+                        className="input-field w-full text-xs font-bold"
+                      >
+                        <option value="palpay">PalPay محفظتي (بنك فلسطين)</option>
+                        <option value="jawwalpay">Jawwal Pay (جوال باي)</option>
+                        <option value="reflect">Reflect (ريفلكت — البنك العربي)</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          رقم الجوال المربوط بالمحفظة *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          dir="ltr"
+                          placeholder="0599123456"
+                          value={walletPhone}
+                          onChange={(e) =>
+                            setWalletPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+                          }
+                          className="input-field w-full text-xs font-mono text-left"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          رمز التأكيد الفوري (OTP) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          dir="ltr"
+                          placeholder="1234"
+                          value={walletOtp}
+                          onChange={(e) =>
+                            setWalletOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
                           }
                           className="input-field w-full text-xs font-mono text-left"
                         />
