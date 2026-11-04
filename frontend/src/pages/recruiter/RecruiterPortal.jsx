@@ -32,6 +32,7 @@ import { useToast } from "../../context/ToastContext";
 import {
   getRecruiterJobs,
   createRecruiterJob,
+  updateRecruiterJob,
   deleteRecruiterJob,
   getJobCandidates,
   updateCandidatePipelineStatus,
@@ -58,6 +59,8 @@ export default function RecruiterPortal() {
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedCandidateProfile, setSelectedCandidateProfile] = useState(null);
+  const [candidateNotesDraft, setCandidateNotesDraft] = useState("");
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
   // New Job Form State
@@ -156,6 +159,22 @@ export default function RecruiterPortal() {
     }
   };
 
+  const handleToggleJobStatus = async (job) => {
+    const nextStatus = job.status === "closed" ? "active" : "closed";
+    try {
+      await updateRecruiterJob(job.job_id, { status: nextStatus });
+      showToast(
+        nextStatus === "closed"
+          ? "تم إغلاق الشاغر الوظيفي"
+          : "تم إعادة فتح الشاغر الوظيفي",
+        "success"
+      );
+      fetchJobs();
+    } catch {
+      showToast("تعذر تحديث حالة الشاغر", "error");
+    }
+  };
+
   const handleDeleteJob = async (jobId) => {
     if (!window.confirm("هل أنت متأكد من رغبتك في حذف هذا الشاغر الوظيفي؟")) return;
     try {
@@ -168,16 +187,25 @@ export default function RecruiterPortal() {
     }
   };
 
-  const handleUpdatePipeline = async (candidateId, newStatus) => {
+  const handleUpdatePipeline = async (candidateId, newStatus, customNotes) => {
     try {
+      const targetCand = (candidatesData.candidates || []).find(
+        (c) => c.candidate_id === candidateId
+      );
+      const notesToSave =
+        customNotes !== undefined ? customNotes : targetCand?.notes || "";
+
       await updateCandidatePipelineStatus(selectedJobId, candidateId, {
         pipeline_status: newStatus,
+        notes: notesToSave,
       });
       showToast(`تم نقل المرشح إلى مرحلة: ${getStatusLabel(newStatus)}`, "success");
       setCandidatesData((prev) => ({
         ...prev,
         candidates: prev.candidates.map((c) =>
-          c.candidate_id === candidateId ? { ...c, pipeline_status: newStatus } : c
+          c.candidate_id === candidateId
+            ? { ...c, pipeline_status: newStatus, notes: notesToSave }
+            : c
         ),
       }));
     } catch (err) {
@@ -185,11 +213,59 @@ export default function RecruiterPortal() {
     }
   };
 
+  const handleSaveCandidateNotes = async () => {
+    if (!selectedCandidateProfile || !selectedJobId) return;
+    try {
+      setIsSavingNotes(true);
+      const targetCand = (candidatesData.candidates || []).find(
+        (c) => c.candidate_id === selectedCandidateProfile.candidate_id
+      );
+      const currentStatus =
+        targetCand?.pipeline_status ||
+        selectedCandidateProfile.pipeline_status ||
+        "discovered";
+
+      await updateCandidatePipelineStatus(
+        selectedJobId,
+        selectedCandidateProfile.candidate_id,
+        {
+          pipeline_status: currentStatus,
+          notes: candidateNotesDraft,
+        }
+      );
+      setCandidatesData((prev) => ({
+        ...prev,
+        candidates: prev.candidates.map((c) =>
+          c.candidate_id === selectedCandidateProfile.candidate_id
+            ? { ...c, notes: candidateNotesDraft }
+            : c
+        ),
+      }));
+      setSelectedCandidateProfile((prev) =>
+        prev ? { ...prev, notes: candidateNotesDraft } : null
+      );
+      showToast("تم حفظ ملاحظات التقييم على المرشح بنجاح", "success");
+    } catch {
+      showToast("تعذر حفظ ملاحظات المرشح", "error");
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
   const handleViewProfile = async (candidateId) => {
     try {
       setIsLoadingProfile(true);
       const res = await getCandidateProfile(candidateId);
-      setSelectedCandidateProfile(res.data);
+      const targetCand = (candidatesData.candidates || []).find(
+        (c) => c.candidate_id === candidateId
+      );
+      const mergedNotes = targetCand?.notes || res.data?.notes || "";
+      setSelectedCandidateProfile({
+        ...res.data,
+        pipeline_status: targetCand?.pipeline_status || res.data?.pipeline_status || "discovered",
+        notes: mergedNotes,
+      });
+      setCandidateNotesDraft(mergedNotes);
     } catch (err) {
       showToast("تعذر جلب تفاصيل ملف المرشح", "error");
     } finally {
@@ -198,10 +274,17 @@ export default function RecruiterPortal() {
   };
 
   const handleSwitchToRecruiter = async () => {
+    const enteredCompany = window.prompt(
+      "أدخل اسم الشركة أو المؤسسة لتفعيل حساب مسؤول التوظيف:",
+      user?.company_name || "شركة تقنية"
+    );
+    if (!enteredCompany || !enteredCompany.trim()) return;
     try {
-      await switchToRecruiterRole("شركة تقنية رائدة");
-      updateStoredUser({ role: "recruiter", company_name: "شركة تقنية رائدة" });
-      showToast("تم تفعيل حساب مسؤول التوظيف بنجاح", "success");
+      const cleanName = enteredCompany.trim();
+      await switchToRecruiterRole(cleanName);
+      updateStoredUser({ role: "recruiter", company_name: cleanName });
+      setJobForm((prev) => ({ ...prev, company_name: cleanName }));
+      showToast(`تم تفعيل حساب مسؤول التوظيف باسم (${cleanName}) بنجاح`, "success");
       fetchJobs();
     } catch (err) {
       showToast("تعذر تحديث الصلاحية", "error");
@@ -358,9 +441,20 @@ export default function RecruiterPortal() {
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="px-2.5 py-0.5 rounded-full bg-primary-50 text-primary-700 text-xs font-bold border border-primary-100">
-                        {job.work_type}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full bg-primary-50 text-primary-700 text-xs font-bold border border-primary-100">
+                          {job.work_type}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            job.status === "closed"
+                              ? "bg-slate-100 text-slate-600 border-slate-200"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          }`}
+                        >
+                          {job.status === "closed" ? "مغلق" : "نشط"}
+                        </span>
+                      </div>
                       <span className="text-[11px] text-slate-400 font-medium">{job.created_at?.slice(0, 10)}</span>
                     </div>
 
@@ -406,6 +500,13 @@ export default function RecruiterPortal() {
                       >
                         <Target className="w-3 h-3" />
                         <span>مطابقة الكفاءات</span>
+                      </button>
+                      <button
+                        onClick={() => handleToggleJobStatus(job)}
+                        className="px-2.5 py-1.5 text-[11px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg border border-slate-200 transition"
+                        title={job.status === "closed" ? "إعادة فتح الشاغر" : "إغلاق الشاغر"}
+                      >
+                        {job.status === "closed" ? "إعادة فتح" : "إغلاق"}
                       </button>
                       <button
                         onClick={() => handleDeleteJob(job.job_id)}
@@ -799,6 +900,30 @@ export default function RecruiterPortal() {
                 </div>
               </div>
             )}
+
+            {/* Recruiter Evaluation Notes */}
+            <div className="pt-2 border-t border-slate-100 space-y-2">
+              <label className="block text-xs font-bold text-slate-700">
+                ملاحظات مسؤول التوظيف والتقييم الداخلي:
+              </label>
+              <textarea
+                rows={2}
+                placeholder="اكتب ملاحظاتك حول خبرة المرشح أو نتيجة التواصل المبدئي..."
+                value={candidateNotesDraft}
+                onChange={(e) => setCandidateNotesDraft(e.target.value)}
+                className="input-field w-full text-xs"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveCandidateNotes}
+                  disabled={isSavingNotes}
+                  className="btn-secondary !py-1.5 !px-3.5 !text-xs rounded-xl"
+                >
+                  {isSavingNotes ? "جاري الحفظ..." : "حفظ ملاحظات التقييم"}
+                </button>
+              </div>
+            </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-slate-100">
               <a

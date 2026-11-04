@@ -770,6 +770,10 @@ class PlanPricingTier(BaseModel):
 class CheckoutSessionRequest(BaseModel):
     plan_id: str = Field(..., max_length=50)  # "pro" | "enterprise"
     billing_cycle: str = Field("monthly", max_length=20)  # "monthly" | "annual"
+    payment_method: str = Field("card", max_length=30)  # "card" | "paypal"
+    cardholder_name: Optional[str] = Field(None, max_length=120)
+    card_last4: Optional[str] = Field(None, max_length=4)
+    company_name: Optional[str] = Field(None, max_length=200)
     success_url: Optional[str] = Field(None, max_length=500)
     cancel_url: Optional[str] = Field(None, max_length=500)
     test_token: Optional[str] = Field(None, max_length=100)  # allows instant simulation upgrade
@@ -780,6 +784,14 @@ class CheckoutSessionRequest(BaseModel):
         norm = v.strip().lower()
         if norm not in {"monthly", "annual"}:
             raise ValueError("billing_cycle must be 'monthly' or 'annual'")
+        return norm
+
+    @field_validator("payment_method")
+    @classmethod
+    def validate_payment_method(cls, v: str) -> str:
+        norm = (v or "card").strip().lower()
+        if norm not in {"card", "paypal"}:
+            raise ValueError("payment_method must be 'card' or 'paypal'")
         return norm
 
     @field_validator("success_url", "cancel_url")
@@ -798,6 +810,7 @@ class CheckoutSessionResponse(BaseModel):
     checkout_url: str
     provider: str = "stripe"
     mode: str = "payment"
+    invoice: Optional[Dict[str, Any]] = None
 
 
 class CurrentSubscriptionResponse(BaseModel):
@@ -809,6 +822,8 @@ class CurrentSubscriptionResponse(BaseModel):
     features_ar: List[str]
     limits: Dict[str, Any]
     expires_at: Optional[str] = None
+    usage: Dict[str, int] = Field(default_factory=dict)
+    invoices: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class CancelSubscriptionResponse(BaseModel):

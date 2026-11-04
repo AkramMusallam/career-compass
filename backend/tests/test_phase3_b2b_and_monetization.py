@@ -237,6 +237,107 @@ def test_subscription_plans_and_lifecycle(client, registered_user_token):
     assert resp_sub_after.json()["tier"] == "free"
 
 
+def test_payment_invoice_and_free_quota_enforcement(client, registered_user_token):
+    token, _ = registered_user_token
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # إنشاء استخراج وتقييم للمستخدم في الباقة المجانية
+    ext_resp = client.post(
+        "/extract/manual",
+        json={"skills": ["Python", "FastAPI", "SQL"]},
+        headers=headers,
+    )
+    assert ext_resp.status_code == 200
+    extraction_id = ext_resp.json()["extraction_id"]
+
+    q_resp = client.get("/assessment", headers=headers)
+    questions = q_resp.json()["questions"]
+    answers = [
+        {"question_id": q["id"], "value": q["options"][0] if q.get("options") else 4}
+        for q in questions[:3]
+    ]
+    ass_resp = client.post("/assessment", json={"answers": answers}, headers=headers)
+    assert ass_resp.status_code == 200
+    assessment_id = ass_resp.json()["assessment_id"]
+
+    # الباقة المجانية تسمح بـ 3 تحليلات كحد أقصى
+    first_analysis_id = None
+    for i in range(3):
+        r = client.post(
+            "/analyze",
+            json={"extraction_id": extraction_id, "assessment_id": assessment_id},
+            headers=headers,
+        )
+        assert r.status_code == 200
+        if i == 0:
+            first_analysis_id = r.json()["analysis_id"]
+
+    # التحليل الرابع على الباقة المجانية يجب أن يُرفض بـ 403 للمطالبة بالترقية
+    r4 = client.post(
+        "/analyze",
+        json={"extraction_id": extraction_id, "assessment_id": assessment_id},
+        headers=headers,
+    )
+    assert r4.status_code == 403
+
+    # الباقة المجانية تسمح بمقابلتين كحد أقصى
+    for _ in range(2):
+        ir = client.post(
+            "/interview/start",
+            json={"analysis_id": first_analysis_id, "job_title": "Backend Developer"},
+            headers=headers,
+        )
+        assert ir.status_code == 200
+
+    # المقابلة الثالثة على الباقة المجانية يجب أن تُرفض بـ 403
+    ir3 = client.post(
+        "/interview/start",
+        json={"analysis_id": first_analysis_id, "job_title": "Backend Developer"},
+        headers=headers,
+    )
+    assert ir3.status_code == 403
+
+    # الآن يقوم المستخدم بالدفع والترقية إلى باقة Pro ببيانات البطاقة البنكية
+    pay_resp = client.post(
+        "/subscriptions/checkout-session",
+        json={
+            "plan_id": "pro",
+            "billing_cycle": "monthly",
+            "payment_method": "card",
+            "cardholder_name": "Akram Musallam",
+            "card_last4": "4242",
+        },
+        headers=headers,
+    )
+    assert pay_resp.status_code == 200
+    pay_data = pay_resp.json()
+    assert pay_data["invoice"] is not None
+    assert pay_data["invoice"]["card_last4"] == "4242"
+    assert pay_data["invoice"]["amount_usd"] == 19.0
+
+    # بعد الدفع والترقية إلى Pro، يصبح بإمكانه إجراء التحليل الرابع والمقابلة الثالثة فوراً
+    r_after = client.post(
+        "/analyze",
+        json={"extraction_id": extraction_id, "assessment_id": assessment_id},
+        headers=headers,
+    )
+    assert r_after.status_code == 200
+
+    ir_after = client.post(
+        "/interview/start",
+        json={"analysis_id": first_analysis_id, "job_title": "Backend Developer"},
+        headers=headers,
+    )
+    assert ir_after.status_code == 200
+
+    # التحقق من سجل الفواتير والاستهلاك في /subscriptions/current
+    cur_sub = client.get("/subscriptions/current", headers=headers).json()
+    assert cur_sub["usage"]["analyses_used"] == 4
+    assert cur_sub["usage"]["interviews_used"] == 3
+    assert len(cur_sub["invoices"]) >= 1
+    assert cur_sub["invoices"][0]["card_last4"] == "4242"
+
+
 def test_stripe_webhook_listener(client):
     resp = client.post(
         "/subscriptions/webhook",

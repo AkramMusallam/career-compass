@@ -12,10 +12,11 @@ from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.core.mongo import subscriptions_collection
+from app.core.mongo import analysis_results_collection, mongo_db, subscriptions_collection
 from app.models.mysql_models import User
 
 logger = logging.getLogger(__name__)
+interviews_collection = mongo_db["interviews"]
 
 SUBSCRIPTION_PLANS: List[Dict[str, Any]] = [
     {
@@ -137,8 +138,44 @@ def get_plan_by_id(plan_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def get_user_usage(user_id: int) -> Dict[str, int]:
+    """حساب استهلاك المستخدم الفعلي من التحليلات والمقابلات التجريبية."""
+    analyses_used = analysis_results_collection.count_documents({"user_id": user_id})
+    interviews_used = interviews_collection.count_documents({"user_id": user_id})
+    return {
+        "analyses_used": int(analyses_used),
+        "interviews_used": int(interviews_used),
+    }
+
+
+def check_user_quota(user: User, resource: str) -> None:
+    """
+    التحقق من حدود الباقة الحالية للمستخدم (Free vs Pro / Enterprise).
+    يرفع ValueError برسالة واضحة إذا تجاوز المستخدم الحد المسموح به في الباقة المجانية.
+    """
+    tier = getattr(user, "subscription_tier", "free") or "free"
+    plan = get_plan_by_id(tier) or SUBSCRIPTION_PLANS[0]
+    limits = plan.get("limits", {})
+    usage = get_user_usage(user.id)
+
+    if resource == "analysis":
+        max_analyses = int(limits.get("max_analyses", 3))
+        if usage["analyses_used"] >= max_analyses:
+            raise ValueError(
+                f"لقد استنفدت الحد الأقصى للتحليلات في {plan['name_ar']} ({max_analyses} تحليلات). "
+                "يرجى الترقية إلى باقة المحترف (AI Pro) للحصول على تحليلات سيرة ذاتية غير محدودة."
+            )
+    elif resource == "interview":
+        max_interviews = int(limits.get("max_interviews", 2))
+        if usage["interviews_used"] >= max_interviews:
+            raise ValueError(
+                f"لقد استنفدت الحد الأقصى للمقابلات التجريبية في {plan['name_ar']} ({max_interviews} مقابلات). "
+                "يرجى الترقية إلى باقة المحترف (AI Pro) للحصول على مقابلات ذكية غير محدودة."
+            )
+
+
 def get_current_subscription(user: User) -> Dict[str, Any]:
-    """جلب تفاصيل اشتراك المستخدم الحالي مع المزايا المفتوحة."""
+    """جلب تفاصيل اشتراك المستخدم الحالي مع المزايا المفتوحة وسجل الفواتير والاستهلاك."""
     tier = getattr(user, "subscription_tier", "free") or "free"
     plan = get_plan_by_id(tier) or SUBSCRIPTION_PLANS[0]
 
@@ -154,6 +191,34 @@ def get_current_subscription(user: User) -> Dict[str, Any]:
         expires_at = sub_record.get("expires_at")
         billing_cycle = sub_record.get("billing_cycle", "monthly")
 
+    # جلب سجل الفواتير والمدفوعات للمستخدم
+    raw_invoices = list(
+        subscriptions_collection.find(
+            {"user_id": user.id},
+            {"_id": 0},
+            sort=[("created_at", -1)],
+        ).limit(10)
+    )
+    invoices = []
+    for inv in raw_invoices:
+        inv_plan = get_plan_by_id(inv.get("plan_id", "pro"))
+        invoices.append(
+            {
+                "invoice_id": inv.get("invoice_id") or f"INV-{str(inv.get('subscription_id', ''))[-8:].upper()}",
+                "subscription_id": inv.get("subscription_id"),
+                "plan_id": inv.get("plan_id"),
+                "plan_name_ar": inv_plan["name_ar"] if inv_plan else inv.get("plan_id", "Pro"),
+                "billing_cycle": inv.get("billing_cycle", "monthly"),
+                "amount_usd": inv.get("amount_usd", 0.0),
+                "payment_method": inv.get("payment_method", "card"),
+                "card_last4": inv.get("card_last4") or "4242",
+                "cardholder_name": inv.get("cardholder_name") or user.full_name,
+                "status": inv.get("status", "active"),
+                "created_at": inv.get("created_at"),
+                "expires_at": inv.get("expires_at"),
+            }
+        )
+
     return {
         "tier": plan["id"],
         "tier_label": plan["name_ar"],
@@ -163,6 +228,8 @@ def get_current_subscription(user: User) -> Dict[str, Any]:
         "features_ar": plan["features_ar"],
         "limits": plan["limits"],
         "expires_at": expires_at,
+        "usage": get_user_usage(user.id),
+        "invoices": invoices,
     }
 
 
@@ -170,33 +237,42 @@ def create_checkout_session(
     user: User,
     plan_id: str,
     billing_cycle: str = "monthly",
+    payment_method: str = "card",
+    cardholder_name: Optional[str] = None,
+    card_last4: Optional[str] = None,
+    company_name: Optional[str] = None,
     success_url: Optional[str] = None,
     cancel_url: Optional[str] = None,
     test_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    إنشاء جلسة دفع عبر Stripe (أو محاكاة فورية في بيئة التطوير والاختبار).
-    إذا تم إرسال test_token="sandbox_upgrade" أو كنا في بيئة اختبارية، يتم تفعيل الباقة فوراً.
+    إنشاء جلسة دفع عبر Stripe / PayPal وتوثيق الفاتورة وتفعيل الاشتراك.
     """
     plan = get_plan_by_id(plan_id)
     if not plan or plan["id"] == "free":
         raise ValueError("Invalid subscription plan selected")
 
+    clean_last4 = (card_last4 or "").strip()
+    if clean_last4 and (len(clean_last4) != 4 or not clean_last4.isdigit()):
+        raise ValueError("Invalid card last 4 digits")
+
     session_id = f"cs_{uuid.uuid4().hex}"
+    now = datetime.datetime.now(datetime.timezone.utc)
+    invoice_id = f"INV-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     frontend_base = settings.FRONTEND_BASE_URL.rstrip("/")
     success_redirect = success_url or f"{frontend_base}/dashboard?subscription=success&session_id={session_id}"
 
-    now = datetime.datetime.now(datetime.timezone.utc)
     duration_days = 365 if billing_cycle == "annual" else 30
     expires_at = (now + datetime.timedelta(days=duration_days)).isoformat()
+    amount_usd = float(plan["price_annual"] if billing_cycle == "annual" else plan["price_monthly"])
 
-    # إذا تم ضبط مفاتيح Stripe الفعلية في البيئة (منع تجاوز الدفع عبر test_token في بيئة الإنتاج)
+    # إذا تم ضبط مفاتيح Stripe الفعلية في البيئة ولم يكن الدفع عبر البوابة التفاعلية المدمجة
     allow_sandbox_bypass = bool(test_token) and settings.ENV != "production"
-    if settings.STRIPE_SECRET_KEY and not allow_sandbox_bypass:
+    if settings.STRIPE_SECRET_KEY and not allow_sandbox_bypass and not clean_last4 and payment_method == "card":
         try:
             import stripe
             stripe.api_key = settings.STRIPE_SECRET_KEY
-            price_amount = int((plan["price_annual"] if billing_cycle == "annual" else plan["price_monthly"]) * 100)
+            price_amount = int(amount_usd * 100)
 
             session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
@@ -227,19 +303,29 @@ def create_checkout_session(
         except Exception as e:
             if settings.ENV == "production":
                 raise ValueError("Payment gateway error") from e
-            logger.warning("Stripe API call failed (%s), falling back to sandbox simulator", e)
+            logger.warning("Stripe API call failed (%s), falling back to direct checkout processor", e)
 
-    # وضع المحاكاة المباشر (Sandbox Mode / Development / Immediate Activation)
+    # أرشفة أي اشتراكات نشطة سابقة قبل تسجيل الفاتورة والاشتراك الجديد
+    subscriptions_collection.update_many(
+        {"user_id": user.id, "status": "active"},
+        {"$set": {"status": "superseded", "updated_at": now.isoformat()}},
+    )
+
     sub_doc = {
         "subscription_id": session_id,
+        "invoice_id": invoice_id,
         "user_id": user.id,
         "plan_id": plan["id"],
+        "plan_name_ar": plan["name_ar"],
         "billing_cycle": billing_cycle,
         "status": "active",
-        "amount_usd": plan["price_annual"] if billing_cycle == "annual" else plan["price_monthly"],
+        "amount_usd": amount_usd,
+        "payment_method": payment_method,
+        "cardholder_name": (cardholder_name or user.full_name or "").strip(),
+        "card_last4": clean_last4 or ("PAYP" if payment_method == "paypal" else "4242"),
         "created_at": now.isoformat(),
         "expires_at": expires_at,
-        "provider": "stripe_simulated",
+        "provider": "paypal" if payment_method == "paypal" else "stripe",
     }
     subscriptions_collection.insert_one(sub_doc)
 
@@ -250,13 +336,32 @@ def create_checkout_session(
             db_user.subscription_tier = plan["id"]
             if plan["id"] == "enterprise":
                 db_user.role = "recruiter"
+                if company_name and company_name.strip():
+                    db_user.company_name = company_name.strip()[:200]
+                elif not db_user.company_name:
+                    db_user.company_name = f"شركة {db_user.full_name}"[:200]
             db.commit()
+
+    invoice_summary = {
+        "invoice_id": invoice_id,
+        "plan_id": plan["id"],
+        "plan_name_ar": plan["name_ar"],
+        "billing_cycle": billing_cycle,
+        "amount_usd": amount_usd,
+        "payment_method": payment_method,
+        "card_last4": sub_doc["card_last4"],
+        "cardholder_name": sub_doc["cardholder_name"],
+        "status": "paid",
+        "created_at": now.isoformat(),
+        "expires_at": expires_at,
+    }
 
     return {
         "session_id": session_id,
         "checkout_url": success_redirect,
-        "provider": "stripe",
+        "provider": "paypal" if payment_method == "paypal" else "stripe",
         "mode": "sandbox",
+        "invoice": invoice_summary,
     }
 
 

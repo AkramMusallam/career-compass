@@ -33,6 +33,7 @@ from app.services.interview_service import (
     transcribe_audio_with_whisper as _transcribe_audio_with_whisper,
 )
 from app.services.llm_client import is_ollama_mocked
+from app.services.subscription_service import check_user_quota
 
 logger = logging.getLogger("career_compass.interview")
 
@@ -55,6 +56,11 @@ ALLOWED_AUDIO_TYPES = {
 
 @router.post("/interview/start", response_model=InterviewStartResponse)
 def start_interview(payload: InterviewStartRequest, current_user: User = Depends(get_current_user)):
+    try:
+        check_user_quota(current_user, "interview")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+
     analysis = analysis_results_collection.find_one(
         {"analysis_id": payload.analysis_id, "user_id": current_user.id}
     )
