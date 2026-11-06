@@ -9,6 +9,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from app.core.security import get_current_user
+from app.core.config import settings
 from app.models.mysql_models import User
 from app.schemas.schemas import (
     CancelSubscriptionResponse,
@@ -19,7 +20,12 @@ from app.schemas.schemas import (
 )
 from app.services import subscription_service
 
-router = APIRouter(prefix="/subscriptions", tags=["Subscriptions & Monetization"])
+def _require_development_mode():
+    if settings.ENV == "production":
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Subscriptions are under development")
+
+
+router = APIRouter(prefix="/subscriptions", tags=["Subscriptions & Monetization"], dependencies=[Depends(_require_development_mode)])
 
 
 @router.get("/plans", response_model=List[PlanPricingTier])

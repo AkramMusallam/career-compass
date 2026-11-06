@@ -19,6 +19,8 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  const companyId = localStorage.getItem("active_company_id");
+  if (companyId && config.url?.startsWith("/recruiter/")) config.headers["X-Company-Id"] = companyId;
   return config;
 });
 

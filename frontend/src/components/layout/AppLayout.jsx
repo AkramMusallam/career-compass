@@ -24,6 +24,8 @@ const NAV_ITEMS = [
   { to: "/analysis/upload", label: "تحليل سيرة جديد", shortLabel: "تحليل", Icon: FilePlus2 },
   { to: "/history", label: "سجل التحليلات", shortLabel: "السجل", Icon: History },
   { to: "/recruiter", label: "بوابة التوظيف للشركات", shortLabel: "التوظيف", Icon: Building2 },
+  { to: "/companies", label: "طلبات الشركات", shortLabel: "الشركات", Icon: Building2 },
+  { to: "/support-access", label: "صلاحيات الدعم", shortLabel: "الدعم", Icon: User },
   {
     to: "/pricing",
     label: "الباقات والاشتراكات",

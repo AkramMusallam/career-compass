@@ -116,3 +116,10 @@ def test_transcribe_audio_empty_bytes_and_no_hint():
         transcript_hint="",
     )
     assert result == ""
+
+
+def test_transcribe_audio_uses_local_model_without_cloud_key(monkeypatch):
+    from app.services import interview_service
+    monkeypatch.setattr(interview_service.settings, "OPENAI_API_KEY", "")
+    monkeypatch.setattr(interview_service, "_transcribe_locally", lambda audio: "مرحبا" if audio == b"audio" else "")
+    assert interview_service.transcribe_audio_with_whisper(b"audio", "voice.m4a", "audio/mp4") == "مرحبا"

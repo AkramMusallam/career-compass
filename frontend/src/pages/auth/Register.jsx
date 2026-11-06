@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
   ArrowLeft,
@@ -29,9 +29,11 @@ function getPasswordStrength(password) {
 export default function Register() {
   const { register, login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
 
   const [fullName, setFullName] = useState("");
+  const [experience, setExperience] = useState("candidate");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -82,7 +84,7 @@ export default function Register() {
       await register(fullName, email, password);
       await login(email, password);
       showToast("تم إنشاء الحساب بنجاح، مرحباً بك");
-      navigate("/dashboard", { replace: true });
+      navigate(location.state?.from?.pathname || (experience === "company" ? "/companies" : "/dashboard"), { replace: true });
     } catch (error) {
       setErrorMessage(
         getErrorMessage(error, "تعذر إنشاء الحساب، حاول مرة أخرى")
@@ -120,6 +122,12 @@ export default function Register() {
             )}
 
             <form onSubmit={handleSubmit} noValidate className="space-y-3.5">
+              <fieldset className="space-y-2">
+                <legend className="label-text">كيف تريد البدء؟</legend>
+                <label className="block"><input type="radio" name="experience" value="candidate" checked={experience === "candidate"} onChange={(e) => setExperience(e.target.value)} /> باحث عن عمل</label>
+                <label className="block"><input type="radio" name="experience" value="company" checked={experience === "company"} onChange={(e) => setExperience(e.target.value)} /> شركة أو فريق توظيف</label>
+                <p className="text-xs text-slate-500">يمكنك استخدام التجربتين بالحساب نفسه.</p>
+              </fieldset>
               <div>
                 <label htmlFor="fullName" className="label-text">
                   الاسم الكامل
@@ -250,6 +258,7 @@ export default function Register() {
                 لديك حساب بالفعل؟{" "}
                 <Link
                   to="/login"
+                  state={location.state}
                   className="font-extrabold text-primary-600 hover:text-primary-700 hover:underline"
                 >
                   تسجيل الدخول

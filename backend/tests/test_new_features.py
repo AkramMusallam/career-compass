@@ -183,12 +183,19 @@ def test_new_endpoints(client):
     assert top_match["apply_url"].startswith("http")
 
     print("Testing GET /jobs/matched API Endpoint...")
+    mongo_db["companies"].insert_one({"company_id": "test-company", "owner_id": FAKE_USER_ID, "status": "approved", "name": "Example"})
+    mongo_db["recruiter_jobs"].insert_one({"job_id": "test-job", "company_id": "test-company", "recruiter_id": FAKE_USER_ID, "status": "active", "title": "Python Developer", "company_name": "Example", "required_skills": ["Python"]})
     resp = client.get(f"/jobs/matched?analysis_id={analysis_id}")
     assert resp.status_code == 200, resp.text
     api_jobs_data = resp.json()
     assert api_jobs_data["total"] > 0
     assert len(api_jobs_data["jobs"]) == api_jobs_data["total"]
-    assert "apply_url" in api_jobs_data["jobs"][0]
+    assert any(job["id"] == "test-job" for job in api_jobs_data["jobs"])
+    mongo_db["recruiter_jobs"].update_one({"job_id": "test-job"}, {"$set": {"status": "closed"}})
+    closed = client.get(f"/jobs/matched?analysis_id={analysis_id}").json()
+    assert all(job["id"] != "test-job" for job in closed["jobs"])
+    mongo_db["recruiter_jobs"].delete_one({"job_id": "test-job"})
+    mongo_db["companies"].delete_one({"company_id": "test-company"})
 
     print("Testing Celery Asynchronous PDF Worker (Section 7.1)...")
     with patch("app.worker.tasks.extract_cv_data") as mock_extract:

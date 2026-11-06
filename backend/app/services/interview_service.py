@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
@@ -15,6 +18,18 @@ from app.schemas.schemas import VoiceFeedbackModel
 from app.services.llm_client import call_llm_messages, strip_json_fences
 
 logger = logging.getLogger("career_compass.interview_service")
+_whisper_model = None
+_whisper_lock = threading.Lock()
+
+
+def _transcribe_locally(audio_bytes: bytes) -> str:
+    global _whisper_model
+    with _whisper_lock:
+        if _whisper_model is None:
+            from faster_whisper import WhisperModel
+            _whisper_model = WhisperModel("base", device="cpu", compute_type="int8", cpu_threads=2, download_root=str(Path(settings.UPLOAD_DIR) / "whisper-models"))
+        segments, _ = _whisper_model.transcribe(BytesIO(audio_bytes), beam_size=1)
+        return " ".join(segment.text.strip() for segment in segments).strip()
 
 
 def call_interview_llm(
@@ -60,6 +75,12 @@ def transcribe_audio_with_whisper(
 
     if transcript_hint and transcript_hint.strip():
         return transcript_hint.strip()
+
+    if audio_bytes:
+        try:
+            return _transcribe_locally(audio_bytes)
+        except Exception as exc:
+            logger.warning("Local Whisper transcription failed: %s", exc)
 
     return ""
 

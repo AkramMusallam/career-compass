@@ -1,58 +1,94 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { Audio } from "expo-av";
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from "react-native";
-import { sendInterviewChat } from "../services/api";
+import { fetchLatestRoadmap, sendInterviewChat, sendVoiceAnswer, startMockInterview } from "../services/api";
 
-export default function MockInterviewScreen({ onBack, token, sessionId }) {
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content: "مرحباً بك في جلسة المقابلة التقنية لمنصب Full Stack Engineer لدى كبرى الشركات التقنية. كيف تصمم معمارية REST API تضمن حماية المسارات الحساسة وعزل الصلاحيات؟",
-    },
-  ]);
+export default function MockInterviewScreen({ onBack, token }) {
+  const [messages, setMessages] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
+  const [error, setError] = useState("");
   const [inputText, setInputText] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [voiceFeedback, setVoiceFeedback] = useState(null);
+  const recordingRef = useRef(null);
+  const startedRef = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const latest = await fetchLatestRoadmap(token);
+        if (!latest?.analysis_id || !latest?.top_jobs?.[0]?.job_title) {
+          throw new Error("أكمل تحليلك المهني من الموقع قبل بدء المقابلة.");
+        }
+        const session = await startMockInterview(token, latest.analysis_id, latest.top_jobs[0].job_title);
+        if (active) {
+          setSessionId(session.session_id);
+          setMessages(session.messages || []);
+        }
+      } catch (err) {
+        if (active) setError(err.message || "تعذر بدء المقابلة. تحقق من الاتصال.");
+      }
+    })();
+    return () => {
+      active = false;
+      const recording = recordingRef.current;
+      recordingRef.current = null;
+      if (recording) recording.stopAndUnloadAsync().catch(() => {});
+    };
+  }, [token]);
+
+  const toggleRecording = async () => {
+    if (!sessionId || isSending) return;
+    setError("");
+    setIsSending(true);
+    try {
+      if (!isRecording) {
+        const permission = await Audio.requestPermissionsAsync();
+        if (!permission.granted) throw new Error("يرجى السماح بالوصول إلى الميكروفون.");
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+        const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        recordingRef.current = recording;
+        startedRef.current = Date.now();
+        setIsRecording(true);
+      } else {
+        setIsRecording(false);
+        setIsSending(true);
+        const recording = recordingRef.current;
+        recordingRef.current = null;
+        await recording.stopAndUnloadAsync();
+        const uri = recording.getURI();
+        if (!uri) throw new Error("تعذر حفظ التسجيل الصوتي.");
+        const result = await sendVoiceAnswer(token, sessionId, uri, Math.max(1, (Date.now() - startedRef.current) / 1000));
+        setMessages(result.messages || []);
+        setVoiceFeedback(result.voice_feedback || null);
+      }
+    } catch (err) {
+      setError(err.message || "تعذر تسجيل أو إرسال الصوت.");
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   const handleSend = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !sessionId || isSending || isRecording) return;
     const text = inputText.trim();
     const userMsg = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInputText("");
     setIsSending(true);
 
-    if (token && sessionId) {
-      try {
-        const res = await sendInterviewChat(token, sessionId, text);
-        if (res && Array.isArray(res.messages) && res.messages.length > 0) {
-          setMessages(res.messages);
-          setIsSending(false);
-          return;
-        }
-      } catch (_err) {
-        // Fallback to local simulated interviewer
-      }
-    }
-
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "إجابة ممتازة! استخدام JWT مع التحقق من الصلاحيات وRBAC يمنح مرونة عالية. ما هي استراتيجيتك لحماية النظام من هجمات الـ Rate Limiting و N+1 queries عند التوسع؟",
-        },
-      ]);
+    try {
+      const res = await sendInterviewChat(token, sessionId, text);
+      setMessages(res.messages || []);
+      setError("");
+    } catch (_err) {
+      setMessages((prev) => prev.slice(0, -1));
+      setInputText(text);
+      setError("تعذر إرسال الإجابة. تحقق من الاتصال وأعد المحاولة.");
+    } finally {
       setIsSending(false);
-    }, 1200);
-  };
-
-  const toggleRecording = () => {
-    setIsRecording(!isRecording);
-    if (!isRecording) {
-      setTimeout(() => {
-        setIsRecording(false);
-        setInputText("أستخدم FastAPI مع JWT Bearer tokens وميدلوير Sliding Window للـ Rate Limiting، مع تفعيل Eager Loading لمنع استعلامات N+1.");
-      }, 2500);
     }
   };
 
@@ -68,6 +104,9 @@ export default function MockInterviewScreen({ onBack, token, sessionId }) {
 
       {/* Messages ScrollView */}
       <ScrollView style={styles.chatScroll} contentContainerStyle={{ paddingBottom: 20 }}>
+        {!!error && <Text style={{ color: "#fca5a5", textAlign: "center" }}>{error}</Text>}
+        {!!voiceFeedback && <Text style={{ color: "#a7f3d0", marginBottom: 12 }}>{voiceFeedback.feedback_summary}</Text>}
+        {!sessionId && !error && <ActivityIndicator color="#38bdf8" />}
         {messages.map((m, idx) => (
           <View
             key={idx}
@@ -102,10 +141,7 @@ export default function MockInterviewScreen({ onBack, token, sessionId }) {
           multiline
         />
 
-        <TouchableOpacity
-          style={[styles.micBtn, isRecording && styles.micBtnActive]}
-          onPress={toggleRecording}
-        >
+        <TouchableOpacity style={[styles.micBtn, isRecording && styles.micBtnActive]} onPress={toggleRecording} disabled={!sessionId || isSending} accessibilityLabel={isRecording ? "إيقاف وإرسال التسجيل" : "بدء التسجيل الصوتي"}>
           <Text style={styles.micIcon}>{isRecording ? "⏹️" : "🎙️"}</Text>
         </TouchableOpacity>
 

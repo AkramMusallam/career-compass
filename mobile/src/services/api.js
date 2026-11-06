@@ -1,5 +1,17 @@
 // Mobile API Client configuration
-export const API_BASE_URL = "http://localhost:8000";
+import { Platform } from "react-native";
+
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://localhost:8000");
+
+export async function login(email, password) {
+  const resp = await fetch(`${API_BASE_URL}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!resp.ok) throw new Error("تعذر تسجيل الدخول. تحقق من البيانات واتصال الخادم.");
+  return resp.json();
+}
 
 export async function fetchProfile(token) {
   const resp = await fetch(`${API_BASE_URL}/profile`, {
@@ -26,7 +38,7 @@ export async function fetchLatestRoadmap(token) {
   const detailResp = await fetch(`${API_BASE_URL}/history/${latestItem.analysis_id}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!detailResp.ok) return latestItem;
+  if (!detailResp.ok) throw new Error(`HTTP ${detailResp.status}`);
   return detailResp.json();
 }
 
@@ -39,6 +51,7 @@ export async function toggleMilestoneSkill(token, analysisId, skill, completed) 
     },
     body: JSON.stringify({ skill, completed }),
   });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json();
 }
 
@@ -51,6 +64,7 @@ export async function startMockInterview(token, analysisId, jobTitle) {
     },
     body: JSON.stringify({ analysis_id: analysisId, job_title: jobTitle }),
   });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json();
 }
 
@@ -63,5 +77,18 @@ export async function sendInterviewChat(token, sessionId, message) {
     },
     body: JSON.stringify({ session_id: sessionId, message }),
   });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json();
+}
+
+export async function sendVoiceAnswer(token, sessionId, uri, durationSeconds) {
+  const data = new FormData();
+  data.append("file", { uri, name: "answer.m4a", type: "audio/mp4" });
+  data.append("duration_seconds", String(durationSeconds));
+  const resp = await fetch(`${API_BASE_URL}/interview/${sessionId}/voice`, {
+    method: "POST", headers: { Authorization: `Bearer ${token}` }, body: data,
+  });
+  const result = await resp.json();
+  if (!resp.ok) throw new Error(result.detail || "تعذرت معالجة التسجيل الصوتي.");
+  return result;
 }

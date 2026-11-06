@@ -23,6 +23,7 @@ dist/
 # Uploads
 uploads/
 backend/uploads/
+certbot/
 
 # Virtual environments
 myenv/

@@ -194,7 +194,7 @@ def test_phase3_rbac_blocks_candidate_from_recruiter_endpoints(client, registere
     switch_resp = client.post("/recruiter/switch-role?company_name=SecureCorp", headers=headers)
     assert switch_resp.status_code == 200
     profile_after = client.get("/recruiter/candidates/some-id/profile", headers=headers)
-    assert profile_after.status_code == 404
+    assert profile_after.status_code == 403
 
 
 def test_jobs_matched_idor_protection(client, registered_user_token):
@@ -241,6 +241,7 @@ def test_phase3_input_validation_and_newest_extraction_ranking(client):
     client.post("/register", json={"full_name": "Upgraded Candidate", "email": cand_email, "password": "Passw0rd123"})
     cand_token = client.post("/login", json={"email": cand_email, "password": "Passw0rd123"}).json()["access_token"]
     cand_headers = {"Authorization": f"Bearer {cand_token}"}
+    assert client.put("/settings/recruiter-consent", headers=cand_headers, json={"opted_in": True}).status_code == 200
 
     # Old extraction: only HTML
     client.post("/extract/manual", headers=cand_headers, json={"skills": ["HTML"]})
@@ -285,6 +286,9 @@ def test_phase3_input_validation_and_newest_extraction_ranking(client):
     )
     rec_token = client.post("/login", json={"email": rec_email, "password": "Passw0rd123"}).json()["access_token"]
     rec_headers = {"Authorization": f"Bearer {rec_token}"}
+    from app.core.mongo import mongo_db
+    uid = int(client.get("/profile", headers=rec_headers).json()["id"])
+    mongo_db["companies"].insert_one({"company_id": str(uuid.uuid4()), "name": "Test company", "owner_id": uid, "status": "approved"})
 
     job_resp = client.post(
         "/recruiter/jobs",

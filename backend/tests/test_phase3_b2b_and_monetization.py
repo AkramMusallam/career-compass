@@ -10,7 +10,7 @@ import uuid
 import pytest
 from app.models.mysql_models import User
 from app.core.database import SessionLocal
-from app.core.mongo import extractions_collection, recruiter_jobs_collection
+from app.core.mongo import extractions_collection, recruiter_jobs_collection, mongo_db
 from app.services.regional_taxonomy import (
     normalize_regional_job_title,
     extract_regional_market_insights,
@@ -35,6 +35,8 @@ def recruiter_token(client):
     )
     resp = client.post("/login", json={"email": email, "password": "Passw0rd123"})
     token = resp.json()["access_token"]
+    uid = int(client.get("/profile", headers={"Authorization": f"Bearer {token}"}).json()["id"])
+    mongo_db["companies"].insert_one({"company_id": str(uuid.uuid4()), "name": "Test company", "owner_id": uid, "status": "approved"})
     return token, email
 
 
@@ -42,6 +44,7 @@ def recruiter_token(client):
 def candidate_profile(client, registered_user_token):
     """مرشح تقني مسجل مع سيرة ذاتية ومهارات مستخرجة في MongoDB."""
     token, email = registered_user_token
+    assert client.put("/settings/recruiter-consent", headers={"Authorization": f"Bearer {token}"}, json={"opted_in": True}).status_code == 200
     # جلب id المستخدم
     with SessionLocal() as db:
         user = db.query(User).filter(User.email == email).first()
@@ -95,7 +98,7 @@ def test_recruiter_job_posting_crud(client, recruiter_token):
     job_data = resp.json()
     job_id = job_data["job_id"]
     assert job_data["title"] == "Backend Developer" or "Python" in job_data["title"]
-    assert job_data["company_name"] == "Asal Technologies"
+    assert job_data["company_name"] == "Test company"
 
     # 2. استعراض شواغر الشركة
     resp_list = client.get("/recruiter/jobs", headers=headers)
@@ -186,7 +189,9 @@ def test_recruiter_role_switch(client, registered_user_token):
         headers=headers,
     )
     assert resp.status_code == 200
-    assert resp.json()["role"] == "recruiter"
+    assert resp.json()["role"] == "candidate"
+    approval = client.get("/recruiter/approval", headers=headers).json()
+    assert approval["approved"] is False and approval["requested"] is True
     assert resp.json()["company_name"] == "Harri Palestine"
 
 

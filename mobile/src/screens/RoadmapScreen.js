@@ -4,38 +4,8 @@ import { fetchLatestRoadmap, toggleMilestoneSkill } from "../services/api";
 
 export default function RoadmapScreen({ onBack, token }) {
   const [analysisId, setAnalysisId] = useState(null);
-  const [months, setMonths] = useState([
-    {
-      month: 1,
-      title: "الشهر الأول: التأسيس المعماري وقواعد البيانات",
-      skills: [
-        { name: "FastAPI Async Routing", completed: true },
-        { name: "MySQL & Connection Pooling", completed: true },
-        { name: "MongoDB Schema Design", completed: true },
-        { name: "Docker Containerization", completed: false },
-      ],
-    },
-    {
-      month: 2,
-      title: "الشهر الثاني: الذكاء الاصطناعي وهندسة الأداء",
-      skills: [
-        { name: "Ollama / Local LLM Integration", completed: true },
-        { name: "Redis Caching & Celery Queues", completed: false },
-        { name: "N+1 Query Elimination", completed: true },
-        { name: "Whisper Audio Transcription", completed: false },
-      ],
-    },
-    {
-      month: 3,
-      title: "الشهر الثالث: الأمان المتقدم والإنتاج التجاري",
-      skills: [
-        { name: "JWT Invalidation & Sliding Rate Limiter", completed: true },
-        { name: "Stripe & PayPal Gateways", completed: false },
-        { name: "B2B Recruiter Discovery Engine", completed: false },
-        { name: "CI/CD & Cloud Orchestration", completed: false },
-      ],
-    },
-  ]);
+  const [months, setMonths] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -57,7 +27,7 @@ export default function RoadmapScreen({ onBack, token }) {
           }))
         );
       } catch (_err) {
-        // Offline fallback
+        setError("???? ????? ??? ??????. ???? ?? ??????? ?? ??? ????????.");
       }
     })();
     return () => {
@@ -74,13 +44,16 @@ export default function RoadmapScreen({ onBack, token }) {
       return next;
     });
     if (token && analysisId && currentSkill) {
-      toggleMilestoneSkill(token, analysisId, currentSkill.name, nextCompleted).catch(() => null);
+      toggleMilestoneSkill(token, analysisId, currentSkill.name, nextCompleted).catch(() => {
+        setMonths((prev) => prev.map((month, m) => m !== monthIdx ? month : { ...month, skills: month.skills.map((skill, i) => i !== skillIdx ? skill : { ...skill, completed: !nextCompleted }) }));
+        setError("???? ??? ??????. ???? ?? ???????.");
+      });
     }
   };
 
   const totalSkills = months.reduce((acc, m) => acc + m.skills.length, 0);
   const doneSkills = months.reduce((acc, m) => acc + m.skills.filter((s) => s.completed).length, 0);
-  const progressPercent = Math.round((doneSkills / totalSkills) * 100);
+  const progressPercent = totalSkills ? Math.round((doneSkills / totalSkills) * 100) : 0;
 
   return (
     <View style={styles.container}>
@@ -102,6 +75,9 @@ export default function RoadmapScreen({ onBack, token }) {
           <View style={[styles.barFill, { width: `${progressPercent}%` }]} />
         </View>
       </View>
+
+      {!!error && <Text style={{ color: "#fca5a5", textAlign: "center" }}>{error}</Text>}
+      {!error && months.length === 0 && <Text style={{ color: "#cbd5e1", textAlign: "center" }}>?? ???? ??? ???. ???? ?????? ?? ??????.</Text>}
 
       {/* Months List */}
       <ScrollView style={styles.scrollList} contentContainerStyle={{ paddingBottom: 30 }}>

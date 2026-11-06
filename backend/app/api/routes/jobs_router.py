@@ -5,10 +5,10 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.core.mongo import analysis_results_collection, extractions_collection
+from app.core.mongo import analysis_results_collection, extractions_collection, recruiter_jobs_collection, mongo_db
 from app.core.security import get_current_user
 from app.models.mysql_models import User
-from app.services.recommendation_engine import match_candidate_to_job_postings
+from app.services.recommendation_engine import _is_job_skill_match
 
 logger = logging.getLogger("career_compass.jobs")
 
@@ -58,25 +58,25 @@ def get_matched_jobs(
                         seen_skills.add(s)
                         candidate_skills.append(s)
 
-    job_match = analysis.get("job_match") or {}
-    target_role = job_match.get("top_job", "") if isinstance(job_match, dict) else ""
-    if not target_role:
-        top_jobs = analysis.get("top_jobs") or []
-        if top_jobs and isinstance(top_jobs[0], dict):
-            target_role = top_jobs[0].get("job_title", "")
-
-    matched = match_candidate_to_job_postings(
-        candidate_skills=candidate_skills,
-        target_role=target_role,
-        min_match_percentage=15,
-    )
-
-    if not matched:
-        matched = match_candidate_to_job_postings(
-            candidate_skills=candidate_skills,
-            target_role=target_role,
-            min_match_percentage=0,
-        )
+    matched = []
+    approved_ids = mongo_db["companies"].distinct("company_id", {"status": "approved"})
+    for job in recruiter_jobs_collection.find({"status": "active", "company_id": {"$in": approved_ids}}):
+        required = job.get("required_skills") or []
+        bonus = job.get("bonus_skills") or []
+        matching = [s for s in required + bonus if _is_job_skill_match(s, candidate_skills)]
+        missing = [s for s in required if s not in matching]
+        total = len(required) + 0.3 * len(bonus)
+        score = (len(required) - len(missing) + 0.3 * sum(s in matching for s in bonus)) / total * 100 if total else 0
+        matched.append({
+            "id": job["job_id"], "title": job["title"], "company": job["company_name"],
+            "location": job.get("location", ""), "type": job.get("work_type", ""),
+            "experience_level": job.get("experience_level", ""),
+            "salary_range": job.get("salary_range") or "غير محدد",
+            "description": job.get("description", ""), "posted_date": job.get("created_at", ""),
+            "match_percentage": round(score, 1), "matched_skills": matching,
+            "missing_skills": missing, "bonus_skills_missing": [s for s in bonus if s not in matching],
+        })
+    matched.sort(key=lambda job: job["match_percentage"], reverse=True)
 
     return {
         "analysis_id": analysis_id,

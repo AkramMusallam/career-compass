@@ -4,11 +4,12 @@ import { fetchLatestRoadmap, fetchProfile } from "../services/api";
 
 export default function DashboardScreen({ onNavigate, token }) {
   const [stats, setStats] = useState({
-    careerScore: 84,
-    targetRole: "Full Stack Developer",
-    completedRoadmapSkills: 5,
-    totalRoadmapSkills: 12,
+    careerScore: 0,
+    targetRole: "ابدأ تحليلك الأول من الموقع",
+    completedRoadmapSkills: 0,
+    totalRoadmapSkills: 0,
   });
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -28,9 +29,11 @@ export default function DashboardScreen({ onNavigate, token }) {
           setStats((prev) => ({
             careerScore: Math.round(latest?.career_score ?? profile?.highest_career_score ?? prev.careerScore),
             targetRole: latest?.top_jobs?.[0]?.job_title || prev.targetRole,
-            completedRoadmapSkills: (latest?.completed_skills || []).length || prev.completedRoadmapSkills,
-            totalRoadmapSkills: totalSkills || prev.totalRoadmapSkills,
+            completedRoadmapSkills: (latest?.completed_skills || []).length,
+            totalRoadmapSkills: totalSkills,
           }));
+        } else {
+          setError("تعذر تحميل بيانات الحساب. تحقق من الاتصال بالخادم.");
         }
       } catch (_err) {
         // Fallback to local offline snapshot when backend is unreachable
@@ -43,6 +46,7 @@ export default function DashboardScreen({ onNavigate, token }) {
 
   return (
     <ScrollView style={styles.container}>
+      {!!error && <Text style={{ color: "#fca5a5", marginBottom: 12 }}>{error}</Text>}
       {/* Header Profile Card */}
       <View style={styles.cardHeader}>
         <Text style={styles.badge}>🧭 Career Compass Mobile</Text>
@@ -57,9 +61,9 @@ export default function DashboardScreen({ onNavigate, token }) {
           <Text style={styles.scoreSub}>درجة الجاهزية</Text>
         </View>
         <View style={styles.scoreDetails}>
-          <Text style={styles.scoreTitle}>المستوى التنافسي: متقدم ⭐</Text>
+          <Text style={styles.scoreTitle}>درجة الجاهزية المهنية</Text>
           <Text style={styles.scoreDesc}>
-            أنت في أعلى 15% من المتقدمين لنفس المسار التقني في السوق الإقليمي.
+            بناءً على آخر تحليل مهني في حسابك.
           </Text>
         </View>
       </View>
@@ -73,8 +77,8 @@ export default function DashboardScreen({ onNavigate, token }) {
       >
         <Text style={styles.actionIcon}>🎙️</Text>
         <View style={styles.actionTextCol}>
-          <Text style={styles.actionBtnTitle}>بدء محاكاة المقابلة التقنية (Voice AI)</Text>
-          <Text style={styles.actionBtnSub}>تمرن على أسئلة مدير التوظيف بالصوت والنص</Text>
+          <Text style={styles.actionBtnTitle}>بدء محاكاة المقابلة التقنية</Text>
+          <Text style={styles.actionBtnSub}>تمرّن على المقابلة النصية بناءً على آخر تحليل</Text>
         </View>
         <Text style={styles.actionArrow}>←</Text>
       </TouchableOpacity>

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useRef } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import AppLayout from "./components/layout/AppLayout";
@@ -24,10 +24,14 @@ const Settings = lazy(() => import("./pages/dashboard/Settings"));
 const SharedResults = lazy(() => import("./pages/shared/SharedResults"));
 const UploadCV = lazy(() => import("./pages/analysis/UploadCV"));
 const RecruiterPortal = lazy(() => import("./pages/recruiter/RecruiterPortal"));
+const Companies = lazy(() => import("./pages/recruiter/Companies"));
+const AcceptInvitation = lazy(() => import("./pages/recruiter/AcceptInvitation"));
+const SupportAccess = lazy(() => import("./pages/dashboard/SupportAccess"));
 
 function PublicOnlyRoute({ children }) {
   const { isAuthenticated } = useAuth();
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  const authenticatedOnEntry = useRef(isAuthenticated);
+  if (authenticatedOnEntry.current) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -74,6 +78,9 @@ export default function App() {
           <Route path="/compare" element={<CompareAnalyses />} />
           <Route path="/history" element={<History />} />
           <Route path="/recruiter" element={<RecruiterPortal />} />
+          <Route path="/companies" element={<Companies />} />
+          <Route path="/company-invitation/:token" element={<AcceptInvitation />} />
+          <Route path="/support-access" element={<SupportAccess />} />
           <Route path="/pricing" element={<Navigate to="/dashboard" replace />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />

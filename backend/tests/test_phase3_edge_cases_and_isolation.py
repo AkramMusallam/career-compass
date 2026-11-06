@@ -10,7 +10,7 @@ import uuid
 import pytest
 from app.models.mysql_models import User
 from app.core.database import SessionLocal
-from app.core.mongo import extractions_collection, recruiter_jobs_collection, recruitment_pipeline_collection
+from app.core.mongo import extractions_collection, recruiter_jobs_collection, recruitment_pipeline_collection, mongo_db
 
 
 @pytest.fixture()
@@ -26,6 +26,10 @@ def two_recruiters(client):
     client.post("/register", json={"full_name": "Recruiter B", "email": email_b, "password": "Passw0rd123", "role": "recruiter", "company_name": "Company Beta"})
     resp_b = client.post("/login", json={"email": email_b, "password": "Passw0rd123"})
     token_b = resp_b.json()["access_token"]
+
+    for token in (token_a, token_b):
+        uid = int(client.get("/profile", headers={"Authorization": f"Bearer {token}"}).json()["id"])
+        mongo_db["companies"].insert_one({"company_id": str(uuid.uuid4()), "name": "Test company", "owner_id": uid, "status": "approved"})
 
     return (token_a, email_a), (token_b, email_b)
 
@@ -63,6 +67,7 @@ def populated_candidates(client):
             "confirmed": True,
         }
         extractions_collection.insert_one(doc)
+        mongo_db["recruiter_consent"].update_one({"_id": uid}, {"$set": {"enabled": True}}, upsert=True)
         cands.append((ext_id, uid, name, skills))
 
     return cands

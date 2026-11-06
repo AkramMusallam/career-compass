@@ -32,6 +32,8 @@ from app.api.routes import (
     settings_router,
     shared,
     recruiter,
+    companies,
+    support,
     subscriptions,
     extension,
 )
@@ -126,5 +128,7 @@ app.include_router(benchmark.router)
 app.include_router(interview.router)
 app.include_router(jobs_router.router)
 app.include_router(recruiter.router)
+app.include_router(companies.router)
+app.include_router(support.router)
 app.include_router(subscriptions.router)
 app.include_router(extension.router)

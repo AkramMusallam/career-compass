@@ -47,12 +47,12 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
       <section className="card" id="companies-section">
         <h2 className="mb-3 text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
           <Briefcase size={18} className="text-primary-600" />
-          <span>الشركات والشواغر المقترحة للتقديم (Live Job Matches)</span>
+          <span>أمثلة وظائف للمقارنة</span>
         </h2>
         <div className="py-8 text-center text-slate-400">
           <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-primary-600 border-r-transparent mb-2" />
           <p className="text-xs font-bold">
-            جاري البحث في قاعدة الشواغر النشطة والشركات المقترحة...
+            جاري مطابقة مهاراتك مع أمثلة الوظائف...
           </p>
         </div>
       </section>
@@ -65,7 +65,7 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
             <Briefcase size={18} className="text-primary-600" />
-            <span>الشركات والشواغر المقترحة للتقديم المباشر</span>
+            <span>أمثلة وظائف للمقارنة</span>
           </h2>
         </div>
         <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 text-center">
@@ -89,7 +89,7 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
             <Briefcase size={18} className="text-primary-600" />
-            <span>الشركات والشواغر المقترحة للتقديم المباشر</span>
+            <span>أمثلة وظائف للمقارنة</span>
           </h2>
         </div>
         <div className="rounded-xl border border-accent-200 bg-accent-50/60 p-4 text-center">
@@ -107,10 +107,10 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
         <div>
           <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
             <Briefcase size={18} className="text-primary-600" />
-            <span>الشركات والشواغر المقترحة للتقديم المباشر</span>
+            <span>أمثلة وظائف للمقارنة</span>
           </h2>
           <p className="text-xs font-medium text-slate-500 mt-0.5">
-            تمت مطابقة مهاراتك مع أحدث الشواغر المفتوحة في السوق للتقديم المباشر
+            هذه أمثلة ثابتة وليست إعلانات مباشرة؛ تحقق من توفر الوظيفة وتفاصيلها لدى الشركة.
           </p>
         </div>
         <span className="bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1 rounded-full border border-primary-200">
@@ -132,23 +132,9 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
                     <h3 className="font-bold text-slate-900 text-sm truncate">
                       {item.title}
                     </h3>
-                    <a
-                      href={
-                        item.company_url ||
-                        item.apply_url ||
-                        `https://www.google.com/search?q=${encodeURIComponent(
-                          item.company
-                        )}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:text-primary-800 hover:underline mt-0.5"
-                      title={`زيارة الموقع التعريفي لشركة ${item.company}`}
-                    >
-                      <Building2 size={13} />
-                      <span>{item.company}</span>
-                      <ExternalLink size={11} className="text-slate-400" />
-                    </a>
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 mt-0.5">
+                      <Building2 size={13} /> {item.company}
+                    </span>
                   </div>
                   <span
                     className={`shrink-0 rounded-lg px-2.5 py-0.5 text-xs font-black ${
@@ -222,7 +208,7 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
 
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 mt-auto">
                 <span className="text-[10px] text-slate-400 font-bold">
-                  {item.posted_date}
+                  مثال توضيحي
                 </span>
                 <div className="flex items-center gap-1.5">
                   <button
@@ -234,22 +220,7 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
                     <Mic size={13} />
                     <span>محاكاة مقابلة</span>
                   </button>
-                  <a
-                    href={
-                      item.apply_url && item.apply_url.startsWith("http")
-                        ? item.apply_url
-                        : `https://www.google.com/search?q=${encodeURIComponent(
-                            `${item.company} careers ${item.title}`
-                          )}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary !py-1.5 !px-3 !text-xs"
-                    title={`التقديم المباشر لشاغر ${item.title} في ${item.company}`}
-                  >
-                    <span>التقديم في {item.company}</span>
-                    <ExternalLink size={12} />
-                  </a>
+
                 </div>
               </div>
             </div>

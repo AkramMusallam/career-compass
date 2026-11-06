@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.mongo import mongo_db
 from app.core. benchmark_cache import invalidate_benchmark_cache
 from app.core.security import get_current_user, hash_password, verify_password
 from app.models.mysql_models import User
@@ -20,6 +21,21 @@ from app.schemas.schemas import (
 )
 
 router = APIRouter(tags=["Settings"])
+
+
+@router.get("/settings/recruiter-consent")
+def get_recruiter_consent(current_user: User = Depends(get_current_user)):
+    return {"opted_in": mongo_db["recruiter_consent"].find_one({"_id": current_user.id}) is not None}
+
+
+@router.put("/settings/recruiter-consent")
+def update_recruiter_consent(payload: BenchmarkOptInRequest, current_user: User = Depends(get_current_user)):
+    consent = mongo_db["recruiter_consent"]
+    if payload.opted_in:
+        consent.update_one({"_id": current_user.id}, {"$set": {"enabled": True}}, upsert=True)
+    else:
+        consent.delete_one({"_id": current_user.id})
+    return {"opted_in": payload.opted_in}
 
 
 @router.put("/settings/password", response_model=PasswordUpdateResponse)

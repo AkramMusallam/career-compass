@@ -16,6 +16,8 @@ import {
   updateNotificationsOptIn,
   updatePassword,
   deleteAccount,
+  getRecruiterConsent,
+  updateRecruiterConsent,
 } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -31,6 +33,9 @@ export default function Settings() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
   const [benchmarkOptIn, setBenchmarkOptIn] = useState(false);
+  const [recruiterConsent, setRecruiterConsent] = useState(false);
+  const [isSavingRecruiterConsent, setIsSavingRecruiterConsent] = useState(false);
+  const [recruiterConsentLoaded, setRecruiterConsentLoaded] = useState(false);
   const [isSavingBenchmark, setIsSavingBenchmark] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -44,6 +49,26 @@ export default function Settings() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    getRecruiterConsent().then((res) => {
+      setRecruiterConsent(res.data.opted_in);
+      setRecruiterConsentLoaded(true);
+    }).catch(() => showToast("تعذر تحميل إعداد مشاركة الملف مع مسؤولي التوظيف", "error"));
+  }, []);
+
+  const handleRecruiterConsent = async (checked) => {
+    setIsSavingRecruiterConsent(true);
+    try {
+      await updateRecruiterConsent(checked);
+      setRecruiterConsent(checked);
+      showToast(checked ? "تم تفعيل مشاركة ملفك مع مسؤولي التوظيف" : "تم إيقاف مشاركة ملفك مع مسؤولي التوظيف");
+    } catch (error) {
+      showToast(getErrorMessage(error, "تعذر تحديث تفضيل المشاركة"), "error");
+    } finally {
+      setIsSavingRecruiterConsent(false);
+    }
+  };
 
   const passwordValid =
     newPassword.length >= 8 &&
@@ -255,6 +280,14 @@ export default function Settings() {
           />
         </label>
       </div>
+
+      <label className="card flex cursor-pointer items-center justify-between gap-4">
+        <div>
+          <p className="font-bold text-slate-800 text-sm">مشاركة ملفي مع مسؤولي التوظيف</p>
+          <p className="text-xs text-slate-500 mt-1">عند التفعيل يمكن لمسؤولي التوظيف الاطلاع على اسمك وبريدك ومهاراتك وخبراتك ومشاريعك وتعليمك. يمكنك إيقاف المشاركة في أي وقت.</p>
+        </div>
+        <input type="checkbox" checked={recruiterConsent} disabled={!recruiterConsentLoaded || isSavingRecruiterConsent} onChange={(e) => handleRecruiterConsent(e.target.checked)} />
+      </label>
 
       <div className="card flex flex-wrap items-center justify-between gap-4">
         <div>

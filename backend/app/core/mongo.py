@@ -51,6 +51,8 @@ def ensure_mongo_indexes() -> None:
         cv_tasks_collection.create_index("task_id", unique=True)
         cv_tasks_collection.create_index("user_id")
         recruiter_jobs_collection.create_index("job_id", unique=True)
+        recruiter_jobs_collection.create_index([("company_id", 1), ("status", 1), ("created_at", -1)])
+        mongo_db["companies"].create_index("company_id", unique=True)
         recruiter_jobs_collection.create_index("recruiter_id")
         recruiter_jobs_collection.create_index("status")
         recruiter_jobs_collection.create_index([("recruiter_id", 1), ("status", 1), ("created_at", -1)])

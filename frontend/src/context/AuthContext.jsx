@@ -37,6 +37,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("user");
+    localStorage.removeItem("active_company_id");
     setUser(null);
   }, []);
 

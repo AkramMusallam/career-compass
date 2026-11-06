@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -99,6 +99,9 @@ def delete_account(
     user_name = current_user.full_name
     user_id = current_user.id
 
+    if mongo_db["companies"].find_one({"owner_id": user_id}) or mongo_db["platform_owner"].find_one({"_id": "owner", "user_id": user_id}):
+        raise HTTPException(status_code=409, detail="Company and platform owners cannot delete their account while they own these records")
+
     # Collect file paths and extraction IDs before deletion
     upload_paths = [
         doc.get("path")
@@ -128,8 +131,15 @@ def delete_account(
         mongo_db["interviews"],
     ):
         coll.delete_many({"user_id": user_id})
-    recruiter_jobs_collection.delete_many({"recruiter_id": user_id})
-    recruitment_pipeline_collection.delete_many({"recruiter_id": user_id})
+    mongo_db["recruiter_consent"].delete_one({"_id": user_id})
+    mongo_db["support_grants"].delete_many({"candidate_user_id": user_id})
+    mongo_db["recruiter_approvals"].delete_one({"_id": user_id})
+    mongo_db["companies"].update_many(
+        {"$or": [{"members": user_id}, {"invitations.email": user_email.strip().lower()}]},
+        {"$pull": {"members": user_id, "invitations": {"email": user_email.strip().lower()}}},
+    )
+    recruiter_jobs_collection.delete_many({"recruiter_id": user_id, "company_id": {"$exists": False}})
+    recruitment_pipeline_collection.delete_many({"recruiter_id": user_id, "company_id": {"$exists": False}})
     if user_extraction_ids:
         recruitment_pipeline_collection.delete_many({"candidate_id": {"$in": user_extraction_ids}})
 

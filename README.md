@@ -6,9 +6,9 @@
 [![React 18](https://img.shields.io/badge/Frontend-React_18-61DAFB?style=flat&logo=react)](https://react.dev/)
 [![Ollama](https://img.shields.io/badge/AI_Engine-Ollama_(Llama_3.2)-black?style=flat)](https://ollama.ai/)
 [![Celery](https://img.shields.io/badge/Task_Queue-Celery_%2B_Redis-37814A?style=flat&logo=celery)](https://docs.celeryq.dev/)
-[![Tests](https://img.shields.io/badge/Tests-131%2F131_Passing-brightgreen?style=flat&logo=pytest)](https://docs.pytest.org/)
+[![Tests](https://img.shields.io/badge/tests-pytest-blue?style=flat&logo=pytest)](https://docs.pytest.org/)
 
-Career Compass is a full-stack, AI-driven career guidance and resume intelligence platform. Unlike traditional keyword-matching career tools, Career Compass integrates local Generative AI models (via **Ollama running Llama 3.2**, with cloud **OpenAI fallback**) to deeply analyze candidate resumes in Arabic and English, benchmark candidate skills against industry standards, generate personalized 3-month skill roadmaps, and conduct interactive technical mock interviews.
+Career Compass is a full-stack, AI-driven career guidance and resume intelligence platform. Unlike traditional keyword-matching career tools, Career Compass integrates local Generative AI models (via **OpenAI** when configured, with local **Ollama** fallback) to deeply analyze candidate resumes in Arabic and English, benchmark candidate skills against industry standards, generate personalized 3-month skill roadmaps, and conduct interactive technical mock interviews.
 
 ---
 
@@ -34,9 +34,9 @@ Career Compass is a full-stack, AI-driven career guidance and resume intelligenc
 - **Full ATS Resume Builder & Exporter:** Interactive modal to refine profile details, optimize bullets via AI, and export an ATS-compliant resume PDF.
 - **AI Cover Letter Generator:** One-click tailored cover letters for specific job descriptions.
 
-### 5. 💼 Real-World Market Job Matching
+### 5. 💼 Example Job Matching
 - **Smart Synonym Matching:** Algorithmic candidate matching against active tech vacancies (Asal Technologies, Exalt, Harri, Foothill, Souktel, Progineer, Paltel, Canonical, Spotify, etc.).
-- **Live Vacancy Details:** Displays exact match percentages, matched vs. missing skills, salary ranges, and direct application links.
+- **Platform Listings:** Matches skills against active job postings from approved recruiters on Career Compass. This does not search external job boards.
 
 ### 6. 🏆 Gamification, Peer Benchmark & Arabic PDF Export
 - **Gamification Badges:** Badges awarded based on milestones (e.g., Profile Pioneer, Roadmap Master).
@@ -47,12 +47,13 @@ Career Compass is a full-stack, AI-driven career guidance and resume intelligenc
 ### 7. 🏢 B2B HR & Recruiter Portal (Phase 3)
 - **Corporate Job Specifications:** Dedicated corporate dashboard for employers to post, update, and manage vacancies.
 - **AI Candidate Discovery & Ranking:** Automated candidate talent pool matching against job requirements, ranking candidates by match percentage and ATS score.
+- **Candidate Privacy:** Candidates must opt in from Settings before recruiters can discover their details; consent can be withdrawn. Recruiter access requires manual approval by an administrator.
 - **Recruitment Pipeline Management:** Interactive candidate tracking stages (Discovered, Shortlisted, Contacted, Interviewed, Offered, Rejected).
 - **Candidate Profile Deep-Dive:** Direct view of verified skills, work history, projects, and AI fit evaluation.
 
-### 8. 💎 Monetization & Payment Gateways (Stripe & PayPal)
+### 8. 💎 Monetization & Payment Gateways (Under Development)
 - **Tiered Subscriptions:** Freemium ($0), Unlimited AI Pro ($19/mo or $180/yr), and Recruiter & Enterprise ($79/mo).
-- **Stripe Integration & Sandbox Simulator:** Secure checkout session generation and instant sandbox upgrade for zero-dependency local testing.
+- **Experimental checkout:** Subscription and payment code is under development and is not launched or ready for real payments.
 - **Subscription Lifecycle:** Plan feature matrix, limits enforcement, and 1-click auto-renew cancellation.
 
 ### 9. 🧭 Chrome Browser Extension (LinkedIn Job Matcher)
@@ -61,8 +62,8 @@ Career Compass is a full-stack, AI-driven career guidance and resume intelligenc
 - **AI Cover Letter Generator Snippet:** 1-click tailored intro paragraph tailored to the viewed company and role.
 
 ### 10. 📱 Cross-Platform Mobile Companion (React Native / Expo)
-- **Voice Mock Interviews on Mobile:** Audio simulation and instant AI feedback on handheld devices.
-- **3-Month Roadmap Checklist:** Interactive offline-capable milestone tracker in `mobile/`.
+- **Mobile Mock Interviews:** Sign in and practice with text or recorded voice using your latest analysis. Without an OpenAI key, speech is transcribed locally using Whisper and interview responses use Ollama.
+- **3-Month Roadmap Checklist:** View and update the latest roadmap while connected to the backend in `mobile/`.
 
 ### 11. 🧠 Domain Fine-Tuned LLM Pipeline & Regional Taxonomy
 - **Regional Tech Ecosystem:** Taxonomies for Palestinian and MENA tech employers, local university recognition, and salary benchmarks.
@@ -94,7 +95,7 @@ flowchart TD
 | :--- | :--- |
 | **Frontend (Web)** | React 18, Vite, React Router v6, Tailwind CSS, Recharts, Axios, Lucide Icons |
 | **Browser Extension** | Chrome Extension Manifest V3 (`chrome-extension/`), LinkedIn DOM Matcher & SPA Observer |
-| **Mobile Companion** | React Native / Expo (`mobile/`), Voice Interview Simulator & Offline-Capable Roadmap |
+| **Mobile Companion** | React Native / Expo (`mobile/`), text interviews and connected roadmap |
 | **Backend API** | FastAPI, Python 3.11+, Pydantic v2, Uvicorn, Sliding-Window Rate Limiter, OWASP Security Headers |
 | **Relational DB** | MySQL 8.0 (Production with auto-migration) & SQLite WAL Fallback (Local Dev/Testing) |
 | **Document DB** | MongoDB 7.0 (Indexed Collections) with Mongomock Fallback |
@@ -121,7 +122,7 @@ career-compass/
 │   │   ├── services/             # Recommendation engine, ATS builder, Interview AI, Recruiter B2B, Stripe Billing, Regional Taxonomy
 │   │   └── worker/               # Celery background tasks & scheduled weekly beat jobs
 │   ├── scripts/                  # Fine-tuning dataset generator (ChatML / JSONL)
-│   └── tests/                    # 21 comprehensive test suites (131 passing tests)
+│   └── tests/                    # automated backend test suites
 ├── frontend/
 │   └── src/
 │       ├── api/                  # Axios client & typed API endpoint wrappers
@@ -198,6 +199,12 @@ celery -A app.worker.celery_app worker --loglevel=info
 
 ## 🐳 Production Deployment (Docker Compose)
 
+Recruiters request access through Companies; the platform owner reviews each company there. Select an approved company before opening its recruiter portal. As a server-side fallback, `docker compose -f docker-compose.prod.yml exec backend python -m scripts.recruiter_approval EMAIL approve` works when the account owns exactly one company; use `revoke` to suspend it.
+
+For the initial owner, run `python -m scripts.bootstrap_platform_owner EMAIL` on the server with an existing account. Before upgrading an existing deployment, stop application writes and back up both SQL and MongoDB. Run `python -m scripts.migrate_recruiter_companies` for a dry run, inspect any errors, then run it with `--apply`. Legacy companies start pending review; approvals and candidate consent records remain intact. The migration is repeatable, but requires the application to remain stopped until it finishes. Confirm the migration and company approvals in an isolated environment before deploying.
+
+The HTTPS override uses a Let's Encrypt certificate named `career-compass` in `certbot/etc` and the challenge webroot in `certbot/www`. Start the HTTP configuration first to issue an IP certificate with Certbot's `shortlived` profile, then run Compose with both `-f docker-compose.prod.yml -f docker-compose.https.yml`. Set `FRONTEND_BASE_URL` to the HTTPS URL. Schedule `backend/scripts/renew_https_ip.sh` at least twice daily: IP certificates have a short lifetime and the script reloads Nginx after renewal. Keep `certbot/etc` private and back it up securely.
+
 The repository provides production-ready Docker Compose configurations (`docker-compose.prod.yml`):
 
 ```bash
@@ -238,7 +245,7 @@ docker compose exec backend python -c "from app.seed.seed_runner import run_seed
 | **Recruiter (B2B)**| `GET` | `/recruiter/candidates/{cand_id}/profile` | Candidate verified profile, projects & ATS score (RBAC protected) |
 | **Recruiter (B2B)**| `POST`| `/recruiter/switch-role` | Upgrade account role to B2B Recruiter mode |
 | **Monetization** | `GET` | `/subscriptions/plans`, `/subscriptions/current` | Pricing tiers (Free, Pro, Enterprise) & status |
-| **Monetization** | `POST`| `/subscriptions/checkout-session`, `/cancel`, `/webhook` | Stripe checkout, cancellation & verified webhooks |
+| **Monetization** | `POST`| `/subscriptions/checkout-session`, `/cancel`, `/webhook` | Experimental; payment and subscriptions are not launched |
 | **Extension** | `POST`| `/extension/match-job` | Real-time LinkedIn job text compatibility matcher |
 
 ---

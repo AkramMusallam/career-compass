@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   Briefcase,
   Building2,
@@ -31,21 +32,23 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
   getRecruiterJobs,
+  getRecruiterApproval,
   createRecruiterJob,
   updateRecruiterJob,
   deleteRecruiterJob,
   getJobCandidates,
   updateCandidatePipelineStatus,
   getCandidateProfile,
-  switchToRecruiterRole,
 } from "../../api/endpoints";
 
 export default function RecruiterPortal() {
-  const { user, updateStoredUser } = useAuth();
+  const { user } = useAuth();
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState("jobs"); // "jobs" | "pipeline"
   const [jobs, setJobs] = useState([]);
+  const [approved, setApproved] = useState(false);
+  const [approvalLoaded, setApprovalLoaded] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [candidatesData, setCandidatesData] = useState({ candidates: [], total_matches: 0 });
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
@@ -79,8 +82,12 @@ export default function RecruiterPortal() {
 
   // Load jobs on mount
   useEffect(() => {
-    fetchJobs();
+    getRecruiterApproval().then((res) => { setApproved(res.data.approved); if (res.data.company_name) setJobForm((prev) => ({ ...prev, company_name: res.data.company_name })); }).catch(() => showToast("تعذر التحقق من صلاحية التوظيف", "error")).finally(() => setApprovalLoaded(true));
   }, []);
+
+  useEffect(() => {
+    if (approved) fetchJobs();
+  }, [approved]);
 
   // When selected job or filters change, load ranked candidates
   useEffect(() => {
@@ -141,12 +148,6 @@ export default function RecruiterPortal() {
         bonus_skills: parsedBonus,
       };
       const res = await createRecruiterJob(payload);
-      if (user?.role !== "recruiter" && user?.role !== "admin") {
-        updateStoredUser({
-          role: "recruiter",
-          company_name: jobForm.company_name || user?.company_name || "شركة تقنية رائدة",
-        });
-      }
       showToast("تم نشر الشاغر الوظيفي بنجاح", "success");
       setShowCreateModal(false);
       setJobForm((prev) => ({ ...prev, title: "" }));
@@ -273,24 +274,6 @@ export default function RecruiterPortal() {
     }
   };
 
-  const handleSwitchToRecruiter = async () => {
-    const enteredCompany = window.prompt(
-      "أدخل اسم الشركة أو المؤسسة لتفعيل حساب مسؤول التوظيف:",
-      user?.company_name || "شركة تقنية"
-    );
-    if (!enteredCompany || !enteredCompany.trim()) return;
-    try {
-      const cleanName = enteredCompany.trim();
-      await switchToRecruiterRole(cleanName);
-      updateStoredUser({ role: "recruiter", company_name: cleanName });
-      setJobForm((prev) => ({ ...prev, company_name: cleanName }));
-      showToast(`تم تفعيل حساب مسؤول التوظيف باسم (${cleanName}) بنجاح`, "success");
-      fetchJobs();
-    } catch (err) {
-      showToast("تعذر تحديث الصلاحية", "error");
-    }
-  };
-
   const getStatusLabel = (st) => {
     switch (st) {
       case "shortlisted":
@@ -320,6 +303,15 @@ export default function RecruiterPortal() {
     return Math.round(total / list.length);
   }, [candidatesData.candidates]);
 
+  if (!approvalLoaded) return <div className="card">جاري التحقق من صلاحية التوظيف...</div>;
+  if (!approved) return (
+    <div className="card space-y-4">
+      <h1 className="text-xl font-bold">طلب الوصول إلى بوابة التوظيف</h1>
+      <p>تحتاج حسابات التوظيف إلى مراجعة الإدارة قبل نشر الوظائف أو الاطلاع على بيانات المرشحين.</p>
+      <Link className="btn-primary inline-block" to="/companies">طلب شركة أو اختيار شركة معتمدة</Link>
+    </div>
+  );
+
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in pb-16 sm:pb-8">
       {/* Executive Hero Banner */}
@@ -346,15 +338,13 @@ export default function RecruiterPortal() {
               <Plus className="w-4 h-4" />
               <span>نشر شاغر جديد</span>
             </button>
-            {user?.role !== "recruiter" && (
-              <button
-                onClick={handleSwitchToRecruiter}
+              <Link
+                to="/companies"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-3 text-xs font-bold text-white transition"
               >
                 <Building2 className="w-4 h-4" />
-                <span>ترقية لحساب شركة</span>
-              </button>
-            )}
+                <span>تغيير الشركة</span>
+              </Link>
           </div>
         </div>
 
@@ -735,7 +725,7 @@ export default function RecruiterPortal() {
                   <input
                     type="text"
                     value={jobForm.company_name}
-                    onChange={(e) => setJobForm({ ...jobForm, company_name: e.target.value })}
+                    readOnly
                     className="input-field w-full text-xs"
                   />
                 </div>

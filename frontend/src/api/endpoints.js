@@ -102,6 +102,9 @@ export const getSharedAnalysis = (shareToken) => apiClient.get(`/shared/${shareT
 export const getBenchmark = () => apiClient.get("/benchmark");
 export const updateBenchmarkOptIn = (optedIn) =>
   apiClient.put("/settings/benchmark-opt-in", { opted_in: optedIn });
+export const getRecruiterConsent = () => apiClient.get("/settings/recruiter-consent");
+export const updateRecruiterConsent = (optedIn) =>
+  apiClient.put("/settings/recruiter-consent", { opted_in: optedIn });
 
 // ============================================================
 // Batch 4.3: Badges / إنجازات
@@ -171,6 +174,7 @@ export const sendVoiceInterviewAnswer = (
 // Phase 3 (Section 7.2): B2B Recruiter Portal, Subscriptions & Extension
 // ============================================================
 export const getRecruiterJobs = (params) => apiClient.get("/recruiter/jobs", { params });
+export const getRecruiterApproval = () => apiClient.get("/recruiter/approval");
 export const createRecruiterJob = (data) => apiClient.post("/recruiter/jobs", data);
 export const getRecruiterJob = (jobId) => apiClient.get(`/recruiter/jobs/${jobId}`);
 export const updateRecruiterJob = (jobId, data) => apiClient.put(`/recruiter/jobs/${jobId}`, data);

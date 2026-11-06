@@ -1,10 +1,6 @@
 const API_BASE = "http://localhost:8000";
 
-let currentJobData = {
-  title: "Software Engineer",
-  company: "Tech Enterprise",
-  description: "Seeking skilled full stack or backend developer proficient in Python, React, SQL, and Docker.",
-};
+let currentJobData = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   const token = await getStoredToken();
@@ -19,8 +15,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         chrome.tabs.sendMessage(tabs[0].id, { type: "EXTRACT_LINKEDIN_JOB" }, (response) => {
           if (chrome.runtime.lastError) {
             // التبويب الحالي ليس صفحة LinkedIn نشطة
-            document.getElementById("job-title").textContent = "وظيفة تجريبية: Full Stack / Backend Engineer";
-            document.getElementById("job-company").textContent = "Asal Technologies (Palestine / Remote)";
+            document.getElementById("job-title").textContent = "افتح إعلان وظيفة على LinkedIn";
+            document.getElementById("job-company").textContent = "";
             return;
           }
           if (response && response.title) {
@@ -29,8 +25,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.getElementById("job-company").textContent = response.company || "LinkedIn Job";
           } else {
             // بيانات افتراضية إذا لم تكن صفحة لينكد إن مفتوحة
-            document.getElementById("job-title").textContent = "وظيفة تجريبية: Full Stack / Backend Engineer";
-            document.getElementById("job-company").textContent = "Asal Technologies (Palestine / Remote)";
+            document.getElementById("job-title").textContent = "تعذر قراءة إعلان الوظيفة";
+            document.getElementById("job-company").textContent = "افتح الإعلان ثم أعد المحاولة";
           }
         });
       }
@@ -72,6 +68,11 @@ async function executeJobAnalysis() {
   const results = document.getElementById("results-box");
   const detected = document.getElementById("detected-job-box");
 
+  if (!currentJobData?.title || !currentJobData?.description) {
+    alert("افتح إعلان وظيفة على LinkedIn وانتظر تحميل تفاصيله ثم أعد المحاولة.");
+    return;
+  }
+
   detected.classList.add("hidden");
   loading.classList.remove("hidden");
   results.classList.add("hidden");
@@ -100,26 +101,14 @@ async function executeJobAnalysis() {
     const data = await resp.json();
     renderAnalysisResults(data);
   } catch (error) {
-    console.warn("API direct call failed, displaying simulated offline match:", error);
-    // محاكاة فورية في حال عدم تشغيل الخادم
-    renderAnalysisResults({
-      job_title: currentJobData.title,
-      company: currentJobData.company,
-      candidate_name: "المستخدم المتصل",
-      match_score: 82,
-      verdict: "تطابق ممتاز (Strong Match) 🚀",
-      matched_skills: ["Python", "SQL", "Git", "REST APIs"],
-      missing_skills: ["Docker", "Kubernetes"],
-      recommendations: [
-        "سيرتك الذاتية تغطي 82% من المتطلبات؛ قدّم الآن مباشرة!",
-        "أضف شهادة أو مشروعاً مصغراً يبرز مهارة Docker قبل المقابلة.",
-      ],
-      suggested_cover_letter_snippet: `يسعدني التقدم لشغل وظيفة ${currentJobData.title} لدى ${currentJobData.company}. بفضل خبرتي في تطوير الـ Backend وتقنيات Python و SQL، أثق في قدرتي على تقديم قيمة مضافة فورية لفريقكم المتميز.`,
-    });
+    console.warn("Job matching failed:", error);
+    alert("تعذرت مطابقة الوظيفة. تحقق من تشغيل الخادم وصلاحية رمز الجلسة ثم أعد المحاولة.");
+    detected.classList.remove("hidden");
+    return;
   } finally {
     loading.classList.add("hidden");
-    results.classList.remove("hidden");
   }
+  results.classList.remove("hidden");
 }
 
 function renderAnalysisResults(data) {

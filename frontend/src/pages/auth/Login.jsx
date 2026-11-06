@@ -157,6 +157,7 @@ export default function Login() {
                 ليس لديك حساب بعد؟{" "}
                 <Link
                   to="/register"
+                  state={location.state}
                   className="font-extrabold text-primary-600 hover:text-primary-700 hover:underline"
                 >
                   إنشاء حساب مجاني

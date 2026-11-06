@@ -7,9 +7,11 @@
 
 ## 🌟 Overview
 The Career Compass Mobile App allows users to take their career preparation anywhere on iOS and Android devices:
-1. **Mobile Mock Interview Simulator:** Voice-first technical interview practice with live transcript and AI feedback.
-2. **Interactive 3-Month Roadmap Checklist:** Offline-friendly milestone completion tracking that synchronizes with the main backend.
-3. **Executive Dashboard:** Live Career DNA and readiness score gauge.
+1. Sign in with an existing Career Compass account.
+2. Practice a text or voice interview based on your latest analysis.
+3. View and update your latest roadmap while connected to the backend.
+
+Create an analysis on the web before starting an interview. Microphone permission is required for voice answers.
 
 ---
 
@@ -26,6 +28,7 @@ cd mobile
 npm install
 npx expo start
 ```
+The default API address works with an Android emulator or local iOS simulator. For a physical device, set `EXPO_PUBLIC_API_BASE_URL` to the backend address reachable from that device before starting Expo.
 - Press `a` for Android Emulator.
 - Press `i` for iOS Simulator.
 - Press `w` for Web Preview.

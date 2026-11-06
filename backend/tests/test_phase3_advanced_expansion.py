@@ -224,6 +224,9 @@ def test_recruiter_invalid_job_and_not_found_handling():
 
     # تحويل الحساب إلى Recruiter
     client.post("/recruiter/switch-role", json={"role": "recruiter", "company_name": "Apex Tech"}, headers=headers)
+    from app.core.mongo import mongo_db
+    uid = int(client.get("/profile", headers=headers).json()["id"])
+    mongo_db["companies"].update_one({"owner_id": uid}, {"$set": {"status": "approved"}})
 
     # 1. طلب مرشحين لوظيفة غير موجودة
     resp_cands = client.get("/recruiter/jobs/nonexistent-job-id-999/candidates", headers=headers)
@@ -251,6 +254,9 @@ def test_recruiter_pipeline_audit_trail_progression():
 
     # التحويل لمسؤول توظيف وإنشاء وظيفة
     client.post("/recruiter/switch-role", json={"role": "recruiter", "company_name": "NextGen Ltd"}, headers=headers)
+    from app.core.mongo import mongo_db
+    uid = int(client.get("/profile", headers=headers).json()["id"])
+    mongo_db["companies"].update_one({"owner_id": uid}, {"$set": {"status": "approved"}})
     job_resp = client.post("/recruiter/jobs", json={
         "title": "Full Stack Web Engineer",
         "company_name": "NextGen Ltd",
@@ -267,7 +273,12 @@ def test_recruiter_pipeline_audit_trail_progression():
     job_id = job_resp.json()["job_id"]
 
     # التدرج في حالات المرشح
-    cand_id = "test-cand-lifecycle-101"
+    candidate_email = f"candidate.{uuid.uuid4().hex[:8]}@example.com"
+    client.post("/register", json={"full_name": "Candidate", "email": candidate_email, "password": "Password123!"})
+    candidate_token = client.post("/login", json={"email": candidate_email, "password": "Password123!"}).json()["access_token"]
+    candidate_headers = {"Authorization": f"Bearer {candidate_token}"}
+    client.put("/settings/recruiter-consent", headers=candidate_headers, json={"opted_in": True})
+    cand_id = client.post("/extract/manual", headers=candidate_headers, json={"skills": ["React"]}).json()["extraction_id"]
     stages = ["shortlisted", "contacted", "interviewed", "offered"]
     for st in stages:
         r = client.post(

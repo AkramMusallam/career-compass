@@ -6,10 +6,11 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.mongo import mongo_db
 from app.core.security import get_current_user
 from app.models.mysql_models import User
 from app.schemas.schemas import (
@@ -22,61 +23,64 @@ from app.schemas.schemas import (
     UpdateCandidatePipelineRequest,
 )
 from app.services import recruiter_service
+from app.api.routes.companies import CompanyRequest, request_company
 
 router = APIRouter(prefix="/recruiter", tags=["Recruiter Portal (B2B)"])
 
 
-def require_recruiter_or_active(current_user: User = Depends(get_current_user)) -> User:
-    """التحقق من صلاحية مسؤول التوظيف أو اشتراك الشركات."""
-    role = getattr(current_user, "role", "candidate") or "candidate"
-    tier = getattr(current_user, "subscription_tier", "free") or "free"
-    if role not in ("recruiter", "admin") and tier != "enterprise":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Recruiter or Enterprise access required. Please activate recruiter mode first.",
-        )
-    return current_user
+def available_companies(user: User):
+    return list(mongo_db["companies"].find({"status": "approved", "$or": [{"owner_id": user.id}, {"members": user.id}]}))
+
+
+def selected_company(user: User, company_id: Optional[str]):
+    companies = available_companies(user)
+    if company_id:
+        return next((company for company in companies if company["company_id"] == company_id), None)
+    return companies[0] if len(companies) == 1 else None
+
+
+@router.get("/approval")
+def recruiter_approval(current_user: User = Depends(get_current_user), x_company_id: Optional[str] = Header(None)):
+    company = selected_company(current_user, x_company_id)
+    return {"approved": bool(company), "requested": bool(mongo_db["companies"].find_one({"owner_id": current_user.id})),
+            "company_id": company["company_id"] if company else None,
+            "company_name": company["name"] if company else None}
+
+
+def require_company(current_user: User = Depends(get_current_user), x_company_id: Optional[str] = Header(None)):
+    company = selected_company(current_user, x_company_id)
+    if not company:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Select an approved company you belong to")
+    return company
 
 
 @router.post("/jobs", response_model=RecruiterJobResponse, status_code=status.HTTP_201_CREATED)
 def create_job(
     payload: RecruiterJobCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user), company: dict = Depends(require_company),
 ):
     """نشر شاغر وظيفي جديد من قبل الشركة (مع تفعيل صلاحية التوظيف تلقائياً عند نشر أول شاغر)."""
-    role = getattr(current_user, "role", "candidate") or "candidate"
-    if role not in ("recruiter", "admin"):
-        db_user = db.query(User).filter(User.id == current_user.id).first()
-        if db_user:
-            db_user.role = "recruiter"
-            if payload.company_name and not db_user.company_name:
-                db_user.company_name = payload.company_name.strip()[:200]
-            db.commit()
-            db.refresh(db_user)
-            current_user = db_user
-
-    doc = recruiter_service.create_job_posting(current_user, payload.model_dump())
+    doc = recruiter_service.create_job_posting(current_user, payload.model_dump(), company)
     return RecruiterJobResponse(**doc)
 
 
 @router.get("/jobs", response_model=List[RecruiterJobResponse])
 def list_jobs(
     status: Optional[str] = Query(None, description="فلترة حسب الحالة (active / closed)"),
-    current_user: User = Depends(get_current_user),
+    company: dict = Depends(require_company),
 ):
     """عرض جميع شواغر الشركة المعلنة وإحصائيات المرشحين."""
-    jobs = recruiter_service.get_recruiter_jobs(current_user.id, status_filter=status)
+    jobs = recruiter_service.get_recruiter_jobs(company["company_id"], status_filter=status)
     return [RecruiterJobResponse(**j) for j in jobs]
 
 
 @router.get("/jobs/{job_id}", response_model=RecruiterJobResponse)
 def get_job(
     job_id: str,
-    current_user: User = Depends(require_recruiter_or_active),
+    company: dict = Depends(require_company),
 ):
     """جلب تفاصيل شاغر محدد."""
-    job = recruiter_service.get_job_by_id(job_id, current_user.id)
+    job = recruiter_service.get_job_by_id(job_id, company["company_id"])
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job posting not found")
     return RecruiterJobResponse(**job)
@@ -86,10 +90,10 @@ def get_job(
 def update_job(
     job_id: str,
     payload: RecruiterJobUpdate,
-    current_user: User = Depends(require_recruiter_or_active),
+    company: dict = Depends(require_company),
 ):
     """تعديل متطلبات أو حالة الشاغر."""
-    updated = recruiter_service.update_job(job_id, current_user.id, payload.model_dump(exclude_unset=True))
+    updated = recruiter_service.update_job(job_id, company["company_id"], payload.model_dump(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job posting not found or unauthorized")
     return RecruiterJobResponse(**updated)
@@ -98,10 +102,10 @@ def update_job(
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_200_OK)
 def delete_job(
     job_id: str,
-    current_user: User = Depends(require_recruiter_or_active),
+    company: dict = Depends(require_company),
 ):
     """إلغاء أو حذف شاغر وظيفي."""
-    success = recruiter_service.delete_job(job_id, current_user.id)
+    success = recruiter_service.delete_job(job_id, company["company_id"])
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job posting not found or unauthorized")
     return {"detail": "Job posting deleted successfully"}
@@ -113,16 +117,16 @@ def get_ranked_candidates(
     min_match: int = Query(0, ge=0, le=100, description="الحد الأدنى لنسبة التطابق"),
     skill_filter: Optional[str] = Query(None, description="تصفية حسب مهارة محددة"),
     limit: int = Query(50, ge=1, le=100),
-    current_user: User = Depends(require_recruiter_or_active),
+    company: dict = Depends(require_company),
 ):
     """اكتشاف، مطابقة وترتيب الكفاءات والسير الذاتية المؤكدة للشاغر."""
-    job = recruiter_service.get_job_by_id(job_id, current_user.id)
+    job = recruiter_service.get_job_by_id(job_id, company["company_id"])
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job posting not found")
 
     result = recruiter_service.discover_and_rank_candidates(
         job_id=job_id,
-        recruiter_id=current_user.id,
+        company_id=company["company_id"],
         min_match=min_match,
         skill_filter=skill_filter,
         limit=limit,
@@ -135,7 +139,7 @@ def update_candidate_status(
     job_id: str,
     candidate_id: str,
     payload: UpdateCandidatePipelineRequest,
-    current_user: User = Depends(require_recruiter_or_active),
+    current_user: User = Depends(get_current_user), company: dict = Depends(require_company),
 ):
     """تحديث مرحلة المرشح في مسار التوظيف (Shortlist, Contact, Interview, Reject)."""
     try:
@@ -143,6 +147,7 @@ def update_candidate_status(
             job_id=job_id,
             candidate_id=candidate_id,
             recruiter_id=current_user.id,
+            company_id=company["company_id"],
             pipeline_status=payload.pipeline_status,
             notes=payload.notes,
         )
@@ -154,10 +159,10 @@ def update_candidate_status(
 @router.get("/candidates/{candidate_id}/profile", response_model=CandidateProfileDetail)
 def get_candidate_profile(
     candidate_id: str,
-    current_user: User = Depends(require_recruiter_or_active),
+    company: dict = Depends(require_company),
 ):
     """معاينة الملف التقني المفصّل للمرشح."""
-    profile_data = recruiter_service.get_candidate_profile_detail(candidate_id, recruiter_id=current_user.id)
+    profile_data = recruiter_service.get_candidate_profile_detail(candidate_id, company_id=company["company_id"])
     if not profile_data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate profile not found")
     return CandidateProfileDetail(**profile_data)
@@ -175,15 +180,20 @@ def switch_to_recruiter(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    user.role = "recruiter"
     resolved_company = company_name or (payload.company_name if payload else None)
+    if not resolved_company or not resolved_company.strip():
+        raise HTTPException(status_code=400, detail="Company name is required")
     if resolved_company:
         user.company_name = resolved_company.strip()[:200]
     db.commit()
     db.refresh(user)
 
+    existing = mongo_db["companies"].find_one({"owner_id": user.id, "name": user.company_name, "status": {"$in": ["pending", "approved"]}})
+    if not existing:
+        request_company(CompanyRequest(name=user.company_name), user)
+
     return {
-        "detail": "Account upgraded to recruiter portal successfully",
+        "detail": "تم إرسال طلب التوظيف للمراجعة من إدارة المنصة.",
         "role": user.role,
         "company_name": user.company_name,
     }
