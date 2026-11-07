@@ -44,15 +44,15 @@ export default function Settings() {
   useEffect(() => {
     getProfile()
       .then((res) => {
-        setBenchmarkOptIn(res.data.benchmark_opt_in);
-        setEmailNotifications(res.data.notifications_opt_in);
+        setBenchmarkOptIn(Boolean(res.data?.benchmark_opt_in));
+        setEmailNotifications(res.data?.notifications_opt_in !== false);
       })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
     getRecruiterConsent().then((res) => {
-      setRecruiterConsent(res.data.opted_in);
+      setRecruiterConsent(Boolean(res.data?.opted_in));
       setRecruiterConsentLoaded(true);
     }).catch(() => showToast("تعذر تحميل إعداد مشاركة الملف مع مسؤولي التوظيف", "error"));
   }, [showToast]);

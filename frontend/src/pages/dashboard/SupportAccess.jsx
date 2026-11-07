@@ -14,10 +14,15 @@ export default function SupportAccess() {
   const load = async () => {
     try {
       const [myGrants, myProfiles] = await Promise.all([apiClient.get("/support/grants/mine"), apiClient.get("/support/my-profiles")]);
-      setGrants(myGrants.data); setProfiles(myProfiles.data);
+      setGrants(Array.isArray(myGrants.data) ? myGrants.data : []);
+      setProfiles(Array.isArray(myProfiles.data) ? myProfiles.data : []);
     }
     catch (error) { setMessage(getErrorMessage(error, "تعذر تحميل صلاحيات الدعم")); }
-    try { setOwnerGrants((await apiClient.get("/support/grants")).data); setOwner(true); }
+    try {
+      const ownerRes = await apiClient.get("/support/grants");
+      setOwnerGrants(Array.isArray(ownerRes.data) ? ownerRes.data : []);
+      setOwner(true);
+    }
     catch (error) { if (error.response?.status !== 403) setMessage(getErrorMessage(error, "تعذر التحقق من الصلاحية")); }
   };
   useEffect(() => { load(); }, []);

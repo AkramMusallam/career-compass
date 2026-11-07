@@ -35,7 +35,12 @@ export default function History() {
     setStatus("loading");
     getHistory({ sort, page, limit: PAGE_SIZE })
       .then((res) => {
-        setData(res.data);
+        const analyses = Array.isArray(res.data?.analyses)
+          ? res.data.analyses
+          : Array.isArray(res.data)
+          ? res.data
+          : [];
+        setData({ total: res.data?.total ?? analyses.length, analyses });
         setStatus("loaded");
       })
       .catch(() => setStatus("error"));
@@ -90,6 +95,7 @@ export default function History() {
 
         <div className="flex flex-wrap items-center gap-2">
           <select
+            aria-label="ترتيب سجل التحليلات"
             className="input-field w-auto !py-2 !px-3 !text-xs font-bold"
             value={sort}
             onChange={(e) => {

@@ -45,7 +45,7 @@ export default function Profile() {
 
   useEffect(() => {
     getProfileBadges()
-      .then((res) => setBadges(res.data.badges))
+      .then((res) => setBadges(Array.isArray(res.data?.badges) ? res.data.badges : []))
       .catch(() => setBadges([]));
   }, []);
 
@@ -213,11 +213,12 @@ export default function Profile() {
         </div>
 
         <div className="mb-5">
-          <label className="label-text">البريد الإلكتروني</label>
+          <label htmlFor="profileEmail" className="label-text">البريد الإلكتروني</label>
           <input
+            id="profileEmail"
             type="email"
             className="input-field bg-slate-100 text-slate-500 cursor-not-allowed"
-            value={profile.email}
+            value={profile.email || ""}
             disabled
             readOnly
             dir="ltr"

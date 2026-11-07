@@ -225,12 +225,29 @@ export default function Results() {
     );
   }
 
-  const dnaData = Object.entries(analysis.career_dna).map(([axis, value]) => ({
+  const careerDna = analysis.career_dna || {};
+  const topJobs = Array.isArray(analysis.top_jobs) ? analysis.top_jobs : [];
+  const strengths = Array.isArray(analysis.strengths) ? analysis.strengths : [];
+  const weaknesses = Array.isArray(analysis.weaknesses) ? analysis.weaknesses : [];
+  const skillGap = analysis.skill_gap || {};
+  const criticalSkills = Array.isArray(skillGap.critical) ? skillGap.critical : [];
+  const recommendedSkills = Array.isArray(skillGap.recommended)
+    ? skillGap.recommended
+    : [];
+  const niceToHaveSkills = Array.isArray(skillGap.nice_to_have)
+    ? skillGap.nice_to_have
+    : [];
+  const roadmap = Array.isArray(analysis.roadmap) ? analysis.roadmap : [];
+  const suggestedCourses = Array.isArray(analysis.suggested_courses)
+    ? analysis.suggested_courses
+    : [];
+
+  const dnaData = Object.entries(careerDna).map(([axis, value]) => ({
     axis,
     value,
   }));
   const allRoadmapSkills = [
-    ...new Set(analysis.roadmap.flatMap((m) => m.skills_to_learn)),
+    ...new Set(roadmap.flatMap((m) => m.skills_to_learn || [])),
   ];
   const roadmapProgressPercent = allRoadmapSkills.length
     ? Math.round((completedSkills.size / allRoadmapSkills.length) * 100)
@@ -255,15 +272,15 @@ export default function Results() {
                   ? "جيد وواعد"
                   : "بحاجة لتطوير منهجي"}
               </span>{" "}
-              ومتوافق مع {analysis.top_jobs.length} مسارات وظيفية
+              ومتوافق مع {topJobs.length} مسارات وظيفية
             </h1>
-            {analysis.top_jobs[0] && (
+            {topJobs[0] && (
               <p className="text-xs sm:text-sm text-slate-300 font-medium">
                 أعلى مسار موصى به لك حالياً:{" "}
-                <b className="text-white">{analysis.top_jobs[0].job_title}</b>{" "}
+                <b className="text-white">{topJobs[0].job_title}</b>{" "}
                 بنسبة توافق{" "}
                 <b className="text-secondary-400">
-                  {Math.round(analysis.top_jobs[0].match_percentage)}%
+                  {Math.round(topJobs[0].match_percentage)}%
                 </b>
               </p>
             )}
@@ -369,8 +386,8 @@ export default function Results() {
               <span>نقاط القوة البارزة</span>
             </h3>
             <ul className="space-y-2 text-xs sm:text-sm font-semibold text-slate-700">
-              {analysis.strengths.length ? (
-                analysis.strengths.map((s) => (
+              {strengths.length ? (
+                strengths.map((s) => (
                   <li key={s} className="flex items-start gap-2">
                     <span className="text-secondary-600 font-black">•</span>
                     <span>{s}</span>
@@ -388,8 +405,8 @@ export default function Results() {
               <span>جوانب قابلة للتعزيز</span>
             </h3>
             <ul className="space-y-2 text-xs sm:text-sm font-semibold text-slate-700">
-              {analysis.weaknesses.length ? (
-                analysis.weaknesses.map((w) => (
+              {weaknesses.length ? (
+                weaknesses.map((w) => (
                   <li key={w} className="flex items-start gap-2">
                     <span className="text-accent-600 font-black">•</span>
                     <span>{w}</span>
@@ -427,7 +444,7 @@ export default function Results() {
           </a>
         </div>
         <div className="space-y-3">
-          {analysis.top_jobs.map((job, index) => (
+          {topJobs.map((job, index) => (
             <JobCard
               key={job.job_title}
               job={job}
@@ -459,8 +476,8 @@ export default function Results() {
               <span>مهارات حرجة (Critical)</span>
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {analysis.skill_gap.critical.length ? (
-                analysis.skill_gap.critical.map((s) => (
+              {criticalSkills.length ? (
+                criticalSkills.map((s) => (
                   <span
                     key={s}
                     className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-bold text-red-700"
@@ -480,8 +497,8 @@ export default function Results() {
               <span>موصى بها (Recommended)</span>
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {analysis.skill_gap.recommended.length ? (
-                analysis.skill_gap.recommended.map((s) => (
+              {recommendedSkills.length ? (
+                recommendedSkills.map((s) => (
                   <span
                     key={s}
                     className="rounded-lg border border-accent-200 bg-white px-2.5 py-1 text-xs font-bold text-accent-800"
@@ -501,8 +518,8 @@ export default function Results() {
               <span>إضافية داعمة (Nice to Have)</span>
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {analysis.skill_gap.nice_to_have.length ? (
-                analysis.skill_gap.nice_to_have.map((s) => (
+              {niceToHaveSkills.length ? (
+                niceToHaveSkills.map((s) => (
                   <span
                     key={s}
                     className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-600"
@@ -549,7 +566,7 @@ export default function Results() {
         </div>
 
         <ol className="relative border-r-2 border-primary-200 pr-5 space-y-4">
-          {analysis.roadmap.map((month) => (
+          {roadmap.map((month) => (
             <li
               key={month.month}
               className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4"
@@ -559,13 +576,13 @@ export default function Results() {
                 الشهر {month.month}
               </p>
               <ul className="mb-3 list-inside list-disc space-y-1 text-xs sm:text-sm font-semibold text-slate-700">
-                {month.goals.map((g, i) => (
+                {(month.goals || []).map((g, i) => (
                   <li key={i}>{g}</li>
                 ))}
               </ul>
-              {month.skills_to_learn.length > 0 && (
+              {(month.skills_to_learn || []).length > 0 && (
                 <div className="pt-2.5 border-t border-slate-200/60 flex flex-wrap gap-2">
-                  {month.skills_to_learn.map((skill) => {
+                  {(month.skills_to_learn || []).map((skill) => {
                     const done = completedSkills.has(skill);
                     return (
                       <label
@@ -594,7 +611,7 @@ export default function Results() {
       </section>
 
       {/* ز) الكورسات المقترحة */}
-      {analysis.suggested_courses.length > 0 && (
+      {suggestedCourses.length > 0 && (
         <section className="card">
           <div className="mb-4 flex items-center gap-2">
             <GraduationCap size={18} className="text-primary-600" />
@@ -603,7 +620,7 @@ export default function Results() {
             </h2>
           </div>
           <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3">
-            {analysis.suggested_courses.map((course) => (
+            {suggestedCourses.map((course) => (
               <a
                 key={course.title}
                 href={course.url}
@@ -629,7 +646,7 @@ export default function Results() {
         </section>
       )}
 
-      {!analysis.suggested_courses.length && (
+      {!suggestedCourses.length && (
         <p className="text-center text-xs sm:text-sm text-slate-400">
           لا توجد كورسات مقترحة حالياً لهذا المسار
         </p>

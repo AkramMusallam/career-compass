@@ -79,6 +79,7 @@ function QuestionInput({ question, value, onChange }) {
         step={1}
         value={scaleValue}
         onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={question.text}
         className="w-full accent-primary-600"
       />
       <div className="mt-2 flex items-center justify-between text-xs font-bold text-slate-500">
