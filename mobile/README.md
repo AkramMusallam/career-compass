@@ -28,7 +28,7 @@ cd mobile
 npm install
 npx expo start
 ```
-The default API address works with an Android emulator or local iOS simulator. For a physical device, set `EXPO_PUBLIC_API_BASE_URL` to the backend address reachable from that device before starting Expo.
+The default API address works with an Android emulator or local iOS simulator. For a physical device, add `EXPO_PUBLIC_API_BASE_URL=https://your-server/api` to `mobile/.env` before starting Expo. Use an HTTPS address for a public server. Restart Expo after changing the address.
 - Press `a` for Android Emulator.
 - Press `i` for iOS Simulator.
 - Press `w` for Web Preview.

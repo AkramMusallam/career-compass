@@ -83,6 +83,12 @@ export default function DashboardScreen({ onNavigate, onLogout, token }) {
       {/* Quick Actions */}
       <Text style={styles.sectionHeader}>إجراءات سريعة وممارسة</Text>
 
+      <TouchableOpacity style={[styles.actionBtn, styles.actionPrimary]} onPress={() => onNavigate("analysis")} accessibilityRole="button">
+        <Text style={styles.actionIcon}>📄</Text>
+        <View style={styles.actionTextCol}><Text style={styles.actionBtnTitle}>ابدأ تحليلًا جديدًا</Text><Text style={styles.actionBtnSub}>ارفع سيرتك وأكمل التقييم من هاتفك</Text></View>
+        <Text style={styles.actionArrow}>←</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity
         style={[styles.actionBtn, styles.actionPrimary]}
         onPress={() => onNavigate("interview")}

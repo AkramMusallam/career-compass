@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Audio } from "expo-av";
+import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from "expo-audio";
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from "react-native";
 import { fetchLatestRoadmap, sendInterviewChat, sendVoiceAnswer, startMockInterview } from "../services/api";
 
@@ -11,7 +11,7 @@ export default function MockInterviewScreen({ onBack, token }) {
   const [isSending, setIsSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState(null);
-  const recordingRef = useRef(null);
+  const recording = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const startedRef = useRef(0);
 
   useEffect(() => {
@@ -33,9 +33,6 @@ export default function MockInterviewScreen({ onBack, token }) {
     })();
     return () => {
       active = false;
-      const recording = recordingRef.current;
-      recordingRef.current = null;
-      if (recording) recording.stopAndUnloadAsync().catch(() => {});
     };
   }, [token]);
 
@@ -45,20 +42,18 @@ export default function MockInterviewScreen({ onBack, token }) {
     setIsSending(true);
     try {
       if (!isRecording) {
-        const permission = await Audio.requestPermissionsAsync();
+        const permission = await requestRecordingPermissionsAsync();
         if (!permission.granted) throw new Error("يرجى السماح بالوصول إلى الميكروفون.");
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-        const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-        recordingRef.current = recording;
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        await recording.prepareToRecordAsync();
+        recording.record();
         startedRef.current = Date.now();
         setIsRecording(true);
       } else {
         setIsRecording(false);
         setIsSending(true);
-        const recording = recordingRef.current;
-        recordingRef.current = null;
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
+        await recording.stop();
+        const uri = recording.uri;
         if (!uri) throw new Error("تعذر حفظ التسجيل الصوتي.");
         const result = await sendVoiceAnswer(token, sessionId, uri, Math.max(1, (Date.now() - startedRef.current) / 1000));
         setMessages(result.messages || []);

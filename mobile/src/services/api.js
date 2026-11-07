@@ -3,14 +3,64 @@ import { Platform } from "react-native";
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://localhost:8000");
 
-export async function login(email, password) {
-  const resp = await fetch(`${API_BASE_URL}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!resp.ok) throw new Error("تعذر تسجيل الدخول. تحقق من البيانات واتصال الخادم.");
-  return resp.json();
+async function authRequest(path, body) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const resp = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!resp.ok) {
+      if (resp.status === 409) throw new Error("البريد الإلكتروني مستخدم بالفعل.");
+      if (resp.status === 400 || resp.status === 422) throw new Error("تحقق من البيانات المدخلة وحاول مرة أخرى.");
+      throw new Error("تعذر إكمال الطلب. تحقق من البيانات وحاول مرة أخرى.");
+    }
+    return await resp.json();
+  } catch (error) {
+    if (controller.signal.aborted || error instanceof TypeError) {
+      throw new Error("تعذر الاتصال بالخادم. تحقق من الإنترنت وحاول مرة أخرى.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export function login(email, password) {
+  return authRequest("/login", { email, password });
+}
+
+export function register(fullName, email, password) {
+  return authRequest("/register", { full_name: fullName, email, password });
+}
+
+export function forgotPassword(email) {
+  return authRequest("/forgot-password", { email });
+}
+
+export async function analysisRequest(token, path, body) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 180000);
+  try {
+    const headers = { Authorization: `Bearer ${token}` };
+    const options = { headers, signal: controller.signal };
+    if (body !== undefined) {
+      options.method = "POST";
+      if (body instanceof FormData) options.body = body;
+      else {
+        headers["Content-Type"] = "application/json";
+        options.body = JSON.stringify(body);
+      }
+    }
+    const response = await fetch(`${API_BASE_URL}${path}`, options);
+    if (!response.ok) throw new Error(`تعذر إكمال الطلب (${response.status}). حاول مرة أخرى.`);
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function fetchProfile(token) {
