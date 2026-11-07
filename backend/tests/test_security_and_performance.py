@@ -307,3 +307,23 @@ def test_phase3_input_validation_and_newest_extraction_ranking(client):
     matched_cand = next(c for c in cands_resp.json()["candidates"] if c["email"] == cand_email)
     assert matched_cand["candidate_id"] == newest_ext_id
     assert matched_cand["match_percentage"] >= 80
+
+def test_rate_limit_uses_proxy_addresses(client, monkeypatch):
+    from app.core.config import settings
+
+    keys = []
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_IPS", {"testclient"})
+    monkeypatch.setattr(rate_limiter, "is_allowed", lambda key, **kwargs: (keys.append(key) or True, 0))
+    client.post("/login", headers={"X-Real-IP": "192.0.2.1", "X-Forwarded-For": "192.0.2.2, 192.0.2.3"}, json={})
+    client.post("/login", headers={"X-Forwarded-For": "192.0.2.2, 192.0.2.3"}, json={})
+    assert keys == ["auth:192.0.2.1:/login", "auth:192.0.2.2:/login"]
+
+
+def test_rate_limit_ignores_untrusted_proxy_headers(client, monkeypatch):
+    from app.core.config import settings
+
+    keys = []
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_IPS", set())
+    monkeypatch.setattr(rate_limiter, "is_allowed", lambda key, **kwargs: (keys.append(key) or True, 0))
+    client.post("/login", headers={"X-Real-IP": "192.0.2.1"}, json={})
+    assert keys == ["auth:testclient:/login"]

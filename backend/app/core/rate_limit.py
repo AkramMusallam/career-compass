@@ -69,7 +69,9 @@ HEAVY_PREFIXES = (
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        client_ip = (request.client.host if request.client else None) or request.headers.get("X-Real-IP", "unknown")
+        client_ip = request.client.host if request.client else "unknown"
+        if client_ip in settings.TRUSTED_PROXY_IPS:
+            client_ip = request.headers.get("X-Real-IP", "").strip() or request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or client_ip
 
         if path in AUTH_PATHS and request.method == "POST":
             allowed, retry_after = rate_limiter.is_allowed(f"auth:{client_ip}:{path}", max_requests=15, window_seconds=60.0)

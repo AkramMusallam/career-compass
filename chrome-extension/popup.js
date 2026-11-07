@@ -3,6 +3,21 @@ const API_BASE = "http://localhost:8000";
 let currentJobData = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const settings = await chrome.storage.local.get("api_base");
+  document.getElementById("server-url").value = settings.api_base || API_BASE;
+  document.getElementById("save-server-btn").addEventListener("click", async () => {
+    try {
+      const url = new URL(document.getElementById("server-url").value.trim());
+      if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) throw new Error();
+      if (url.username || url.password || url.search || url.hash) throw new Error();
+      if (url.protocol === "https:" && !(await chrome.permissions.request({ origins: [`${url.origin}/*`] }))) {
+        alert("???? ?????? ??????? ??? ??????");
+        return;
+      }
+      await chrome.storage.local.set({ api_base: url.href.replace(/\/$/, "") });
+      alert("?? ??? ????? ??????");
+    } catch { alert("???? ????? HTTPS ?????? ??????"); }
+  });
   const token = await getStoredToken();
   if (!token) {
     document.getElementById("auth-section").classList.remove("hidden");
@@ -84,7 +99,8 @@ async function executeJobAnalysis() {
   }
 
   try {
-    const resp = await fetch(`${API_BASE}/extension/match-job`, {
+    const { api_base = API_BASE } = await chrome.storage.local.get("api_base");
+    const resp = await fetch(`${api_base}/extension/match-job`, {
       method: "POST",
       headers,
       body: JSON.stringify({

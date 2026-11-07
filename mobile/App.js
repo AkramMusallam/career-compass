@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import { StyleSheet, View, Text, TextInput, Button, SafeAreaView } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { login } from "./src/services/api";
 
 import DashboardScreen from "./src/screens/DashboardScreen";
@@ -8,6 +9,10 @@ import MockInterviewScreen from "./src/screens/MockInterviewScreen";
 import RoadmapScreen from "./src/screens/RoadmapScreen";
 
 export default function App() {
+  const [restoring, setRestoring] = useState(true);
+  useEffect(() => {
+    AsyncStorage.getItem("userToken").then(setUserToken).catch(() => setError("???? ??????? ??????" )).finally(() => setRestoring(false));
+  }, []);
   const [currentScreen, setCurrentScreen] = useState("dashboard");
   const [userToken, setUserToken] = useState(null);
   const [email, setEmail] = useState("");
@@ -20,6 +25,7 @@ export default function App() {
     setError("");
     try {
       const data = await login(email.trim(), password);
+      await AsyncStorage.setItem("userToken", data.access_token);
       setUserToken(data.access_token);
       setPassword("");
     } catch (err) {
@@ -28,6 +34,8 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  if (restoring) return null;
 
   return (
     <SafeAreaView style={styles.safeArea}>

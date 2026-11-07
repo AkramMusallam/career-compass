@@ -16,6 +16,7 @@ class Settings:
     # ---- عام ----
     APP_NAME: str = "Career Compass API"
     APP_VERSION: str = "1.0.0"
+    TRUSTED_PROXY_IPS: set[str] = {ip.strip() for ip in os.getenv("TRUSTED_PROXY_IPS", "").split(",") if ip.strip()}
     ENV: str = os.getenv("ENV", "development")  # development | testing | production
 
     # ---- الأمان / JWT ----

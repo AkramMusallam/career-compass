@@ -30,3 +30,5 @@ myenv/
 venv/
 backend/myenv/
 backend/venv/
+
+.venv/
