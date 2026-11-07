@@ -12,6 +12,57 @@ import {
   getCurrentSubscription,
 } from "../../api/endpoints";
 
+const FALLBACK_PLANS = [
+  {
+    id: "free",
+    name_ar: "الباقة المجانية",
+    description_ar: "مناسبة للباحثين عن عمل والخريجين الجدد لاستكشاف المسار المهني.",
+    monthly_price: 0,
+    annual_price: 0,
+    currency: "USD",
+    badge_ar: "مفتوحة مجاناً للجميع",
+    features: [
+      { text: "تحليل غير محدود للسيرة الذاتية (مفتوح حالياً)", included: true },
+      { text: "خارطة طريق تعليمية لمدة 3 أشهر", included: true },
+      { text: "مطابقة الوظائف في السوق المحلي", included: true },
+      { text: "محاكاة المقابلات التقنية بالذكاء الاصطناعي", included: true },
+      { text: "تصدير تقرير السيرة الذاتية بصيغة PDF", included: true },
+    ],
+  },
+  {
+    id: "pro",
+    name_ar: "باقة المحترفين (AI Pro)",
+    description_ar: "للراغبين بتسريع نموهم المهني واجتياز المقابلات الوظيفية بكفاءة عالية.",
+    monthly_price: 9.99,
+    annual_price: 99.0,
+    currency: "USD",
+    badge_ar: "الأكثر طلباً",
+    features: [
+      { text: "كل ميزات الباقة المجانية", included: true },
+      { text: "محاكاة صوتية تفاعلية للمقابلات بـ Whisper", included: true },
+      { text: "تحليل نبرة الصوت وسرعة الإلقاء والطلاقة", included: true },
+      { text: "إنشاء خطابات تقديم مخصصة غير محدودة", included: true },
+      { text: "إضافة المتصفح الذكية لربط وظائف LinkedIn", included: true },
+    ],
+  },
+  {
+    id: "enterprise",
+    name_ar: "باقة الشركات والتوظيف",
+    description_ar: "لمسؤولي التوظيف والشركات لفرز المرشحين ومطابقة الوظائف تلقائياً.",
+    monthly_price: 29.99,
+    annual_price: 299.0,
+    currency: "USD",
+    badge_ar: "للشركات ومسؤولي التوظيف",
+    features: [
+      { text: "بوابة توظيف متكاملة لنشر ومتابعة الشواغر", included: true },
+      { text: "ترتيب وتصنيف المتقدمين تلقائياً بنسبة التوافق", included: true },
+      { text: "إدارة أعضاء الفريق ودعوات الشركاء", included: true },
+      { text: "فلاتر متقدمة بحسب المهارات ونسب التطابق", included: true },
+      { text: "دعم فني مخصص وأولوية في معالجة البيانات", included: true },
+    ],
+  },
+];
+
 export default function PricingPlans() {
   const [plans, setPlans] = useState([]);
   const [currentSub, setCurrentSub] = useState(null);
@@ -25,13 +76,14 @@ export default function PricingPlans() {
     try {
       setIsLoading(true);
       const [plansRes, subRes] = await Promise.all([
-        getSubscriptionPlans(),
+        getSubscriptionPlans().catch(() => ({ data: FALLBACK_PLANS })),
         getCurrentSubscription().catch(() => ({ data: null })),
       ]);
-      setPlans(plansRes.data || []);
+      setPlans(plansRes.data && plansRes.data.length > 0 ? plansRes.data : FALLBACK_PLANS);
       setCurrentSub(subRes.data);
     } catch (err) {
       console.error("Error loading plans:", err);
+      setPlans(FALLBACK_PLANS);
     } finally {
       setIsLoading(false);
     }

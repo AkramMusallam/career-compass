@@ -76,6 +76,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_TASK_ALWAYS_EAGER: "0"
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://129.159.143.77}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-127.0.0.1,172.16.0.0/12,10.0.0.0/8}
       # ربط الباك إند بحاوية ollama
       OLLAMA_HOST: "http://ollama:11434"
     volumes:

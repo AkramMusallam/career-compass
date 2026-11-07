@@ -11,7 +11,7 @@ import RoadmapScreen from "./src/screens/RoadmapScreen";
 export default function App() {
   const [restoring, setRestoring] = useState(true);
   useEffect(() => {
-    AsyncStorage.getItem("userToken").then(setUserToken).catch(() => setError("???? ??????? ??????" )).finally(() => setRestoring(false));
+    AsyncStorage.getItem("userToken").then(setUserToken).catch(() => setError("تعذر استعادة الجلسة السابقة.")).finally(() => setRestoring(false));
   }, []);
   const [currentScreen, setCurrentScreen] = useState("dashboard");
   const [userToken, setUserToken] = useState(null);
@@ -35,6 +35,14 @@ export default function App() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem("userToken");
+    } catch (_) {}
+    setUserToken(null);
+    setCurrentScreen("dashboard");
+  };
+
   if (restoring) return null;
 
   return (
@@ -50,7 +58,7 @@ export default function App() {
             <Button title={loading ? "جاري الدخول..." : "تسجيل الدخول"} onPress={handleLogin} disabled={loading || !email || !password} />
           </View>
         ) : currentScreen === "dashboard" ? (
-          <DashboardScreen onNavigate={(screen) => setCurrentScreen(screen)} token={userToken} />
+          <DashboardScreen onNavigate={(screen) => setCurrentScreen(screen)} onLogout={handleLogout} token={userToken} />
         ) : currentScreen === "interview" ? (
           <MockInterviewScreen onBack={() => setCurrentScreen("dashboard")} token={userToken} />
         ) : (

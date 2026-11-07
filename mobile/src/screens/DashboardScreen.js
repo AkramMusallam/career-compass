@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
 import { fetchLatestRoadmap, fetchProfile } from "../services/api";
 
-export default function DashboardScreen({ onNavigate, token }) {
+export default function DashboardScreen({ onNavigate, onLogout, token }) {
   const [stats, setStats] = useState({
     careerScore: 0,
     targetRole: "ابدأ تحليلك الأول من الموقع",
@@ -17,7 +17,12 @@ export default function DashboardScreen({ onNavigate, token }) {
     (async () => {
       try {
         const [profile, latest] = await Promise.all([
-          fetchProfile(token).catch(() => null),
+          fetchProfile(token).catch((err) => {
+            if (err.message && err.message.includes("401")) {
+              onLogout?.();
+            }
+            return null;
+          }),
           fetchLatestRoadmap(token).catch(() => null),
         ]);
         if (!mounted) return;
@@ -42,14 +47,21 @@ export default function DashboardScreen({ onNavigate, token }) {
     return () => {
       mounted = false;
     };
-  }, [token]);
+  }, [token, onLogout]);
 
   return (
     <ScrollView style={styles.container}>
       {!!error && <Text style={{ color: "#fca5a5", marginBottom: 12 }}>{error}</Text>}
       {/* Header Profile Card */}
       <View style={styles.cardHeader}>
-        <Text style={styles.badge}>🧭 Career Compass Mobile</Text>
+        <View style={styles.headerTopRow}>
+          <Text style={styles.badge}>🧭 Career Compass Mobile</Text>
+          {!!onLogout && (
+            <TouchableOpacity onPress={onLogout} style={styles.logoutBtn}>
+              <Text style={styles.logoutText}>تسجيل الخروج</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <Text style={styles.greeting}>مرحباً بك مجدداً 👋</Text>
         <Text style={styles.roleSub}>{stats.targetRole}</Text>
       </View>
@@ -78,7 +90,7 @@ export default function DashboardScreen({ onNavigate, token }) {
         <Text style={styles.actionIcon}>🎙️</Text>
         <View style={styles.actionTextCol}>
           <Text style={styles.actionBtnTitle}>بدء محاكاة المقابلة التقنية</Text>
-          <Text style={styles.actionBtnSub}>تمرّن على المقابلة النصية بناءً على آخر تحليل</Text>
+          <Text style={styles.actionBtnSub}>تمرّن على المقابلة النصية والصوتية بناءً على آخر تحليل</Text>
         </View>
         <Text style={styles.actionArrow}>←</Text>
       </TouchableOpacity>
@@ -103,7 +115,10 @@ export default function DashboardScreen({ onNavigate, token }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f172a", padding: 18 },
   cardHeader: { marginBottom: 20 },
-  badge: { color: "#38bdf8", fontSize: 12, fontWeight: "bold", marginBottom: 6 },
+  headerTopRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  badge: { color: "#38bdf8", fontSize: 12, fontWeight: "bold" },
+  logoutBtn: { backgroundColor: "rgba(239, 68, 68, 0.15)", borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.3)", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 },
+  logoutText: { color: "#fca5a5", fontSize: 11, fontWeight: "bold" },
   greeting: { fontSize: 24, fontWeight: "900", color: "#f8fafc" },
   roleSub: { fontSize: 14, color: "#94a3b8", marginTop: 4 },
   scoreBox: {

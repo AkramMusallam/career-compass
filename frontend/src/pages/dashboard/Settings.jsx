@@ -55,7 +55,7 @@ export default function Settings() {
       setRecruiterConsent(res.data.opted_in);
       setRecruiterConsentLoaded(true);
     }).catch(() => showToast("تعذر تحميل إعداد مشاركة الملف مع مسؤولي التوظيف", "error"));
-  }, []);
+  }, [showToast]);
 
   const handleRecruiterConsent = async (checked) => {
     setIsSavingRecruiterConsent(true);

@@ -11,12 +11,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) throw new Error();
       if (url.username || url.password || url.search || url.hash) throw new Error();
       if (url.protocol === "https:" && !(await chrome.permissions.request({ origins: [`${url.origin}/*`] }))) {
-        alert("???? ?????? ??????? ??? ??????");
+        alert("تعذر الحصول على الصلاحية لهذا العنوان. يرجى الموافقة على الإذن المطلوب.");
         return;
       }
       await chrome.storage.local.set({ api_base: url.href.replace(/\/$/, "") });
-      alert("?? ??? ????? ??????");
-    } catch { alert("???? ????? HTTPS ?????? ??????"); }
+      alert("تم حفظ عنوان الخادم بنجاح!");
+    } catch { alert("يرجى إدخال عنوان HTTPS صالح ومكتمل (أو localhost للتطوير)."); }
   });
   const token = await getStoredToken();
   if (!token) {

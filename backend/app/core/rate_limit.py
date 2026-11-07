@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import ipaddress
 import threading
 import time
 from collections import defaultdict, deque
@@ -12,6 +13,23 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
+
+
+def is_trusted_proxy_ip(client_ip: str, trusted_proxies: set[str]) -> bool:
+    """يتحقق مما إذا كان عنوان IP ينتمي لقائمة أو نطاقات البروكسي الموثوقة (تدعم عناوين مفردة أو CIDR)."""
+    if client_ip in trusted_proxies:
+        return True
+    try:
+        addr = ipaddress.ip_address(client_ip)
+        for net in trusted_proxies:
+            try:
+                if "/" in net and addr in ipaddress.ip_network(net, strict=False):
+                    return True
+            except ValueError:
+                pass
+    except ValueError:
+        pass
+    return False
 
 
 class SlidingWindowRateLimiter:
@@ -70,7 +88,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
         client_ip = request.client.host if request.client else "unknown"
-        if client_ip in settings.TRUSTED_PROXY_IPS:
+        if is_trusted_proxy_ip(client_ip, settings.TRUSTED_PROXY_IPS):
             client_ip = request.headers.get("X-Real-IP", "").strip() or request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or client_ip
 
         if path in AUTH_PATHS and request.method == "POST":

@@ -104,7 +104,6 @@ export default function Loading() {
       setPhase("error");
       setErrorDetail(getErrorMessage(error, "حدث خطأ أثناء المعالجة"));
       setIsQuotaError(error?.response?.status === 403);
-      // eslint-disable-next-line no-console
       console.error(getErrorMessage(error));
     }
   };

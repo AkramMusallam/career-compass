@@ -149,7 +149,6 @@ export default function Results() {
       })
       .catch((error) => {
         setStatus("error");
-        // eslint-disable-next-line no-console
         console.error(getErrorMessage(error));
       });
   };

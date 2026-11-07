@@ -327,3 +327,15 @@ def test_rate_limit_ignores_untrusted_proxy_headers(client, monkeypatch):
     monkeypatch.setattr(rate_limiter, "is_allowed", lambda key, **kwargs: (keys.append(key) or True, 0))
     client.post("/login", headers={"X-Real-IP": "192.0.2.1"}, json={})
     assert keys == ["auth:testclient:/login"]
+
+
+def test_rate_limit_supports_cidr_trusted_proxies():
+    from app.core.rate_limit import is_trusted_proxy_ip
+
+    trusted = {"127.0.0.1", "172.16.0.0/12", "10.0.0.0/8", "testclient"}
+    assert is_trusted_proxy_ip("127.0.0.1", trusted) is True
+    assert is_trusted_proxy_ip("172.18.0.5", trusted) is True
+    assert is_trusted_proxy_ip("10.50.1.2", trusted) is True
+    assert is_trusted_proxy_ip("testclient", trusted) is True
+    assert is_trusted_proxy_ip("192.168.1.1", trusted) is False
+    assert is_trusted_proxy_ip("203.0.113.195", trusted) is False

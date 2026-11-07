@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   Briefcase,
@@ -80,38 +80,22 @@ export default function RecruiterPortal() {
     description: "نبحث عن مهندس برمجيات موهوب للانضمام لفريقنا والمساهمة في بناء حلول رقمية عالية الاعتمادية.",
   });
 
-  // Load jobs on mount
-  useEffect(() => {
-    getRecruiterApproval().then((res) => { setApproved(res.data.approved); if (res.data.company_name) setJobForm((prev) => ({ ...prev, company_name: res.data.company_name })); }).catch(() => showToast("تعذر التحقق من صلاحية التوظيف", "error")).finally(() => setApprovalLoaded(true));
-  }, []);
-
-  useEffect(() => {
-    if (approved) fetchJobs();
-  }, [approved]);
-
-  // When selected job or filters change, load ranked candidates
-  useEffect(() => {
-    if (selectedJobId && activeTab === "pipeline") {
-      fetchCandidates(selectedJobId);
-    }
-  }, [selectedJobId, minMatchFilter, skillFilter, activeTab]);
-
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     try {
       setIsLoadingJobs(true);
       const res = await getRecruiterJobs();
       setJobs(res.data || []);
-      if (res.data && res.data.length > 0 && !selectedJobId) {
-        setSelectedJobId(res.data[0].job_id);
+      if (res.data && res.data.length > 0) {
+        setSelectedJobId((curr) => curr || res.data[0].job_id);
       }
     } catch (err) {
       console.error("Error fetching jobs:", err);
     } finally {
       setIsLoadingJobs(false);
     }
-  };
+  }, []);
 
-  const fetchCandidates = async (jobId) => {
+  const fetchCandidates = useCallback(async (jobId) => {
     try {
       setIsLoadingCandidates(true);
       const params = { min_match: minMatchFilter };
@@ -126,7 +110,29 @@ export default function RecruiterPortal() {
     } finally {
       setIsLoadingCandidates(false);
     }
-  };
+  }, [minMatchFilter, skillFilter, showToast]);
+
+  // Load jobs on mount
+  useEffect(() => {
+    getRecruiterApproval()
+      .then((res) => {
+        setApproved(res.data.approved);
+        if (res.data.company_name) setJobForm((prev) => ({ ...prev, company_name: res.data.company_name }));
+      })
+      .catch(() => showToast("تعذر التحقق من صلاحية التوظيف", "error"))
+      .finally(() => setApprovalLoaded(true));
+  }, [showToast]);
+
+  useEffect(() => {
+    if (approved) fetchJobs();
+  }, [approved, fetchJobs]);
+
+  // When selected job or filters change, load ranked candidates
+  useEffect(() => {
+    if (selectedJobId && activeTab === "pipeline") {
+      fetchCandidates(selectedJobId);
+    }
+  }, [selectedJobId, activeTab, fetchCandidates]);
 
   const handleCreateJob = async (e) => {
     e.preventDefault();

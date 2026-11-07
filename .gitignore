@@ -14,6 +14,7 @@ node_modules/
 dist/
 .vite/
 .expo/
+.expo-validation/
 *.log
 
 # OS / IDE

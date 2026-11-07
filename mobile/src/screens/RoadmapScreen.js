@@ -27,7 +27,7 @@ export default function RoadmapScreen({ onBack, token }) {
           }))
         );
       } catch (_err) {
-        setError("???? ????? ??? ??????. ???? ?? ??????? ?? ??? ????????.");
+        setError("تعذر تحميل خطة التطوير. تأكد من الاتصال أو أكمل تحليلك أولاً.");
       }
     })();
     return () => {
@@ -46,7 +46,7 @@ export default function RoadmapScreen({ onBack, token }) {
     if (token && analysisId && currentSkill) {
       toggleMilestoneSkill(token, analysisId, currentSkill.name, nextCompleted).catch(() => {
         setMonths((prev) => prev.map((month, m) => m !== monthIdx ? month : { ...month, skills: month.skills.map((skill, i) => i !== skillIdx ? skill : { ...skill, completed: !nextCompleted }) }));
-        setError("???? ??? ??????. ???? ?? ???????.");
+        setError("تعذر حفظ التغيير. تأكد من الاتصال بالخادم.");
       });
     }
   };
@@ -77,7 +77,7 @@ export default function RoadmapScreen({ onBack, token }) {
       </View>
 
       {!!error && <Text style={{ color: "#fca5a5", textAlign: "center" }}>{error}</Text>}
-      {!error && months.length === 0 && <Text style={{ color: "#cbd5e1", textAlign: "center" }}>?? ???? ??? ???. ???? ?????? ?? ??????.</Text>}
+      {!error && months.length === 0 && <Text style={{ color: "#cbd5e1", textAlign: "center" }}>لا توجد خطة حتى الآن. أجرِ تحليلك من الموقع أولاً.</Text>}
 
       {/* Months List */}
       <ScrollView style={styles.scrollList} contentContainerStyle={{ paddingBottom: 30 }}>

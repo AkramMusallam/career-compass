@@ -63,7 +63,6 @@ export default function CompareAnalyses() {
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idA, idB]);
 
   if (status === "loading") {
