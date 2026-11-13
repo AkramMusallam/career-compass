@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Mic,
@@ -46,6 +46,7 @@ export default function Interview() {
   const [evaluation, setEvaluation] = useState(null);
   const [sessionStatus, setSessionStatus] = useState("in_progress"); // in_progress | completed
   const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   // Phase 2: Voice & Audio Mock Interviews state
   const [isRecording, setIsRecording] = useState(false);
@@ -57,16 +58,48 @@ export default function Interview() {
 
   const messagesEndRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const mediaStreamRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
   const recordingStartRef = useRef(0);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    let isMounted = true;
+  const stopRecordingHardware = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // ignore
+      }
+      recognitionRef.current = null;
+    }
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch {
+        // ignore
+      }
+      mediaRecorderRef.current = null;
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+  }, []);
+
+  const loadSession = useCallback(() => {
+    setInitialLoading(true);
+    setLoadError("");
     getInterviewSession(sessionId)
       .then((res) => {
-        if (!isMounted) return;
+        if (!mountedRef.current) return;
         setJobTitle(res.data.job_title || "الوظيفة المستهدفة");
         setSessionStatus(res.data.status || "in_progress");
         const loadedMessages = res.data.messages || [];
@@ -82,18 +115,24 @@ export default function Interview() {
         }
       })
       .catch((err) => {
-        console.error("Failed to load interview session:", err);
+        if (!mountedRef.current) return;
+        setLoadError(getErrorMessage(err, "تعذر تحميل جلسة المقابلة"));
       })
       .finally(() => {
-        if (isMounted) setInitialLoading(false);
+        if (mountedRef.current) setInitialLoading(false);
       });
+  }, [sessionId]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    loadSession();
 
     return () => {
-      isMounted = false;
-      if (timerRef.current) clearInterval(timerRef.current);
+      mountedRef.current = false;
+      stopRecordingHardware();
       if (window.speechSynthesis) window.speechSynthesis.cancel();
     };
-  }, [sessionId]);
+  }, [loadSession, stopRecordingHardware]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -119,12 +158,17 @@ export default function Interview() {
     if (!input.trim() || loading || sessionStatus === "completed") return;
 
     const userMsg = input.trim();
+    const optimisticId = `opt-${Date.now()}-${Math.random()}`;
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: userMsg, _optimisticId: optimisticId },
+    ]);
     setLoading(true);
 
     try {
       const res = await chatInterview(sessionId, userMsg);
+      if (!mountedRef.current) return;
       const updated = res.data.messages || [];
       setMessages(updated);
       setSessionStatus(res.data.status || "in_progress");
@@ -133,9 +177,14 @@ export default function Interview() {
         speakText(lastMsg.content);
       }
     } catch (err) {
+      if (!mountedRef.current) return;
+      setMessages((prev) =>
+        prev.filter((m) => m._optimisticId !== optimisticId)
+      );
+      setInput((curr) => curr || userMsg);
       showToast(getErrorMessage(err, "فشل إرسال الإجابة، يرجى المحاولة ثانية"), "error");
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   };
 
@@ -145,6 +194,9 @@ export default function Interview() {
     setRecordingSeconds(0);
     audioChunksRef.current = [];
     recordingStartRef.current = Date.now();
+
+    let speechStarted = false;
+    let recorderStarted = false;
 
     // 1. Start Web Speech API live transcription if supported by browser
     const SpeechRecognition =
@@ -164,6 +216,7 @@ export default function Interview() {
         };
         recognition.start();
         recognitionRef.current = recognition;
+        speechStarted = true;
       } catch {
         recognitionRef.current = null;
       }
@@ -173,6 +226,11 @@ export default function Interview() {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!mountedRef.current) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        mediaStreamRef.current = stream;
         const mediaRecorder = new MediaRecorder(stream);
         mediaRecorder.ondataavailable = (ev) => {
           if (ev.data && ev.data.size > 0) {
@@ -181,9 +239,19 @@ export default function Interview() {
         };
         mediaRecorder.start();
         mediaRecorderRef.current = mediaRecorder;
+        recorderStarted = true;
       } catch {
         mediaRecorderRef.current = null;
       }
+    }
+
+    if (!speechStarted && !recorderStarted) {
+      stopRecordingHardware();
+      showToast(
+        "تعذر تفعيل الميكروفون أو التسجيل الصوتي؛ تأكد من منح الصلاحية في المتصفح.",
+        "error"
+      );
+      return;
     }
 
     setIsRecording(true);
@@ -218,23 +286,27 @@ export default function Interview() {
 
     let audioBlob = null;
     if (mediaRecorderRef.current) {
+      const recorder = mediaRecorderRef.current;
       await new Promise((resolve) => {
-        mediaRecorderRef.current.onstop = () => {
+        recorder.onstop = () => {
           if (audioChunksRef.current.length > 0) {
             audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
           }
-          mediaRecorderRef.current.stream
-            ?.getTracks()
-            .forEach((t) => t.stop());
+          recorder.stream?.getTracks().forEach((t) => t.stop());
           resolve();
         };
         try {
-          mediaRecorderRef.current.stop();
+          recorder.stop();
         } catch {
+          recorder.stream?.getTracks().forEach((t) => t.stop());
           resolve();
         }
       });
       mediaRecorderRef.current = null;
+      mediaStreamRef.current = null;
+    } else if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
     }
 
     const transcriptHint = (liveTranscript || input).trim();
@@ -314,6 +386,26 @@ export default function Interview() {
         <p className="mt-4 text-sm font-bold text-slate-600">
           جاري إعداد استوديو المقابلة الذكية...
         </p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="card max-w-md mx-auto my-16 text-center space-y-4">
+        <p className="text-base font-black text-danger">{loadError}</p>
+        <div className="flex justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="btn-outline"
+          >
+            العودة
+          </button>
+          <button type="button" onClick={loadSession} className="btn-primary">
+            إعادة المحاولة
+          </button>
+        </div>
       </div>
     );
   }
@@ -408,7 +500,7 @@ export default function Interview() {
 
       {/* Voice Delivery Feedback Bar */}
       {latestVoiceFeedback && (
-        <div className="mb-3 rounded-2xl border border-primary-200/80 bg-gradient-to-l from-primary-50/70 via-white to-teal-50/50 p-3 sm:p-3.5 shadow-xs shrink-0">
+        <div className="mb-3 rounded-2xl border border-primary-200/80 bg-gradient-to-l from-primary-50/70 via-white to-teal-50/50 p-3 sm:p-3.5 shadow-sm shrink-0">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
             <div className="flex items-start sm:items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-primary-100 text-primary-700 flex items-center justify-center shrink-0">
@@ -477,7 +569,7 @@ export default function Interview() {
       <div className="flex-1 flex flex-col md:flex-row gap-3 overflow-hidden min-h-0">
         {/* Chat Stream Column */}
         <div
-          className={`flex-1 bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs overflow-y-auto flex flex-col gap-3.5 ${
+          className={`flex-1 bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-sm overflow-y-auto flex flex-col gap-3.5 ${
             evaluation && mobileTab !== "chat" ? "hidden md:flex" : "flex"
           }`}
         >
@@ -525,10 +617,11 @@ export default function Interview() {
                 </div>
 
                 <div
-                  className={`p-3.5 sm:p-4 rounded-2xl max-w-[90%] sm:max-w-[80%] text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-2xs ${
+                  dir="auto"
+                  className={`p-3.5 sm:p-4 rounded-2xl max-w-[90%] sm:max-w-[80%] text-xs sm:text-sm leading-relaxed whitespace-pre-line shadow-sm ${
                     isUser
-                      ? "bg-slate-900 text-white rounded-br-xs"
-                      : "bg-slate-50 text-slate-800 border border-slate-200/90 rounded-bl-xs"
+                      ? "bg-slate-900 text-white rounded-br"
+                      : "bg-slate-50 text-slate-800 border border-slate-200/90 rounded-bl"
                   }`}
                 >
                   {msg.content}
@@ -543,7 +636,7 @@ export default function Interview() {
                 <Bot className="w-3.5 h-3.5 text-primary-600" />
                 <span>المُحاور الذكي</span>
               </div>
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 rounded-bl-xs text-xs font-semibold flex items-center gap-2">
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-500 rounded-bl text-xs font-semibold flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-primary-600 animate-ping" />
                 <span>المُحاور يحلل إجابتك ويكتب السؤال التالي...</span>
               </div>
@@ -556,7 +649,7 @@ export default function Interview() {
         {/* Evaluation Report Column (if completed) */}
         {evaluation && (
           <div
-            className={`w-full md:w-96 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 overflow-y-auto flex flex-col gap-4 shadow-xs ${
+            className={`w-full md:w-96 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 overflow-y-auto flex flex-col gap-4 shadow-sm ${
               mobileTab !== "report" ? "hidden md:flex" : "flex"
             }`}
           >
@@ -628,6 +721,25 @@ export default function Interview() {
               </div>
             )}
 
+            {/* Grammar & Language Notes */}
+            {Array.isArray(evaluation.grammar_mistakes) &&
+              evaluation.grammar_mistakes.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-rose-700 mb-1.5 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-rose-600" />
+                    <span>ملاحظات الصياغة واللغة</span>
+                  </h3>
+                  <ul className="space-y-1.5 text-xs text-slate-600">
+                    {evaluation.grammar_mistakes.map((g, idx) => (
+                      <li key={idx} className="flex items-start gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0 mt-1.5" />
+                        <span>{g}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
             {/* Model Answers */}
             {evaluation.model_answers && evaluation.model_answers.length > 0 && (
               <div className="pt-3 border-t border-slate-100">
@@ -658,7 +770,7 @@ export default function Interview() {
 
       {/* Live Voice Recording Active Floating Bar */}
       {isRecording && (
-        <div className="mt-2.5 rounded-2xl border border-rose-200 bg-rose-50/95 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0 animate-fade-in shadow-xs">
+        <div className="mt-2.5 rounded-2xl border border-rose-200 bg-rose-50/95 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0 animate-fade-in shadow-sm">
           <div className="flex items-center gap-2.5">
             <span className="h-3 w-3 rounded-full bg-rose-600 animate-ping" />
             <span className="text-xs font-bold text-rose-800">
@@ -673,7 +785,7 @@ export default function Interview() {
           <button
             type="button"
             onClick={stopAndSubmitVoiceRecording}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-rose-700 transition"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition"
           >
             <Square className="w-3.5 h-3.5" />
             <span>إيقاف وإرسال الإجابة الصوتية</span>

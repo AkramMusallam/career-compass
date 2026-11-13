@@ -90,11 +90,11 @@ def test_enterprise_upgrade_grants_recruiter_role(client, paying_user):
     )
     assert resp.status_code == 200
 
-    # التحقق من ترقية الصلاحية والمستوى في قاعدة البيانات
+    # التحقق من ترقية مستوى الاشتراك دون تصعيد صامت لدور الحساب
     with SessionLocal() as db:
         u = db.query(User).filter(User.email == email).first()
         assert u.subscription_tier == "enterprise"
-        assert u.role == "recruiter"
+        assert u.role == "candidate"
 
     # التحقق من انعكاس ذلك في GET /subscriptions/current
     resp_sub = client.get("/subscriptions/current", headers=headers)

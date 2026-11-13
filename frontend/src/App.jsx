@@ -29,9 +29,20 @@ const AcceptInvitation = lazy(() => import("./pages/recruiter/AcceptInvitation")
 const SupportAccess = lazy(() => import("./pages/dashboard/SupportAccess"));
 
 function PublicOnlyRoute({ children }) {
-  const { isAuthenticated } = useAuth();
-  const authenticatedOnEntry = useRef(isAuthenticated);
-  if (authenticatedOnEntry.current) return <Navigate to="/dashboard" replace />;
+  const { isAuthenticated, isLoading } = useAuth();
+  const initialAuthDone = useRef(false);
+  const blockEntryRef = useRef(false);
+
+  if (isLoading) return null;
+
+  if (!initialAuthDone.current) {
+    initialAuthDone.current = true;
+    blockEntryRef.current = isAuthenticated;
+  } else if (!isAuthenticated) {
+    blockEntryRef.current = false;
+  }
+
+  if (blockEntryRef.current) return <Navigate to="/dashboard" replace />;
   return children;
 }
 

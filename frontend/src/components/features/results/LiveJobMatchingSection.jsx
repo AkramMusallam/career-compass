@@ -5,7 +5,6 @@ import {
   MapPin,
   Clock,
   DollarSign,
-  ExternalLink,
   Check,
   Mic,
   RefreshCw,
@@ -47,12 +46,12 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
       <section className="card" id="companies-section">
         <h2 className="mb-3 text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
           <Briefcase size={18} className="text-primary-600" />
-          <span>أمثلة وظائف للمقارنة</span>
+          <span>شواغر التوظيف المطابقة</span>
         </h2>
         <div className="py-8 text-center text-slate-400">
           <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-primary-600 border-r-transparent mb-2" />
           <p className="text-xs font-bold">
-            جاري مطابقة مهاراتك مع أمثلة الوظائف...
+            جاري مطابقة مهاراتك مع شواغر الشركات النشطة...
           </p>
         </div>
       </section>
@@ -65,7 +64,7 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
             <Briefcase size={18} className="text-primary-600" />
-            <span>أمثلة وظائف للمقارنة</span>
+            <span>شواغر التوظيف المطابقة</span>
           </h2>
         </div>
         <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 text-center">
@@ -89,7 +88,7 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
             <Briefcase size={18} className="text-primary-600" />
-            <span>أمثلة وظائف للمقارنة</span>
+            <span>شواغر التوظيف المطابقة</span>
           </h2>
         </div>
         <div className="rounded-xl border border-accent-200 bg-accent-50/60 p-4 text-center">
@@ -107,10 +106,10 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
         <div>
           <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
             <Briefcase size={18} className="text-primary-600" />
-            <span>أمثلة وظائف للمقارنة</span>
+            <span>شواغر التوظيف المطابقة</span>
           </h2>
           <p className="text-xs font-medium text-slate-500 mt-0.5">
-            هذه أمثلة ثابتة وليست إعلانات مباشرة؛ تحقق من توفر الوظيفة وتفاصيلها لدى الشركة.
+            وظائف منشورة من الشركات المعتمدة على المنصة ومطابَقة مع مهاراتك الحالية.
           </p>
         </div>
         <span className="bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1 rounded-full border border-primary-200">
@@ -206,22 +205,16 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 mt-auto">
-                <span className="text-[10px] text-slate-400 font-bold">
-                  مثال توضيحي
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onStartInterview && onStartInterview(item.title)}
-                    className="btn-outline !py-1.5 !px-2.5 !text-xs"
-                    title="محاكاة مقابلة لهذا الشاغر"
-                  >
-                    <Mic size={13} />
-                    <span>محاكاة مقابلة</span>
-                  </button>
-
-                </div>
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2 mt-auto">
+                <button
+                  type="button"
+                  onClick={() => onStartInterview && onStartInterview(item.title)}
+                  className="btn-outline !py-1.5 !px-2.5 !text-xs"
+                  title="محاكاة مقابلة لهذا الشاغر"
+                >
+                  <Mic size={13} />
+                  <span>محاكاة مقابلة</span>
+                </button>
               </div>
             </div>
           );

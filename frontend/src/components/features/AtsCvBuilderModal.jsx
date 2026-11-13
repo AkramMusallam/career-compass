@@ -14,6 +14,59 @@ import {
 import { getErrorMessage } from "../../api/client";
 import { exportAtsResumePdf, optimizeAtsResume } from "../../api/endpoints";
 
+function normalizeProjectsForState(list) {
+  return (Array.isArray(list) ? list : []).map((proj) => {
+    const technologies = Array.isArray(proj?.technologies) ? proj.technologies : [];
+    return {
+      title: proj?.title || "",
+      description: proj?.description || "",
+      technologies,
+      _techText: technologies.join(", "),
+    };
+  });
+}
+
+function sanitizeAtsPayload(form) {
+  return {
+    full_name: form.full_name || "",
+    target_role: form.target_role || "",
+    email: form.email || "",
+    phone: form.phone || "",
+    location: form.location || "",
+    linkedin_url: form.linkedin_url || "",
+    summary: form.summary || "",
+    skills: Array.isArray(form.skills) ? form.skills.filter(Boolean) : [],
+    experience: (Array.isArray(form.experience) ? form.experience : []).map((exp) => ({
+      title: exp?.title || "",
+      company: exp?.company || "",
+      duration_months: Math.max(0, Number.parseInt(exp?.duration_months, 10) || 0),
+      description: exp?.description || "",
+    })),
+    projects: (Array.isArray(form.projects) ? form.projects : []).map((proj) => {
+      const techs =
+        typeof proj?._techText === "string"
+          ? proj._techText.split(/[،,]/).map((s) => s.trim()).filter(Boolean)
+          : Array.isArray(proj?.technologies)
+            ? proj.technologies.filter(Boolean)
+            : [];
+      return {
+        title: proj?.title || "",
+        description: proj?.description || "",
+        technologies: techs,
+      };
+    }),
+    education: (Array.isArray(form.education) ? form.education : []).map((edu) => {
+      const parsedYear =
+        edu?.year !== "" && edu?.year != null ? Number.parseInt(edu.year, 10) : NaN;
+      return {
+        degree: edu?.degree || "",
+        institution: edu?.institution || "",
+        year: Number.isFinite(parsedYear) ? parsedYear : null,
+      };
+    }),
+  };
+}
+
 export default function AtsCvBuilderModal({
   extractionId,
   initialSkills = [],
@@ -37,22 +90,25 @@ export default function AtsCvBuilderModal({
     location: "",
     linkedin_url: "",
     summary: "",
-    skills: initialSkills,
-    experience: initialExperience,
-    projects: initialProjects,
-    education: initialEducation,
+    skills: Array.isArray(initialSkills) ? initialSkills : [],
+    experience: Array.isArray(initialExperience) ? initialExperience : [],
+    projects: normalizeProjectsForState(initialProjects),
+    education: Array.isArray(initialEducation) ? initialEducation : [],
   });
 
   useEffect(() => {
     let mounted = true;
     setLoadingOptimize(true);
-    optimizeAtsResume(extractionId, {
-      target_role: defaultRole || "",
-      skills: initialSkills,
-      experience: initialExperience,
-      projects: initialProjects,
-      education: initialEducation,
-    })
+    optimizeAtsResume(
+      extractionId,
+      sanitizeAtsPayload({
+        target_role: defaultRole || "",
+        skills: initialSkills,
+        experience: initialExperience,
+        projects: initialProjects,
+        education: initialEducation,
+      })
+    )
       .then((res) => {
         if (!mounted) return;
         const d = res.data;
@@ -66,7 +122,9 @@ export default function AtsCvBuilderModal({
           summary: d.summary || "",
           skills: d.skills?.length ? d.skills : initialSkills,
           experience: d.experience?.length ? d.experience : initialExperience,
-          projects: d.projects?.length ? d.projects : initialProjects,
+          projects: normalizeProjectsForState(
+            d.projects?.length ? d.projects : initialProjects
+          ),
           education: d.education?.length ? d.education : initialEducation,
         });
       })
@@ -91,10 +149,10 @@ export default function AtsCvBuilderModal({
     setLoadingOptimize(true);
     setErrorMsg("");
     try {
-      const res = await optimizeAtsResume(extractionId, {
-        ...form,
-        summary: "",
-      });
+      const res = await optimizeAtsResume(
+        extractionId,
+        sanitizeAtsPayload({ ...form, summary: "" })
+      );
       setForm((prev) => ({
         ...prev,
         summary: res.data.summary || prev.summary,
@@ -112,7 +170,7 @@ export default function AtsCvBuilderModal({
     setExportingPdf(true);
     setErrorMsg("");
     try {
-      const res = await exportAtsResumePdf(extractionId, form);
+      const res = await exportAtsResumePdf(extractionId, sanitizeAtsPayload(form));
       const blob = new Blob([res.data], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -134,7 +192,7 @@ export default function AtsCvBuilderModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto"
       role="dialog"
       aria-modal="true"
     >
@@ -163,7 +221,7 @@ export default function AtsCvBuilderModal({
                 onClick={() => setActiveTab("edit")}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
                   activeTab === "edit"
-                    ? "bg-white text-slate-900 shadow-xs"
+                    ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -175,7 +233,7 @@ export default function AtsCvBuilderModal({
                 onClick={() => setActiveTab("preview")}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
                   activeTab === "preview"
-                    ? "bg-white text-slate-900 shadow-xs"
+                    ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -205,7 +263,7 @@ export default function AtsCvBuilderModal({
 
           {loadingOptimize ? (
             <div className="py-12 text-center">
-              <div className="inline-block h-7 w-7 animate-spin rounded-full border-3 border-solid border-primary-600 border-r-transparent mb-3" />
+              <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-solid border-primary-600 border-r-transparent mb-3" />
               <p className="text-xs sm:text-sm font-bold text-slate-600">
                 جاري تحسين الصياغة وتجهيز قالب ATS الذكي...
               </p>
@@ -390,10 +448,324 @@ export default function AtsCvBuilderModal({
                   ))}
                 </div>
               </div>
+
+              {/* Experience */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-black text-slate-800">
+                    الخبرات العملية ({form.experience.length})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        experience: [
+                          ...prev.experience,
+                          { title: "", company: "", duration_months: 0, description: "" },
+                        ],
+                      }))
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg bg-primary-50 border border-primary-200 px-2.5 py-1 text-xs font-bold text-primary-700 hover:bg-primary-100"
+                  >
+                    <Plus size={13} />
+                    <span>إضافة خبرة</span>
+                  </button>
+                </div>
+                {form.experience.map((exp, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-slate-500">
+                        خبرة #{idx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            experience: prev.experience.filter((_, i) => i !== idx),
+                          }))
+                        }
+                        className="text-xs font-bold text-slate-400 hover:text-danger"
+                        aria-label="حذف الخبرة"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="grid gap-2.5 sm:grid-cols-3">
+                      <input
+                        type="text"
+                        className="input-field !py-1.5 text-xs"
+                        value={exp.title || ""}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            experience: prev.experience.map((item, i) =>
+                              i === idx ? { ...item, title: e.target.value } : item
+                            ),
+                          }))
+                        }
+                        placeholder="المسمى الوظيفي"
+                      />
+                      <input
+                        type="text"
+                        className="input-field !py-1.5 text-xs"
+                        value={exp.company || ""}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            experience: prev.experience.map((item, i) =>
+                              i === idx ? { ...item, company: e.target.value } : item
+                            ),
+                          }))
+                        }
+                        placeholder="اسم الشركة"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        className="input-field !py-1.5 text-xs"
+                        value={exp.duration_months ?? 0}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            experience: prev.experience.map((item, i) =>
+                              i === idx
+                                ? { ...item, duration_months: e.target.value }
+                                : item
+                            ),
+                          }))
+                        }
+                        placeholder="المدة بالأشهر"
+                      />
+                    </div>
+                    <textarea
+                      rows={2}
+                      className="input-field text-xs leading-relaxed"
+                      value={exp.description || ""}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          experience: prev.experience.map((item, i) =>
+                            i === idx ? { ...item, description: e.target.value } : item
+                          ),
+                        }))
+                      }
+                      placeholder="ملخص المهام والإنجازات..."
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Projects */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-black text-slate-800">
+                    المشاريع الرئيسية ({form.projects.length})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        projects: [
+                          ...prev.projects,
+                          { title: "", description: "", technologies: [], _techText: "" },
+                        ],
+                      }))
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg bg-primary-50 border border-primary-200 px-2.5 py-1 text-xs font-bold text-primary-700 hover:bg-primary-100"
+                  >
+                    <Plus size={13} />
+                    <span>إضافة مشروع</span>
+                  </button>
+                </div>
+                {form.projects.map((proj, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-slate-500">
+                        مشروع #{idx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            projects: prev.projects.filter((_, i) => i !== idx),
+                          }))
+                        }
+                        className="text-xs font-bold text-slate-400 hover:text-danger"
+                        aria-label="حذف المشروع"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      <input
+                        type="text"
+                        className="input-field !py-1.5 text-xs"
+                        value={proj.title || ""}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            projects: prev.projects.map((item, i) =>
+                              i === idx ? { ...item, title: e.target.value } : item
+                            ),
+                          }))
+                        }
+                        placeholder="اسم المشروع"
+                      />
+                      <input
+                        type="text"
+                        className="input-field !py-1.5 text-xs"
+                        dir="ltr"
+                        value={
+                          typeof proj._techText === "string"
+                            ? proj._techText
+                            : (proj.technologies || []).join(", ")
+                        }
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          const parsed = raw
+                            .split(/[،,]/)
+                            .map((s) => s.trim())
+                            .filter(Boolean);
+                          setForm((prev) => ({
+                            ...prev,
+                            projects: prev.projects.map((item, i) =>
+                              i === idx
+                                ? { ...item, _techText: raw, technologies: parsed }
+                                : item
+                            ),
+                          }));
+                        }}
+                        placeholder="React, FastAPI, PostgreSQL"
+                      />
+                    </div>
+                    <textarea
+                      rows={2}
+                      className="input-field text-xs leading-relaxed"
+                      value={proj.description || ""}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          projects: prev.projects.map((item, i) =>
+                            i === idx ? { ...item, description: e.target.value } : item
+                          ),
+                        }))
+                      }
+                      placeholder="وصف المشروع وأبرز النتائج..."
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Education */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-black text-slate-800">
+                    التعليم والشهادات ({form.education.length})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        education: [
+                          ...prev.education,
+                          { degree: "", institution: "", year: "" },
+                        ],
+                      }))
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg bg-primary-50 border border-primary-200 px-2.5 py-1 text-xs font-bold text-primary-700 hover:bg-primary-100"
+                  >
+                    <Plus size={13} />
+                    <span>إضافة مؤهل</span>
+                  </button>
+                </div>
+                {form.education.map((edu, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-slate-500">
+                        مؤهل #{idx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            education: prev.education.filter((_, i) => i !== idx),
+                          }))
+                        }
+                        className="text-xs font-bold text-slate-400 hover:text-danger"
+                        aria-label="حذف المؤهل"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="grid gap-2.5 sm:grid-cols-3">
+                      <input
+                        type="text"
+                        className="input-field !py-1.5 text-xs"
+                        value={edu.degree || ""}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            education: prev.education.map((item, i) =>
+                              i === idx ? { ...item, degree: e.target.value } : item
+                            ),
+                          }))
+                        }
+                        placeholder="الدرجة / التخصص"
+                      />
+                      <input
+                        type="text"
+                        className="input-field !py-1.5 text-xs"
+                        value={edu.institution || ""}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            education: prev.education.map((item, i) =>
+                              i === idx ? { ...item, institution: e.target.value } : item
+                            ),
+                          }))
+                        }
+                        placeholder="الجامعة / المؤسسة"
+                      />
+                      <input
+                        type="number"
+                        className="input-field !py-1.5 text-xs"
+                        value={edu.year ?? ""}
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            education: prev.education.map((item, i) =>
+                              i === idx ? { ...item, year: e.target.value } : item
+                            ),
+                          }))
+                        }
+                        placeholder="سنة التخرج (مثال: 2024)"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             /* Live ATS Resume Preview */
-            <div className="mx-auto max-w-2xl rounded-xl border border-slate-300 bg-white p-5 sm:p-8 text-slate-900 space-y-4">
+            <div
+              dir="ltr"
+              className="mx-auto max-w-2xl rounded-xl border border-slate-300 bg-white p-5 sm:p-8 text-slate-900 space-y-4 text-left"
+            >
               <div className="text-center border-b border-slate-300 pb-4">
                 <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                   {form.full_name || "Candidate Name"}

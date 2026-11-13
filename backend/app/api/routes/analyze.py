@@ -25,6 +25,7 @@ from app.schemas.schemas import (
     SuggestedCourseOut,
 )
 from app.services.recommendation_engine import UserProfileInput, calculate_recommendation
+from app.services.subscription_service import check_user_quota
 
 router = APIRouter(tags=["Analysis"])
 
@@ -42,6 +43,11 @@ def analyze(payload: AnalyzeRequest, db: Session = Depends(get_db), current_user
     )
     if assessment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
+
+    try:
+        check_user_quota(current_user, "analysis")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
     profile_input = UserProfileInput(
         skills=extraction.get("skills", []),
@@ -102,6 +108,7 @@ def analyze(payload: AnalyzeRequest, db: Session = Depends(get_db), current_user
 
     return AnalyzeResponse(
         analysis_id=analysis_id,
+        extraction_id=payload.extraction_id,
         date=now,
         career_score=result.career_score,
         career_dna=result.career_dna,

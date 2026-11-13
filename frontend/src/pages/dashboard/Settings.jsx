@@ -37,6 +37,7 @@ export default function Settings() {
   const [isSavingRecruiterConsent, setIsSavingRecruiterConsent] = useState(false);
   const [recruiterConsentLoaded, setRecruiterConsentLoaded] = useState(false);
   const [isSavingBenchmark, setIsSavingBenchmark] = useState(false);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showDangerConfirm, setShowDangerConfirm] = useState(false);
@@ -46,9 +47,12 @@ export default function Settings() {
       .then((res) => {
         setBenchmarkOptIn(Boolean(res.data?.benchmark_opt_in));
         setEmailNotifications(res.data?.notifications_opt_in !== false);
+        setPreferencesLoaded(true);
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {
+        showToast("تعذر تحميل تفضيلات الحساب", "error");
+      });
+  }, [showToast]);
 
   useEffect(() => {
     getRecruiterConsent().then((res) => {
@@ -257,7 +261,7 @@ export default function Settings() {
             type="checkbox"
             className="h-4 w-4 rounded text-primary-600 focus:ring-primary-500"
             checked={emailNotifications}
-            disabled={isSavingNotifications}
+            disabled={!preferencesLoaded || isSavingNotifications}
             onChange={(e) => handleNotificationsToggle(e.target.checked)}
           />
         </label>
@@ -275,7 +279,7 @@ export default function Settings() {
             type="checkbox"
             className="h-4 w-4 rounded text-primary-600 focus:ring-primary-500"
             checked={benchmarkOptIn}
-            disabled={isSavingBenchmark}
+            disabled={!preferencesLoaded || isSavingBenchmark}
             onChange={(e) => handleBenchmarkToggle(e.target.checked)}
           />
         </label>

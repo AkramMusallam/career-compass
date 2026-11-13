@@ -27,6 +27,12 @@ def test_company_job_and_pipeline_isolation(client):
     mongo_db["recruiter_consent"].insert_one({"_id": candidate_user_id})
     job_id = None
     try:
+        members = client.get(f"/companies/{company_id}/members", headers=owner)
+        assert members.status_code == 200
+        assert [member["id"] for member in members.json()] == [member_id]
+        assert members.json()[0]["full_name"] == "Team member"
+        assert client.get(f"/companies/{company_id}/members", headers=other).status_code == 404
+        assert client.get(f"/companies/{company_id}/members", headers=member).status_code == 404
         created = client.post("/recruiter/jobs", headers=owner, json={"title": "Engineer", "description": "Work"})
         assert created.status_code == 201, created.text
         job_id = created.json()["job_id"]
@@ -44,6 +50,7 @@ def test_company_job_and_pipeline_isolation(client):
         assert client.delete("/profile", headers=owner).status_code == 409
         assert client.delete(f"/companies/{company_id}/members/{member_id}", headers=other).status_code == 404
         assert client.delete(f"/companies/{company_id}/members/{member_id}", headers=owner).status_code == 200
+        assert client.get(f"/companies/{company_id}/members", headers=owner).json() == []
         assert client.get("/recruiter/jobs", headers=member).status_code == 403
         companies.update_one({"company_id": company_id}, {"$addToSet": {"members": member_id}})
         assert client.delete("/profile", headers=member).status_code == 200

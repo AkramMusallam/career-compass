@@ -95,7 +95,7 @@ function QuestionInput({ question, value, onChange }) {
 
 export default function AssessmentQuestions() {
   const navigate = useNavigate();
-  const { setAssessmentId } = useAnalysisFlow();
+  const { extractionId, setAssessmentId } = useAnalysisFlow();
 
   const [status, setStatus] = useState("loading");
   const [questions, setQuestions] = useState([]);
@@ -105,11 +105,15 @@ export default function AssessmentQuestions() {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    if (!extractionId) {
+      navigate("/analysis/upload", { replace: true });
+      return;
+    }
     let mounted = true;
     getAssessmentQuestions()
       .then((res) => {
         if (!mounted) return;
-        const qs = res.data.questions || [];
+        const qs = Array.isArray(res.data?.questions) ? res.data.questions : [];
         setQuestions(qs);
         const initialScaleAnswers = {};
         for (const q of qs) {
@@ -124,7 +128,9 @@ export default function AssessmentQuestions() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [extractionId, navigate]);
+
+  if (!extractionId) return null;
 
   if (status === "loading") {
     return (
@@ -145,6 +151,17 @@ export default function AssessmentQuestions() {
         <p className="mb-4 font-bold text-slate-700">تعذر تحميل الأسئلة</p>
         <button className="btn-primary" onClick={() => window.location.reload()}>
           إعادة المحاولة
+        </button>
+      </div>
+    );
+  }
+
+  if (questions.length === 0) {
+    return (
+      <div className="card mx-auto max-w-md text-center space-y-4">
+        <p className="font-bold text-slate-700">لا توجد أسئلة تقييم متاحة حالياً</p>
+        <button className="btn-outline" onClick={() => navigate("/analysis/upload")}>
+          العودة لرفع السيرة
         </button>
       </div>
     );

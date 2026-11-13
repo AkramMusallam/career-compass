@@ -2,17 +2,20 @@ services:
   mysql:
     image: mysql:8.0
     restart: unless-stopped
-    env_file:
-      - ./backend/.env
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set in production environment}
       MYSQL_DATABASE: career_compass
       MYSQL_USER: ${MYSQL_USER:-career_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-career_pass}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set in production environment}
     volumes:
       - mysql_data:/var/lib/mysql
+    networks:
+      - backend_net
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysqladmin ping -h 127.0.0.1 -u \"$$MYSQL_USER\""]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,10 +23,18 @@ services:
   mongo:
     image: mongo:7.0
     restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?MONGO_INITDB_ROOT_USERNAME must be set in production environment}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?MONGO_INITDB_ROOT_PASSWORD must be set in production environment}
     volumes:
       - mongo_data:/data/db
+    networks:
+      - backend_net
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD-SHELL", "mongosh --quiet -u \"$$MONGO_INITDB_ROOT_USERNAME\" -p \"$$MONGO_INITDB_ROOT_PASSWORD\" --authenticationDatabase admin --eval \"db.adminCommand('ping').ok\" | grep -q 1"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -31,23 +42,42 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in production environment}
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes"]
     volumes:
       - redis_data:/data
+    networks:
+      - backend_net
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  # حاوية الذكاء الاصطناعي التي ستعمل داخل السيرفر
+  # Local LLM service (pull model e.g. `docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3.2`)
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
     volumes:
       - ollama_data:/root/.ollama
+    networks:
+      - backend_net
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
 
   backend:
-    image: career-compass-backend:latest
+    image: career-compass-backend:local
     build:
       context: ./backend
     restart: unless-stopped
@@ -58,32 +88,54 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ollama:
+        condition: service_started
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
+      - path: ./.env
+        required: false
     environment:
       ENV: production
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in production environment}
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: ${MYSQL_USER:-career_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-career_pass}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set in production environment}
       MYSQL_DB: career_compass
       USE_SQLITE_FALLBACK: "0"
-      MONGO_URI: mongodb://mongo:27017
+      MONGO_URI: "mongodb://${MONGO_INITDB_ROOT_USERNAME:?MONGO_INITDB_ROOT_USERNAME must be set in production environment}:${MONGO_INITDB_ROOT_PASSWORD:?MONGO_INITDB_ROOT_PASSWORD must be set in production environment}@mongo:27017/career_compass?authSource=admin"
       MONGO_DB: career_compass
       USE_MONGOMOCK: "0"
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://129.159.143.77,http://localhost:5173,http://localhost:3000,http://localhost}
-      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS must be set in production environment}
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in production environment}@redis:6379/0"
       CELERY_TASK_ALWAYS_EAGER: "0"
-      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://129.159.143.77}
-      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-127.0.0.1,172.16.0.0/12,10.0.0.0/8}
-      # ربط الباك إند بحاوية ollama
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?FRONTEND_BASE_URL must be set in production environment}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-127.0.0.1}
       OLLAMA_HOST: "http://ollama:11434"
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      ENFORCE_SUBSCRIPTION_QUOTAS: "${ENFORCE_SUBSCRIPTION_QUOTAS:-1}"
     volumes:
       - backend_uploads:/app/uploads
+    networks:
+      - frontend_net
+      - backend_net
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   celery-worker:
-    image: career-compass-backend:latest
+    image: career-compass-backend:local
+    build:
+      context: ./backend
     restart: unless-stopped
     command: celery -A app.worker.celery_app worker --loglevel=info
     depends_on:
@@ -93,50 +145,84 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      backend:
+        condition: service_started
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
+      - path: ./.env
+        required: false
     environment:
       ENV: production
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in production environment}
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_USER: ${MYSQL_USER:-career_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-career_pass}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set in production environment}
       MYSQL_DB: career_compass
       USE_SQLITE_FALLBACK: "0"
-      MONGO_URI: mongodb://mongo:27017
+      MONGO_URI: "mongodb://${MONGO_INITDB_ROOT_USERNAME:?MONGO_INITDB_ROOT_USERNAME must be set in production environment}:${MONGO_INITDB_ROOT_PASSWORD:?MONGO_INITDB_ROOT_PASSWORD must be set in production environment}@mongo:27017/career_compass?authSource=admin"
       MONGO_DB: career_compass
       USE_MONGOMOCK: "0"
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in production environment}@redis:6379/0"
       CELERY_TASK_ALWAYS_EAGER: "0"
-      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://129.159.143.77}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?FRONTEND_BASE_URL must be set in production environment}
       OLLAMA_HOST: "http://ollama:11434"
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      ENFORCE_SUBSCRIPTION_QUOTAS: "${ENFORCE_SUBSCRIPTION_QUOTAS:-1}"
     volumes:
       - backend_uploads:/app/uploads
+    networks:
+      - backend_net
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 2g
 
   celery-beat:
-    image: career-compass-backend:latest
+    image: career-compass-backend:local
+    build:
+      context: ./backend
     restart: unless-stopped
-    command: celery -A app.worker.celery_app beat --loglevel=info
+    command: celery -A app.worker.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     depends_on:
       redis:
         condition: service_healthy
+      backend:
+        condition: service_started
     env_file:
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
+      - path: ./.env
+        required: false
     environment:
       ENV: production
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set in production environment}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in production environment}@redis:6379/0"
       CELERY_TASK_ALWAYS_EAGER: "0"
+    networks:
+      - backend_net
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
 
   frontend:
     build:
       context: ./frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+    networks:
+      - frontend_net
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
 
-  # Nginx يعمل كبوابة يستقبل الزيارات من بورت 80 ويوجهها للـ Frontend أو Backend
+  # Reverse proxy on edge network only (isolated from internal DB/Redis/Ollama network)
   nginx:
     image: nginx:alpine
     restart: unless-stopped
@@ -148,6 +234,19 @@ services:
     depends_on:
       - frontend
       - backend
+    networks:
+      - frontend_net
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+
+networks:
+  # Edge network for nginx, frontend, and backend HTTP ingress
+  frontend_net:
+    driver: bridge
+  # Internal service network isolating DBs, Redis, Ollama, and Celery workers from nginx/frontend
+  backend_net:
+    driver: bridge
 
 volumes:
   mysql_data:

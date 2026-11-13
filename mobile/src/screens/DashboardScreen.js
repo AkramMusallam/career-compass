@@ -1,15 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
-import { fetchLatestRoadmap, fetchProfile } from "../services/api";
+import { companyRequest, fetchLatestRoadmap, fetchProfile } from "../services/api";
 
 export default function DashboardScreen({ onNavigate, onLogout, token }) {
   const [stats, setStats] = useState({
-    careerScore: 0,
-    targetRole: "ابدأ تحليلك الأول من الموقع",
+    careerScore: null,
+    targetRole: "ابدأ تحليلك الأول من هاتفك",
     completedRoadmapSkills: 0,
     totalRoadmapSkills: 0,
   });
   const [error, setError] = useState("");
+  const [adminAccess, setAdminAccess] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    companyRequest(token, "/companies/review").then(() => { if (mounted) setAdminAccess(true); }).catch((err) => { if (mounted && err.status !== 403 && err.status !== 401) setAdminAccess(true); });
+    return () => { mounted = false; };
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -32,7 +39,7 @@ export default function DashboardScreen({ onNavigate, onLogout, token }) {
             0
           );
           setStats((prev) => ({
-            careerScore: Math.round(latest?.career_score ?? profile?.highest_career_score ?? prev.careerScore),
+            careerScore: latest ? Math.round(latest.career_score) : profile?.total_analyses ? Math.round(profile.highest_career_score) : null,
             targetRole: latest?.top_jobs?.[0]?.job_title || prev.targetRole,
             completedRoadmapSkills: (latest?.completed_skills || []).length,
             totalRoadmapSkills: totalSkills,
@@ -62,26 +69,31 @@ export default function DashboardScreen({ onNavigate, onLogout, token }) {
             </TouchableOpacity>
           )}
         </View>
-        <Text style={styles.greeting}>مرحباً بك مجدداً 👋</Text>
+        <Text style={styles.greeting}>مستقبلك يبدأ بخطوة 👋</Text>
         <Text style={styles.roleSub}>{stats.targetRole}</Text>
       </View>
 
       {/* Career Score Gauge */}
       <View style={styles.scoreBox}>
         <View style={styles.circleGauge}>
-          <Text style={styles.scoreText}>{stats.careerScore}%</Text>
+          <Text style={styles.scoreText}>{stats.careerScore === null ? "—" : `${stats.careerScore}%`}</Text>
           <Text style={styles.scoreSub}>درجة الجاهزية</Text>
         </View>
         <View style={styles.scoreDetails}>
           <Text style={styles.scoreTitle}>درجة الجاهزية المهنية</Text>
           <Text style={styles.scoreDesc}>
-            بناءً على آخر تحليل مهني في حسابك.
+            {stats.careerScore === null ? "ستظهر نتيجتك بعد إكمال تحليلك الأول." : "بناءً على آخر تحليل مهني في حسابك."}
           </Text>
         </View>
       </View>
 
       {/* Quick Actions */}
       <Text style={styles.sectionHeader}>إجراءات سريعة وممارسة</Text>
+
+      <TouchableOpacity style={[styles.actionBtn, styles.actionSecondary]} onPress={() => onNavigate("profile")} accessibilityRole="button"><Text style={styles.actionBtnTitle}>الملف الشخصي</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.actionBtn, styles.actionSecondary]} onPress={() => onNavigate("history")} accessibilityRole="button"><Text style={styles.actionBtnTitle}>سجل التحليلات</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.actionBtn, styles.actionSecondary]} onPress={() => onNavigate("company")} accessibilityRole="button"><Text style={styles.actionBtnTitle}>شركاتي والتوظيف</Text></TouchableOpacity>
+      {adminAccess && <TouchableOpacity style={[styles.actionBtn, styles.actionSecondary]} onPress={() => onNavigate("admin")} accessibilityRole="button"><Text style={styles.actionBtnTitle}>إدارة المنصة</Text></TouchableOpacity>}
 
       <TouchableOpacity style={[styles.actionBtn, styles.actionPrimary]} onPress={() => onNavigate("analysis")} accessibilityRole="button">
         <Text style={styles.actionIcon}>📄</Text>
@@ -120,13 +132,13 @@ export default function DashboardScreen({ onNavigate, onLogout, token }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f172a", padding: 18 },
-  cardHeader: { marginBottom: 20 },
+  cardHeader: { marginBottom: 20, backgroundColor: "#172554", borderRadius: 20, padding: 18, borderWidth: 1, borderColor: "#1e40af" },
   headerTopRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   badge: { color: "#38bdf8", fontSize: 12, fontWeight: "bold" },
   logoutBtn: { backgroundColor: "rgba(239, 68, 68, 0.15)", borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.3)", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 },
   logoutText: { color: "#fca5a5", fontSize: 11, fontWeight: "bold" },
-  greeting: { fontSize: 24, fontWeight: "900", color: "#f8fafc" },
-  roleSub: { fontSize: 14, color: "#94a3b8", marginTop: 4 },
+  greeting: { fontSize: 24, fontWeight: "900", color: "#f8fafc", textAlign: "right", marginTop: 14 },
+  roleSub: { fontSize: 14, color: "#cbd5e1", marginTop: 4, textAlign: "right" },
   scoreBox: {
     backgroundColor: "#1e293b",
     borderRadius: 18,

@@ -59,19 +59,34 @@ async def lifespan(app: FastAPI):
     yield
 
 
+_is_production = settings.ENV == "production"
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="Career Compass — منصة تحليل السيرة الذاتية والتوصية بالمسار المهني المناسب.",
     lifespan=lifespan,
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
+    openapi_url=None if _is_production else "/openapi.json",
 )
 
-app.add_middleware(SecurityHeadersMiddleware)
+_cors_origins = list(settings.CORS_ORIGINS) + [
+    f"chrome-extension://{ext_id}" for ext_id in settings.ALLOWED_EXTENSION_IDS
+]
+_cors_origin_regex = (
+    r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|chrome-extension://[a-z]{32})$"
+    if settings.ENV in ("development", "testing")
+    else None
+)
+
+# Register RateLimitMiddleware before SecurityHeadersMiddleware (LIFO execution -> SecurityHeaders wraps 429s)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|chrome-extension://[a-z]{32})$",
+    allow_origins=_cors_origins,
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -113,7 +128,8 @@ def health_check():
         checks["mongo"] = "degraded"
 
     overall = "healthy" if all(v == "ok" for v in checks.values()) else "degraded"
-    return {"status": overall, "checks": checks}
+    http_status = status.HTTP_200_OK if overall == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE
+    return JSONResponse(status_code=http_status, content={"status": overall, "checks": checks})
 
 
 app.include_router(auth.router)

@@ -60,6 +60,7 @@ def get_profile(current_user: User = Depends(get_current_user)):
         role=getattr(current_user, "role", "candidate") or "candidate",
         subscription_tier=getattr(current_user, "subscription_tier", "free") or "free",
         company_name=getattr(current_user, "company_name", None),
+        target_role=getattr(current_user, "target_role", None),
     )
 
 
@@ -71,10 +72,17 @@ def update_profile(
 ):
     user = db.merge(current_user)
     user.full_name = payload.full_name
+    if "target_role" in payload.model_fields_set:
+        user.target_role = payload.target_role
     db.commit()
     db.refresh(user)
 
-    return ProfileUpdateResponse(id=str(user.id), full_name=user.full_name, email=user.email)
+    return ProfileUpdateResponse(
+        id=str(user.id),
+        full_name=user.full_name,
+        email=user.email,
+        target_role=getattr(user, "target_role", None),
+    )
 
 
 @router.get("/profile/badges", response_model=BadgesResponse)

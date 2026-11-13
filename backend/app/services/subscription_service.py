@@ -153,6 +153,9 @@ def check_user_quota(user: User, resource: str) -> None:
     التحقق من حدود الباقة الحالية للمستخدم (Free vs Pro / Enterprise).
     يرفع ValueError برسالة واضحة إذا تجاوز المستخدم الحد المسموح به في الباقة المجانية.
     """
+    if not settings.ENFORCE_SUBSCRIPTION_QUOTAS:
+        return
+
     tier = getattr(user, "subscription_tier", "free") or "free"
     plan = get_plan_by_id(tier) or SUBSCRIPTION_PLANS[0]
     limits = plan.get("limits", {})
@@ -260,14 +263,62 @@ def create_checkout_session(
     now = datetime.datetime.now(datetime.timezone.utc)
     invoice_id = f"INV-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     frontend_base = settings.FRONTEND_BASE_URL.rstrip("/")
-    success_redirect = success_url or f"{frontend_base}/dashboard?subscription=success&session_id={session_id}"
+
+    def _resolve_redirect(url_value: Optional[str], default_path: str) -> str:
+        if not url_value:
+            return f"{frontend_base}{default_path}"
+        return f"{frontend_base}{url_value}" if url_value.startswith("/") else url_value
+
+    success_redirect = _resolve_redirect(success_url, f"/dashboard?subscription=success&session_id={session_id}")
+    cancel_redirect = _resolve_redirect(cancel_url, "/pricing?status=cancelled")
 
     duration_days = 365 if billing_cycle == "annual" else 30
     expires_at = (now + datetime.timedelta(days=duration_days)).isoformat()
     amount_usd = float(plan["price_annual"] if billing_cycle == "annual" else plan["price_monthly"])
 
-    # إذا تم ضبط مفاتيح Stripe الفعلية في البيئة ولم يكن الدفع عبر البوابة التفاعلية المدمجة
-    allow_sandbox_bypass = bool(test_token) and settings.ENV != "production"
+    is_testing_sandbox = settings.ENV == "testing"
+    if not is_testing_sandbox:
+        # Outside automated testing, only verified Stripe server checkout sessions may be created.
+        if payment_method != "card":
+            raise ValueError("Selected payment gateway is not enabled in this environment")
+        if not settings.STRIPE_SECRET_KEY:
+            raise ValueError("Payment gateway is not configured")
+        try:
+            import stripe
+
+            stripe.api_key = settings.STRIPE_SECRET_KEY
+            price_amount = int(amount_usd * 100)
+            session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                customer_email=user.email,
+                line_items=[{
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {
+                            "name": f"Career Compass — {plan['name']}",
+                            "description": plan["description"],
+                        },
+                        "unit_amount": price_amount,
+                        "recurring": {"interval": "year" if billing_cycle == "annual" else "month"},
+                    },
+                    "quantity": 1,
+                }],
+                mode="subscription",
+                success_url=success_redirect,
+                cancel_url=cancel_redirect,
+                metadata={"user_id": str(user.id), "plan_id": plan["id"]},
+            )
+            return {
+                "session_id": session.id,
+                "checkout_url": session.url,
+                "provider": "stripe",
+                "mode": "payment",
+            }
+        except Exception as e:
+            raise ValueError("Payment gateway error") from e
+
+    # Explicit ENV=="testing" sandbox path for automated integration tests
+    allow_sandbox_bypass = bool(test_token)
     if settings.STRIPE_SECRET_KEY and not allow_sandbox_bypass and not clean_last4 and payment_method == "card":
         try:
             import stripe
@@ -291,7 +342,7 @@ def create_checkout_session(
                 }],
                 mode="subscription",
                 success_url=success_redirect,
-                cancel_url=cancel_url or f"{frontend_base}/pricing?status=cancelled",
+                cancel_url=cancel_redirect,
                 metadata={"user_id": str(user.id), "plan_id": plan["id"]},
             )
             return {
@@ -301,9 +352,7 @@ def create_checkout_session(
                 "mode": "payment",
             }
         except Exception as e:
-            if settings.ENV == "production":
-                raise ValueError("Payment gateway error") from e
-            logger.warning("Stripe API call failed (%s), falling back to direct checkout processor", e)
+            logger.warning("Stripe API call failed (%s), falling back to direct checkout processor in testing", e)
 
     # أرشفة أي اشتراكات نشطة سابقة قبل تسجيل الفاتورة والاشتراك الجديد
     subscriptions_collection.update_many(
@@ -329,17 +378,11 @@ def create_checkout_session(
     }
     subscriptions_collection.insert_one(sub_doc)
 
-    # تحديث مستوى اشتراك المستخدم في قاعدة البيانات SQL
+    # تحديث مستوى اشتراك المستخدم في قاعدة البيانات SQL دون ترقية تلقائية لدور الحساب
     with SessionLocal() as db:
         db_user = db.query(User).filter(User.id == user.id).first()
         if db_user:
             db_user.subscription_tier = plan["id"]
-            if plan["id"] == "enterprise":
-                db_user.role = "recruiter"
-                if company_name and company_name.strip():
-                    db_user.company_name = company_name.strip()[:200]
-                elif not db_user.company_name:
-                    db_user.company_name = f"شركة {db_user.full_name}"[:200]
             db.commit()
 
     invoice_summary = {
@@ -391,7 +434,9 @@ def handle_webhook_event(body: bytes, stripe_signature: Optional[str] = None) ->
         raise ValueError("Webhook payload too large")
 
     event: Dict[str, Any] = {}
-    if settings.STRIPE_WEBHOOK_SECRET and settings.ENV == "production":
+    if settings.ENV != "testing" or settings.STRIPE_WEBHOOK_SECRET:
+        if not settings.STRIPE_WEBHOOK_SECRET:
+            raise ValueError("Stripe webhook secret is not configured")
         if not stripe_signature:
             raise ValueError("Missing Stripe signature")
         try:
@@ -426,8 +471,6 @@ def handle_webhook_event(body: bytes, stripe_signature: Optional[str] = None) ->
                     db_user = db.query(User).filter(User.id == uid).first()
                     if db_user:
                         db_user.subscription_tier = plan["id"]
-                        if plan["id"] == "enterprise":
-                            db_user.role = "recruiter"
                         db.commit()
             except (ValueError, TypeError):
                 pass

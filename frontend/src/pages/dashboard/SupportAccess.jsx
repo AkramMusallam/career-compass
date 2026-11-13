@@ -61,8 +61,107 @@ export default function SupportAccess() {
       <label className="block">المدة بالساعات<input type="number" min="1" max="24" required className="input-field" value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value })} /></label>
       <button className="btn-primary">تسجيل الموافقة</button>
     </form>}
-    {created && <section className="card space-y-2"><p>تنتهي الصلاحية: {created.expires_at}</p><button className="btn-primary" onClick={openProfile}>فتح ملف المرشح</button>
-      {profile && <pre className="whitespace-pre-wrap break-words" dir="auto">{JSON.stringify(profile, null, 2)}</pre>}
+    {created && <section className="card space-y-3"><p>تنتهي الصلاحية: {created.expires_at}</p><button className="btn-primary" onClick={openProfile}>فتح ملف المرشح</button>
+      {profile && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4 text-xs sm:text-sm">
+          <div className="border-b border-slate-200 pb-3 space-y-1">
+            <h3 className="text-base font-bold text-slate-900" dir="auto">
+              {profile.full_name || "—"}
+            </h3>
+            <p className="text-slate-600" dir="ltr">
+              {profile.email || "—"}
+            </p>
+            {profile.target_role && (
+              <p className="text-xs font-bold text-primary-700" dir="auto">
+                الدور المستهدف: {profile.target_role}
+              </p>
+            )}
+            <p className="text-[11px] text-slate-400" dir="ltr">
+              ID: {profile.candidate_id}
+            </p>
+          </div>
+
+          {Array.isArray(profile.skills) && profile.skills.length > 0 && (
+            <div>
+              <h4 className="font-bold text-slate-800 mb-1.5">المهارات</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {profile.skills.map((skill, idx) => (
+                  <span
+                    key={`${skill}-${idx}`}
+                    className="rounded-md bg-white border border-slate-200 px-2.5 py-0.5 text-xs font-semibold text-slate-700"
+                    dir="auto"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {Array.isArray(profile.experience) && profile.experience.length > 0 && (
+            <div>
+              <h4 className="font-bold text-slate-800 mb-1.5">الخبرات</h4>
+              <div className="space-y-2">
+                {profile.experience.map((exp, idx) => (
+                  <div key={idx} className="rounded-lg bg-white border border-slate-200 p-2.5">
+                    <p className="font-bold text-slate-900" dir="auto">
+                      {exp?.title || "—"} {exp?.company ? `— ${exp.company}` : ""}
+                    </p>
+                    {exp?.duration_months != null && (
+                      <p className="text-[11px] text-slate-500">
+                        المدة: {exp.duration_months} شهر
+                      </p>
+                    )}
+                    {exp?.description && (
+                      <p className="mt-1 text-xs text-slate-600" dir="auto">
+                        {exp.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {Array.isArray(profile.projects) && profile.projects.length > 0 && (
+            <div>
+              <h4 className="font-bold text-slate-800 mb-1.5">المشاريع</h4>
+              <div className="space-y-2">
+                {profile.projects.map((proj, idx) => (
+                  <div key={idx} className="rounded-lg bg-white border border-slate-200 p-2.5">
+                    <p className="font-bold text-slate-900" dir="auto">
+                      {proj?.title || "—"}
+                    </p>
+                    {Array.isArray(proj?.technologies) && proj.technologies.length > 0 && (
+                      <p className="text-[11px] text-primary-700" dir="ltr">
+                        {proj.technologies.join(", ")}
+                      </p>
+                    )}
+                    {proj?.description && (
+                      <p className="mt-1 text-xs text-slate-600" dir="auto">
+                        {proj.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {Array.isArray(profile.education) && profile.education.length > 0 && (
+            <div>
+              <h4 className="font-bold text-slate-800 mb-1.5">التعليم</h4>
+              <div className="space-y-1.5">
+                {profile.education.map((edu, idx) => (
+                  <p key={idx} className="text-xs font-semibold text-slate-700" dir="auto">
+                    {[edu?.degree, edu?.institution, edu?.year].filter(Boolean).join(" — ") || "—"}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </section>}
     {owner && <section className="card space-y-2"><h2 className="font-bold">سجل صلاحيات الدعم</h2>
       {ownerGrants.map((grant) => <div key={grant.grant_id} className="border-b pb-2"><p>{grant.candidate_id} — {grant.reason} — {grant.expires_at} {grant.revoked && "— ملغاة"}</p>

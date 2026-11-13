@@ -1,18 +1,49 @@
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { FileText, X, Copy } from "lucide-react";
+import { FileText, X, Copy, Sparkles } from "lucide-react";
+
+import { useToast } from "../../../context/ToastContext";
 
 export default function CoverLetterModal({
   coverLetterJob,
+  initialJobDescription = "",
   coverLetterText,
   isGeneratingCL,
+  onGenerate,
   onClose,
   onCopySuccess,
 }) {
+  const { showToast } = useToast();
+  const [jobDescription, setJobDescription] = useState(
+    initialJobDescription || coverLetterJob || ""
+  );
+
+  useEffect(() => {
+    if (coverLetterJob) {
+      setJobDescription(initialJobDescription || coverLetterJob);
+    }
+  }, [coverLetterJob, initialJobDescription]);
+
   if (!coverLetterJob) return null;
+
+  const trimmedDescription = jobDescription.trim();
+  const canGenerate = trimmedDescription.length >= 2 && !isGeneratingCL;
+
+  const handleCopy = async () => {
+    try {
+      if (!navigator?.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(coverLetterText);
+      if (onCopySuccess) onCopySuccess();
+    } catch {
+      showToast("تعذر النسخ التلقائي، حدد النص وانسخه يدوياً", "error");
+    }
+  };
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-3 sm:p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-3 sm:p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -27,6 +58,7 @@ export default function CoverLetterModal({
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             aria-label="إغلاق"
@@ -34,6 +66,42 @@ export default function CoverLetterModal({
             <X size={18} />
           </button>
         </div>
+
+        <div className="mb-4 space-y-2">
+          <label
+            htmlFor="cover-letter-job-description"
+            className="block text-xs font-bold text-slate-700"
+          >
+            الوصف الوظيفي المستهدف (عدّله أو الصق تفاصيل الوظيفة لتخصيص الخطاب)
+          </label>
+          <textarea
+            id="cover-letter-job-description"
+            rows={4}
+            maxLength={5000}
+            dir="auto"
+            value={jobDescription}
+            onChange={(e) => setJobDescription(e.target.value)}
+            placeholder="الصق هنا الوصف الوظيفي أو المهارات المطلوبة..."
+            className="input-field resize-y text-xs leading-relaxed"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-medium text-slate-400">
+              {trimmedDescription.length} / 5000 حرف
+            </span>
+            {onGenerate && (
+              <button
+                type="button"
+                disabled={!canGenerate}
+                onClick={() => onGenerate(coverLetterJob, trimmedDescription)}
+                className="btn-outline !py-1.5 !px-3 !text-xs"
+              >
+                <Sparkles size={13} />
+                <span>توليد بالوصف المحدّث</span>
+              </button>
+            )}
+          </div>
+        </div>
+
         {isGeneratingCL ? (
           <div className="py-12 text-center text-slate-500">
             <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-solid border-primary-600 border-r-transparent mb-3" />
@@ -57,10 +125,7 @@ export default function CoverLetterModal({
             type="button"
             className="btn-primary"
             disabled={isGeneratingCL || !coverLetterText}
-            onClick={() => {
-              navigator.clipboard.writeText(coverLetterText);
-              if (onCopySuccess) onCopySuccess();
-            }}
+            onClick={handleCopy}
           >
             <Copy size={15} />
             <span>نسخ النص</span>

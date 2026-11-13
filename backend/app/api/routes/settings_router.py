@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.mongo import mongo_db
-from app.core. benchmark_cache import invalidate_benchmark_cache
-from app.core.security import get_current_user, hash_password, verify_password
+from app.core.benchmark_cache import invalidate_benchmark_cache
+from app.core.security import bump_user_token_version, get_current_user, hash_password, verify_password
 from app.models.mysql_models import User
 from app.schemas.schemas import (
     BenchmarkOptInRequest,
@@ -50,6 +50,7 @@ def update_password(
     user = db.merge(current_user)
     user.hashed_password = hash_password(payload.new_password)
     db.commit()
+    bump_user_token_version(user.id)
 
     return PasswordUpdateResponse(status="password_updated")
 

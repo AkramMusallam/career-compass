@@ -63,14 +63,14 @@ STYLES = {
 def rtl(text) -> str:
     """يحوّل أي نص (عربي، إنجليزي، أو مختلط) إلى الشكل الصحيح بصرياً لعرضه في PDF.
 
-    يهرب رموز XML الخاصة أولاً (لأن Paragraph في reportlab يفسّر HTML مصغّر)، ثم يطبّق
-    إعادة تشكيل الحروف العربية (arabic_reshaper) وخوارزمية الاتجاه الثنائي (python-bidi).
+    يطبّق إعادة تشكيل الحروف العربية (arabic_reshaper) وخوارزمية الاتجاه الثنائي (python-bidi)
+    أولاً، ثم يهرّب رموز XML الخاصة بعد ذلك حتى لا تنكسر الكيانات (Entities) في الاتجاه الثنائي.
     """
     if text is None:
         return ""
-    escaped = str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    reshaped = arabic_reshaper.reshape(escaped)
-    return get_display(reshaped)
+    reshaped = arabic_reshaper.reshape(str(text))
+    visual = get_display(reshaped)
+    return visual.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _score_color(score: float):
@@ -248,14 +248,23 @@ def build_ats_resume_pdf(resume_data: dict) -> bytes:
     frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id="ats_main")
     doc.addPageTemplates([PageTemplate(id="ats_template", frames=frame)])
 
-    # Determine dominant direction based on whether summary/name/experience contain Arabic
-    sample_blob = " ".join(
-        [
-            str(resume_data.get("full_name", "")),
-            str(resume_data.get("target_role", "")),
-            str(resume_data.get("summary", "")),
-        ]
-    )
+    # Determine dominant direction across summary, name, skills, experience, projects, and education
+    sample_parts = [
+        str(resume_data.get("full_name", "")),
+        str(resume_data.get("target_role", "")),
+        str(resume_data.get("summary", "")),
+        " ".join(str(s) for s in (resume_data.get("skills") or [])),
+    ]
+    for exp in resume_data.get("experience") or []:
+        if isinstance(exp, dict):
+            sample_parts.extend(str(exp.get(k, "")) for k in ("title", "company", "description"))
+    for proj in resume_data.get("projects") or []:
+        if isinstance(proj, dict):
+            sample_parts.extend(str(proj.get(k, "")) for k in ("title", "description"))
+    for edu in resume_data.get("education") or []:
+        if isinstance(edu, dict):
+            sample_parts.extend(str(edu.get(k, "")) for k in ("degree", "institution"))
+    sample_blob = " ".join(sample_parts)
     is_rtl_doc = _has_arabic(sample_blob)
     body_align = TA_RIGHT if is_rtl_doc else 0  # 0 = TA_LEFT
 

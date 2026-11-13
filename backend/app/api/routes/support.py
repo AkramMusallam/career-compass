@@ -1,4 +1,5 @@
 """Time-limited, documented support access to a candidate profile."""
+import logging
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -12,6 +13,8 @@ from app.core.mongo import mongo_db
 from app.core.security import get_current_user
 from app.models.mysql_models import User
 
+logger = logging.getLogger("career_compass.support")
+
 router = APIRouter(prefix="/support", tags=["Support access"])
 
 
@@ -24,11 +27,11 @@ class SupportGrantRequest(BaseModel):
     @field_validator("candidate_id", "reason", "consent_evidence")
     @classmethod
     def non_blank(cls, value, info):
-        value = value.strip()
+        cleaned = "".join(ch for ch in str(value).strip() if ch in ("\t",) or ord(ch) >= 32)
         minimum = {"candidate_id": 1, "reason": 3, "consent_evidence": 10}[info.field_name]
-        if len(value) < minimum:
+        if len(cleaned) < minimum:
             raise ValueError("Value cannot be blank")
-        return value
+        return cleaned
 
 
 def public_grant(grant):
@@ -48,12 +51,33 @@ def grant_support(payload: SupportGrantRequest, user: User = Depends(require_pla
     if not extraction or not isinstance(extraction.get("user_id"), int):
         raise HTTPException(status_code=404, detail="Candidate profile not found")
     now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    active_count = mongo_db["support_grants"].count_documents(
+        {"candidate_id": payload.candidate_id, "revoked": False, "expires_at": {"$gt": now_iso}}
+    )
+    if active_count >= 5:
+        raise HTTPException(status_code=400, detail="Too many active support grants for this candidate")
     grant = {"grant_id": str(uuid4()), "candidate_id": payload.candidate_id,
              "candidate_user_id": extraction["user_id"], "owner_id": user.id,
              "reason": payload.reason, "consent_evidence": payload.consent_evidence,
-             "created_at": now.isoformat(), "expires_at": (now + timedelta(hours=payload.hours)).isoformat(),
+             "created_at": now_iso, "expires_at": (now + timedelta(hours=payload.hours)).isoformat(),
              "revoked": False}
     mongo_db["support_grants"].insert_one(grant)
+    mongo_db["logs"].insert_one(
+        {
+            "event": "support_grant_created",
+            "grant_id": grant["grant_id"],
+            "owner_id": user.id,
+            "candidate_user_id": extraction["user_id"],
+            "candidate_id": payload.candidate_id,
+            "reason": payload.reason,
+            "timestamp": now_iso,
+        }
+    )
+    logger.info(
+        "Support grant created grant_id=%s owner_id=%s candidate_user_id=%s",
+        grant["grant_id"], user.id, extraction["user_id"],
+    )
     return public_grant(grant)
 
 

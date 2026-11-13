@@ -48,6 +48,7 @@ def _doc_to_analyze_response(doc: dict) -> AnalyzeResponse:
     """محوّل مشترك من مستند MongoDB إلى AnalyzeResponse، يُستخدم في history detail والمقارنة."""
     return AnalyzeResponse(
         analysis_id=doc["analysis_id"],
+        extraction_id=doc.get("extraction_id"),
         date=doc.get("date"),
         career_score=doc["career_score"],
         career_dna=doc["career_dna"],

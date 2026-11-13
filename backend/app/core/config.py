@@ -5,11 +5,29 @@
 from __future__ import annotations
 
 import os
+import secrets
 from functools import lru_cache
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+_DEV_EPHEMERAL_SECRET: str = secrets.token_urlsafe(32)
+_WEAK_JWT_SECRETS: set[str] = {
+    "CHANGE_ME_IN_PRODUCTION_SECRET_KEY",
+    "change-this-to-a-long-random-secret-in-production",
+    "changeme",
+    "secret",
+}
+
+
+def _resolve_jwt_secret(env: str) -> str:
+    raw = os.getenv("JWT_SECRET_KEY", "").strip()
+    if env in ("development", "testing"):
+        return _DEV_EPHEMERAL_SECRET if (not raw or raw in _WEAK_JWT_SECRETS) else raw
+    if not raw or raw in _WEAK_JWT_SECRETS:
+        raise ValueError(f"Strong explicit JWT_SECRET_KEY must be set when ENV={env!r}")
+    return raw
 
 
 class Settings:
@@ -20,15 +38,7 @@ class Settings:
     ENV: str = os.getenv("ENV", "development")  # development | testing | production
 
     # ---- الأمان / JWT ----
-    # Ensure JWT_SECRET_KEY is explicitly set in production, or fallback to dev secret.
-    # The insecure fallback is only allowed for explicit development/testing environments,
-    # so a typo or a different ENV value (e.g. "prod", "staging") can never silently use it.
-    JWT_SECRET_KEY: str = os.getenv(
-        "JWT_SECRET_KEY",
-        "CHANGE_ME_IN_PRODUCTION_SECRET_KEY" if ENV in ("development", "testing") else "",
-    )
-    if not JWT_SECRET_KEY:
-        raise ValueError(f"JWT_SECRET_KEY must be set when ENV={ENV!r}")
+    JWT_SECRET_KEY: str = _resolve_jwt_secret(ENV)
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 ساعة
 
@@ -81,6 +91,11 @@ class Settings:
         ).split(",")
         if origin.strip()
     ]
+    ALLOWED_EXTENSION_IDS: list[str] = [
+        ext_id.strip()
+        for ext_id in os.getenv("ALLOWED_EXTENSION_IDS", "").split(",")
+        if ext_id.strip()
+    ]
 
     # ---- Batch 5.4: مهام مجدولة (Celery + Redis) ----
     # قرار هندسي: Celery + Redis بدل APScheduler لأنها أنسب للإنتاج الحقيقي (Worker منفصل
@@ -108,6 +123,7 @@ class Settings:
     FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
     # ---- Phase 3: Monetization & Payment Gateways ----
+    ENFORCE_SUBSCRIPTION_QUOTAS: bool = os.getenv("ENFORCE_SUBSCRIPTION_QUOTAS", "1") == "1"
     STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
     STRIPE_PUBLISHABLE_KEY: str = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
     STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")

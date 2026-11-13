@@ -14,17 +14,26 @@ import { compareAnalyses } from "../../api/endpoints";
 import CircularProgress from "../../components/ui/CircularProgress";
 
 function AnalysisColumn({ analysis, title }) {
+  const safeAnalysis = analysis || {};
+  const parsedDate = safeAnalysis.date ? new Date(safeAnalysis.date) : null;
+  const formattedDate =
+    parsedDate && !Number.isNaN(parsedDate.getTime())
+      ? parsedDate.toLocaleDateString("ar-EG")
+      : "—";
+
   return (
     <div className="card flex-1 space-y-3 text-center">
       <p className="text-xs font-bold text-slate-400">{title}</p>
-      <p className="text-xs text-slate-400">
-        {new Date(analysis.date || Date.now()).toLocaleDateString("ar-EG")}
-      </p>
+      <p className="text-xs text-slate-400">{formattedDate}</p>
       <div className="flex justify-center">
-        <CircularProgress value={analysis.career_score} size={116} strokeWidth={10} />
+        <CircularProgress
+          value={safeAnalysis.career_score ?? 0}
+          size={116}
+          strokeWidth={10}
+        />
       </div>
       <p className="text-sm sm:text-base font-bold text-slate-900">
-        {analysis.top_jobs?.[0]?.job_title}
+        {safeAnalysis.top_jobs?.[0]?.job_title || "—"}
       </p>
     </div>
   );
@@ -73,7 +82,7 @@ export default function CompareAnalyses() {
     );
   }
 
-  if (status === "error") {
+  if (status === "error" || !data) {
     return (
       <div className="card mx-auto max-w-md text-center">
         <p className="mb-2 font-bold text-danger">تعذر عرض المقارنة</p>
@@ -85,7 +94,11 @@ export default function CompareAnalyses() {
     );
   }
 
-  const delta = data.career_score_delta;
+  const delta = Number(data.career_score_delta ?? 0);
+  const newSkillsGained = Array.isArray(data.new_skills_gained)
+    ? data.new_skills_gained
+    : [];
+  const skillsLost = Array.isArray(data.skills_lost) ? data.skills_lost : [];
   const isImprovement = delta > 0;
   const isDecline = delta < 0;
 
@@ -147,8 +160,8 @@ export default function CompareAnalyses() {
             مهارات جديدة مكتسبة
           </h3>
           <div className="flex flex-wrap gap-1.5">
-            {data.new_skills_gained.length ? (
-              data.new_skills_gained.map((s) => (
+            {newSkillsGained.length ? (
+              newSkillsGained.map((s) => (
                 <span
                   key={s}
                   className="inline-flex items-center gap-1 rounded-lg bg-white border border-secondary-200 px-2.5 py-1 text-xs font-bold text-secondary-700"
@@ -168,8 +181,8 @@ export default function CompareAnalyses() {
             مهارات لم تعد متوفرة
           </h3>
           <div className="flex flex-wrap gap-1.5">
-            {data.skills_lost.length ? (
-              data.skills_lost.map((s) => (
+            {skillsLost.length ? (
+              skillsLost.map((s) => (
                 <span
                   key={s}
                   className="inline-flex items-center gap-1 rounded-lg bg-white border border-red-200 px-2.5 py-1 text-xs font-bold text-red-700"

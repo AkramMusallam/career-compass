@@ -17,28 +17,49 @@
           <p class="brand-subtitle">فاحص التوافق المهني بالذكاء الاصطناعي</p>
         </div>
       </div>
-      <span class="badge" id="tier-badge">AI Pro</span>
+      <div class="header-actions">
+        <span class="badge" id="tier-badge">LinkedIn AI</span>
+        <button id="logout-btn" type="button" class="btn-icon hidden" title="تغيير رمز الجلسة / تسجيل الخروج">خروج</button>
+      </div>
     </header>
 
     <!-- Main Content State -->
     <main class="content">
+      <!-- Inline Status / Error Banner -->
+      <div id="status-banner" class="status-banner hidden" role="alert" aria-live="polite"></div>
+
       <!-- Auth / Token Section if not signed in -->
       <div id="auth-section" class="card auth-box hidden">
-        <p class="auth-desc">يرجى تسجيل الدخول أو إدخال رمز الجلسة (Token) للربط مع حسابك:</p>
-        <input type="text" id="token-input" placeholder="Bearer Token أو البريد المسجل..." class="input" />
-        <button id="save-token-btn" class="btn btn-primary">حفظ وربط الحساب 🔗</button>
+        <p class="auth-desc">أدخل رمز الجلسة (JWT Access Token) للربط مع حسابك في Career Compass:</p>
+        <input
+          type="password"
+          id="token-input"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="الصق JWT Access Token هنا..."
+          class="input"
+        />
+        <button id="save-token-btn" type="button" class="btn btn-primary">حفظ وربط الحساب 🔗</button>
       </div>
 
-      <div class="card"><label for="server-url">عنوان الخادم (API URL)</label><input id="server-url" class="input" type="url" placeholder="https://example.com" /><button id="save-server-btn" class="btn btn-primary">حفظ عنوان الخادم</button></div>
+      <div class="card server-card">
+        <label for="server-url" class="field-label">عنوان الخادم (API URL)</label>
+        <input id="server-url" class="input" type="url" placeholder="https://example.com" />
+        <button id="save-server-btn" type="button" class="btn btn-secondary">حفظ عنوان الخادم</button>
+      </div>
 
       <!-- Active Job Detection -->
       <div id="detected-job-box" class="card job-card">
         <div class="job-meta">
-          <span class="pill-type">LinkedIn Job</span>
+          <div class="job-meta-header">
+            <span class="pill-type">LinkedIn Job</span>
+            <button id="refresh-job-btn" type="button" class="btn-inline" title="إعادة فحص الصفحة">🔄 تحديث</button>
+          </div>
           <h2 id="job-title" class="job-title">جاري فحص الصفحة...</h2>
           <p id="job-company" class="job-company">LinkedIn Opportunity</p>
+          <p id="job-location" class="job-location hidden"></p>
         </div>
-        <button id="analyze-btn" class="btn btn-primary pulse">
+        <button id="analyze-btn" type="button" class="btn btn-primary pulse">
           <span>✨</span>
           <span>مطابقة الوظيفة مع سيرتي الذاتية</span>
         </button>
@@ -54,12 +75,12 @@
       <div id="results-box" class="results-box hidden">
         <!-- Score Circular Gauge -->
         <div class="score-card">
-          <div class="score-circle">
-            <span id="score-val" class="score-number">85%</span>
+          <div id="score-circle" class="score-circle score-high">
+            <span id="score-val" class="score-number">0%</span>
             <span class="score-label">نسبة التوافق</span>
           </div>
           <div class="verdict-box">
-            <h3 id="verdict-text" class="verdict-title">تطابق ممتاز 🚀</h3>
+            <h3 id="verdict-text" class="verdict-title">نتيجة المطابقة</h3>
             <p id="candidate-meta" class="candidate-meta">تمت المطابقة مع ملفك</p>
           </div>
         </div>
@@ -83,16 +104,18 @@
         <div class="cover-card">
           <div class="cover-header">
             <h4 class="section-label">✍️ مقدمة خطاب تقديم مقترحة (Cover Letter):</h4>
-            <button id="copy-cover-btn" class="btn-copy" title="نسخ">📋 نسخ</button>
+            <button id="copy-cover-btn" type="button" class="btn-copy" title="نسخ">📋 نسخ</button>
           </div>
           <p id="cover-snippet" class="cover-text"></p>
         </div>
+
+        <button id="back-btn" type="button" class="btn btn-secondary">← العودة / إعادة التحليل</button>
       </div>
     </main>
 
     <!-- Footer -->
     <footer class="footer">
-      <a href="http://localhost:5173/dashboard" target="_blank" class="footer-link">فتح لوحة التحكم الكاملة ↗</a>
+      <a href="http://localhost:5173/dashboard" target="_blank" rel="noopener noreferrer" class="footer-link">فتح لوحة التحكم الكاملة ↗</a>
     </footer>
   </div>
 

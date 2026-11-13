@@ -131,10 +131,14 @@ career-compass/
 │       └── pages/                # Dashboard, Analysis, Mock Interview, Recruiter Portal (B2B), Pricing Plans
 ├── chrome-extension/             # Manifest V3 LinkedIn Job Matcher extension
 ├── mobile/                       # React Native (Expo) companion app
-├── docker-compose.yml            # Local development container stack
+├── .github/workflows/ci.yml      # CI pipeline (backend pytest, frontend build/E2E, extension lint)
+├── .env.example                  # Root production environment template (required secrets & CORS)
+├── docker-compose.yml            # Local development container stack (bound to 127.0.0.1)
 ├── docker-compose.prod.yml       # Production stack (Nginx, Frontend, Backend, Celery, MySQL, Mongo, Redis, Ollama)
-├── nginx.conf                    # Reverse proxy with OWASP security headers & gzip compression
-└── start.ps1                     # One-click local startup script for Windows PowerShell
+├── docker-compose.https.yml      # Production TLS override mounting nginx-https.conf & certbot/etc
+├── nginx.conf                    # HTTP reverse proxy with OWASP security headers, CSP & rate limits
+├── nginx-https.conf              # HTTPS reverse proxy with TLS 1.2/1.3, HSTS, Host validation & rate limits
+└── start.ps1                     # One-click local startup script for Windows PowerShell (127.0.0.1 default; -Lan optional)
 ```
 
 ---
@@ -151,7 +155,7 @@ Simply run the included `start.ps1` script from the repository root:
 ```powershell
 .\start.ps1
 ```
-This automatically initiates the Ollama AI model, starts the FastAPI backend (with SQLite and Mongomock fallbacks enabled for zero-dependency local runs), launches the Vite frontend server, and opens your browser at `http://localhost:5173`.
+This automatically initiates the Ollama AI model (`llama3.2` by default, override via `$env:OLLAMA_MODEL`), starts the FastAPI backend bound to `127.0.0.1` (with SQLite and Mongomock fallbacks enabled for zero-dependency local runs; pass `-Lan` to bind `0.0.0.0`), launches the Vite frontend server, and opens your browser at `http://localhost:5173`.
 
 ---
 
@@ -203,16 +207,21 @@ Recruiters request access through Companies; the platform owner reviews each com
 
 For the initial owner, run `python -m scripts.bootstrap_platform_owner EMAIL` on the server with an existing account. Before upgrading an existing deployment, stop application writes and back up both SQL and MongoDB. Run `python -m scripts.migrate_recruiter_companies` for a dry run, inspect any errors, then run it with `--apply`. Legacy companies start pending review; approvals and candidate consent records remain intact. The migration is repeatable, but requires the application to remain stopped until it finishes. Confirm the migration and company approvals in an isolated environment before deploying.
 
-The HTTPS override uses a Let's Encrypt certificate named `career-compass` in `certbot/etc` and the challenge webroot in `certbot/www`. Start the HTTP configuration first to issue an IP certificate with Certbot's `shortlived` profile, then run Compose with both `-f docker-compose.prod.yml -f docker-compose.https.yml`. Set `FRONTEND_BASE_URL` to the HTTPS URL. Schedule `backend/scripts/renew_https_ip.sh` at least twice daily: IP certificates have a short lifetime and the script reloads Nginx after renewal. Keep `certbot/etc` private and back it up securely.
+The HTTPS override uses a Let's Encrypt certificate named `career-compass` in `certbot/etc` and the challenge webroot in `certbot/www`. Before deploying, copy `.env.example` to `.env` in the repository root and set strong values for `JWT_SECRET_KEY`, `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`, `MONGO_INITDB_ROOT_USERNAME`, `MONGO_INITDB_ROOT_PASSWORD`, `REDIS_PASSWORD`, `CORS_ORIGINS`, `FRONTEND_BASE_URL`, and `TRUSTED_PROXY_IPS` (`docker-compose.prod.yml` fails closed if required secrets or CORS/frontend URLs are missing). Add your production domain or server IP to `server_name` in `nginx-https.conf` (defaulting to `localhost 127.0.0.1` to prevent Host-header open redirects). Start the HTTP configuration first only if needed to issue an initial certificate, then run Compose with both `-f docker-compose.prod.yml -f docker-compose.https.yml` and set `FRONTEND_BASE_URL` and `CORS_ORIGINS` to your `https://` URL. Schedule `backend/scripts/renew_https_ip.sh` at least twice daily: IP certificates have a short lifetime and the script reloads Nginx after renewal. Keep `certbot/etc` private and back it up securely.
 
-The repository provides production-ready Docker Compose configurations (`docker-compose.prod.yml`):
+The repository provides production-ready Docker Compose configurations (`docker-compose.prod.yml` + `docker-compose.https.yml`):
 
 ```bash
-# 1. Build and launch all services (API, Frontend, Nginx, MySQL, MongoDB, Redis, Celery, Ollama)
-docker compose -f docker-compose.prod.yml up -d --build
+# 1. Configure required production secrets & origins in root .env
+cp .env.example .env
 
-# 2. Seed initial catalogue data (Jobs, Skills, Questions, Courses)
-docker compose exec backend python -c "from app.seed.seed_runner import run_seed; run_seed()"
+# 2. Build and launch all services with HTTPS enabled
+docker compose -f docker-compose.prod.yml -f docker-compose.https.yml up -d --build
+
+# 3. Apply relational database migrations, pull local LLM, and seed initial catalogue data
+docker compose -f docker-compose.prod.yml exec backend alembic upgrade head
+docker compose -f docker-compose.prod.yml exec ollama ollama pull llama3.2
+docker compose -f docker-compose.prod.yml exec backend python -c "from app.seed.seed_runner import run_seed; run_seed()"
 ```
 
 ---

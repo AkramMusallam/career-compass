@@ -9,14 +9,28 @@ export default function Companies() {
   const [review, setReview] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteEmails, setInviteEmails] = useState({});
   const [inviteStatus, setInviteStatus] = useState("");
+  const [editingCompanyId, setEditingCompanyId] = useState(null);
+  const [editingName, setEditingName] = useState("");
   const { user } = useAuth();
 
   const load = async () => {
     try {
       const response = await apiClient.get("/companies/mine");
-      setMine(response.data);
+      const companies = response.data || [];
+      setMine(companies);
+
+      const approvedIds = companies
+        .filter((c) => c.status === "approved")
+        .map((c) => String(c.company_id));
+      const activeCompanyId = localStorage.getItem("active_company_id");
+      if (activeCompanyId && !approvedIds.includes(String(activeCompanyId))) {
+        localStorage.removeItem("active_company_id");
+      } else if (!activeCompanyId && approvedIds.length === 1) {
+        localStorage.setItem("active_company_id", approvedIds[0]);
+      }
+
       try {
         const reviews = await apiClient.get("/companies/review");
         setReview(reviews.data);
@@ -56,11 +70,13 @@ export default function Companies() {
 
   const invite = async (event, companyId) => {
     event.preventDefault();
+    const targetEmail = (inviteEmails[companyId] || "").trim();
+    if (!targetEmail) return;
     setBusy(true);
     try {
-      const response = await apiClient.post(`/companies/${companyId}/invitations`, { email: inviteEmail });
+      const response = await apiClient.post(`/companies/${companyId}/invitations`, { email: targetEmail });
       setInviteStatus(response.data.delivery === "sent" ? "تم إرسال الدعوة." : "تعذر إرسال الدعوة؛ تحقق من إعداد البريد.");
-      setInviteEmail("");
+      setInviteEmails((prev) => ({ ...prev, [companyId]: "" }));
     } catch (err) { setError(getErrorMessage(err, "تعذر إنشاء الدعوة")); }
     finally { setBusy(false); }
   };
@@ -72,13 +88,26 @@ export default function Companies() {
     finally { setBusy(false); }
   };
 
-  const rename = async (company) => {
-    const updated = window.prompt("اسم الشركة", company.name);
-    if (!updated?.trim()) return;
+  const startRename = (company) => {
+    setEditingCompanyId(company.company_id);
+    setEditingName(company.name || "");
+  };
+
+  const submitRename = async (event, companyId) => {
+    event.preventDefault();
+    const trimmed = editingName.trim();
+    if (!trimmed) return;
     setBusy(true);
-    try { await apiClient.put(`/companies/${company.company_id}`, { name: updated.trim() }); await load(); }
-    catch (err) { setError(getErrorMessage(err, "تعذر تحديث الشركة")); }
-    finally { setBusy(false); }
+    try {
+      await apiClient.put(`/companies/${companyId}`, { name: trimmed });
+      setEditingCompanyId(null);
+      setEditingName("");
+      await load();
+    } catch (err) {
+      setError(getErrorMessage(err, "تعذر تحديث الشركة"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const labels = { pending: "قيد المراجعة", approved: "معتمدة", rejected: "مرفوضة", suspended: "موقوفة" };
@@ -98,13 +127,35 @@ export default function Companies() {
         {mine.map((company) => <div key={company.company_id}>
           <p>{company.name} — {labels[company.status]}</p>
           {company.status === "approved" && <Link to="/recruiter" className="underline" onClick={() => localStorage.setItem("active_company_id", company.company_id)}>فتح بوابة الشركة</Link>}
-          {String(company.owner_id) === String(user?.id) && <div className="space-y-1">
-            <button type="button" className="underline" disabled={busy} onClick={() => rename(company)}>تعديل اسم الشركة</button>
+          {String(company.owner_id) === String(user?.id) && <div className="space-y-2 mt-1">
+            {editingCompanyId === company.company_id ? (
+              <form onSubmit={(e) => submitRename(e, company.company_id)} className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  maxLength={200}
+                  required
+                  className="rounded border p-1 text-sm"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                />
+                <button type="submit" className="rounded border px-3 py-1 text-sm font-bold" disabled={busy || !editingName.trim()}>حفظ</button>
+                <button type="button" className="rounded border px-3 py-1 text-sm" disabled={busy} onClick={() => setEditingCompanyId(null)}>إلغاء</button>
+              </form>
+            ) : (
+              <button type="button" className="underline" disabled={busy} onClick={() => startRename(company)}>تعديل اسم الشركة</button>
+            )}
             {(company.members || []).map((memberId) => <div key={memberId}>عضو رقم {memberId} <button type="button" className="underline" disabled={busy} onClick={() => removeMember(company.company_id, memberId)}>إزالة</button></div>)}
           </div>}
           {company.status === "approved" && String(company.owner_id) === String(user?.id) && <form onSubmit={(e) => invite(e, company.company_id)} className="flex flex-wrap gap-2 mt-2">
             <label htmlFor={`invite-${company.company_id}`}>بريد عضو الفريق</label>
-            <input id={`invite-${company.company_id}`} type="email" required className="rounded border p-1" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+            <input
+              id={`invite-${company.company_id}`}
+              type="email"
+              required
+              className="rounded border p-1"
+              value={inviteEmails[company.company_id] || ""}
+              onChange={(e) => setInviteEmails((prev) => ({ ...prev, [company.company_id]: e.target.value }))}
+            />
             <button className="rounded border px-3" disabled={busy}>إرسال دعوة</button>
           </form>}
         </div>)}

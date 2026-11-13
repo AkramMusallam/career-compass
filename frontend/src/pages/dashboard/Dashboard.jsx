@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Sparkles,
@@ -13,6 +13,8 @@ import {
   Mic,
   Crown,
   Clock,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { getHistory, getProfile } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
@@ -50,37 +52,66 @@ export default function Dashboard() {
   const [profile, setProfile] = useState(null);
   const [recentAnalyses, setRecentAnalyses] = useState([]);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [statsError, setStatsError] = useState("");
 
-  useEffect(() => {
-    let mounted = true;
-    Promise.allSettled([
+  const loadDashboardData = useCallback(async () => {
+    setLoadingStats(true);
+    setStatsError("");
+    const [profRes, histRes] = await Promise.allSettled([
       getProfile(),
       getHistory({ sort: "newest", page: 1, limit: 3 }),
-    ]).then(([profRes, histRes]) => {
-      if (!mounted) return;
-      if (profRes.status === "fulfilled") {
-        setProfile(profRes.value.data);
-      }
-      if (histRes.status === "fulfilled") {
-        setRecentAnalyses(histRes.value.data?.analyses || []);
-      }
-      setLoadingStats(false);
-    });
-    return () => {
-      mounted = false;
-    };
+    ]);
+
+    const hadFailure =
+      profRes.status === "rejected" || histRes.status === "rejected";
+    if (profRes.status === "fulfilled") {
+      setProfile(profRes.value.data);
+    }
+    if (histRes.status === "fulfilled") {
+      setRecentAnalyses(histRes.value.data?.analyses || []);
+    }
+    if (hadFailure) {
+      setStatsError("تعذر تحميل بعض إحصائيات لوحة التحكم");
+    }
+    setLoadingStats(false);
   }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const displayName =
     profile?.full_name || user?.full_name || user?.email?.split("@")[0] || "بك";
   const totalAnalyses = profile?.total_analyses ?? recentAnalyses.length ?? 0;
-  const highestScore = Math.round(profile?.highest_career_score ?? 0);
+  const highestScore = Number.isFinite(Number(profile?.highest_career_score))
+    ? Math.round(Number(profile.highest_career_score))
+    : 0;
   const latestTopJob = recentAnalyses[0]?.top_job_title || "ابدأ تحليلك الأول";
   const readiness = getReadinessLabel(highestScore);
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Executive Hero Banner */}
+      {statsError && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800"
+          role="alert"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle size={16} className="shrink-0" />
+            <span>{statsError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={loadDashboardData}
+            className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 transition"
+          >
+            <RefreshCw size={12} />
+            <span>إعادة المحاولة</span>
+          </button>
+        </div>
+      )}
+
       <div className="rounded-2xl bg-slate-900 text-white p-5 sm:p-8 lg:p-10 shadow-card border border-slate-800">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="max-w-2xl">

@@ -57,6 +57,15 @@ def strip_json_fences(raw_str: str) -> str:
     return clean.strip()
 
 
+def sanitize_prompt_input(value: Any, max_len: int | None = None) -> str:
+    """Escapes angle brackets and strips control chars to prevent XML prompt-tag breakouts."""
+    text = str(value or "")
+    text = "".join(ch for ch in text if ch in ("\n", "\r", "\t") or ord(ch) >= 32)
+    if max_len is not None:
+        text = text[:max_len]
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
 def ollama_chat(
     messages: list[dict[str, Any]],
     *,

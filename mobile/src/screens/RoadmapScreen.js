@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
 import { fetchLatestRoadmap, toggleMilestoneSkill } from "../services/api";
 
@@ -6,6 +6,8 @@ export default function RoadmapScreen({ onBack, token }) {
   const [analysisId, setAnalysisId] = useState(null);
   const [months, setMonths] = useState([]);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (!token) return;
@@ -37,18 +39,20 @@ export default function RoadmapScreen({ onBack, token }) {
 
   const toggleSkill = (monthIdx, skillIdx) => {
     const currentSkill = months[monthIdx]?.skills?.[skillIdx];
-    const nextCompleted = currentSkill ? !currentSkill.completed : false;
+    if (!token || !analysisId || !currentSkill || savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    setError("");
+    const nextCompleted = !currentSkill.completed;
     setMonths((prev) => {
       const next = JSON.parse(JSON.stringify(prev));
       next[monthIdx].skills[skillIdx].completed = nextCompleted;
       return next;
     });
-    if (token && analysisId && currentSkill) {
-      toggleMilestoneSkill(token, analysisId, currentSkill.name, nextCompleted).catch(() => {
+    toggleMilestoneSkill(token, analysisId, currentSkill.name, nextCompleted).catch(() => {
         setMonths((prev) => prev.map((month, m) => m !== monthIdx ? month : { ...month, skills: month.skills.map((skill, i) => i !== skillIdx ? skill : { ...skill, completed: !nextCompleted }) }));
-        setError("تعذر حفظ التغيير. تأكد من الاتصال بالخادم.");
-      });
-    }
+        setError("تعذر تأكيد حفظ التغيير. أعد فتح الخطة للتحقق من حالته.");
+      }).finally(() => { savingRef.current = false; setSaving(false); });
   };
 
   const totalSkills = months.reduce((acc, m) => acc + m.skills.length, 0);
@@ -77,7 +81,7 @@ export default function RoadmapScreen({ onBack, token }) {
       </View>
 
       {!!error && <Text style={{ color: "#fca5a5", textAlign: "center" }}>{error}</Text>}
-      {!error && months.length === 0 && <Text style={{ color: "#cbd5e1", textAlign: "center" }}>لا توجد خطة حتى الآن. أجرِ تحليلك من الموقع أولاً.</Text>}
+      {!error && months.length === 0 && <Text style={{ color: "#cbd5e1", textAlign: "center" }}>لا توجد خطة حتى الآن. أجرِ تحليلك أولاً.</Text>}
 
       {/* Months List */}
       <ScrollView style={styles.scrollList} contentContainerStyle={{ paddingBottom: 30 }}>
@@ -89,6 +93,9 @@ export default function RoadmapScreen({ onBack, token }) {
                 key={s.name}
                 style={[styles.skillRow, s.completed && styles.skillRowDone]}
                 onPress={() => toggleSkill(mIdx, sIdx)}
+                disabled={saving}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: s.completed, disabled: saving }}
               >
                 <View style={[styles.checkbox, s.completed && styles.checkboxDone]}>
                   {s.completed && <Text style={styles.checkMark}>✓</Text>}

@@ -10,9 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import (
+    bump_user_token_version,
+    consume_reset_token_jti,
     create_access_token,
     create_reset_token,
     decode_access_token,
+    get_user_token_version,
     hash_password,
     verify_password,
 )
@@ -43,14 +46,13 @@ def register(payload: RegisterRequest, background_tasks: BackgroundTasks, db: Se
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     role_val = getattr(payload, "role", "candidate") or "candidate"
-    tier_val = "enterprise" if role_val.lower() == "recruiter" else "free"
     user = User(
         full_name=payload.full_name,
         email=norm_email,
         hashed_password=hash_password(payload.password),
         role=role_val,
         company_name=getattr(payload, "company_name", None),
-        subscription_tier=tier_val,
+        subscription_tier="free",
     )
     db.add(user)
     db.commit()
@@ -73,7 +75,7 @@ def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session 
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
-    token = create_access_token(subject=str(user.id), password_hash=user.hashed_password)
+    token = create_access_token(subject=str(user.id))
     # إرسال إشعار تسجيل الدخول في الخلفية
     background_tasks.add_task(send_login_welcome_email, user.email, user.full_name)
     return LoginResponse(
@@ -98,7 +100,7 @@ def forgot_password(payload: ForgotPasswordRequest, background_tasks: Background
         # For security reasons, don't reveal that the user does not exist.
         return {"detail": "If an account with that email exists, a password reset link has been sent."}
 
-    token = create_reset_token(subject=str(user.id), password_hash=user.hashed_password)
+    token = create_reset_token(subject=str(user.id))
     background_tasks.add_task(send_password_reset_email, user.email, user.full_name, token)
 
     return {"detail": "If an account with that email exists, a password reset link has been sent."}
@@ -106,28 +108,38 @@ def forgot_password(payload: ForgotPasswordRequest, background_tasks: Background
 
 @router.post("/reset-password", status_code=status.HTTP_200_OK)
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    invalid_token_exc = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid or expired password reset token",
+    )
     try:
-        # Decode the token, this will automatically verify expiration
         token_data = decode_access_token(payload.token)
-        if token_data.get("type") != "password_reset":
-            raise ValueError("Invalid token type")
+    except HTTPException as exc:
+        raise invalid_token_exc from exc
 
-        user_id = token_data.get("sub")
-        user = db.query(User).filter(User.id == int(user_id)).first()
-        if not user:
-            raise ValueError("User not found")
+    if token_data.get("type") != "password_reset":
+        raise invalid_token_exc
 
-        if "pwh" in token_data and token_data["pwh"] != (user.hashed_password or "")[-12:]:
-            raise ValueError("Reset token has already been used")
+    try:
+        parsed_user_id = int(token_data.get("sub"))
+    except (TypeError, ValueError) as exc:
+        raise invalid_token_exc from exc
 
-        # Update the password
-        user.hashed_password = hash_password(payload.new_password)
-        db.add(user)
-        db.commit()
+    user = db.query(User).filter(User.id == parsed_user_id).first()
+    if not user:
+        raise invalid_token_exc
 
-        return {"detail": "Password has been reset successfully"}
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired password reset token",
-        )
+    token_jti = token_data.get("jti")
+    token_tv = token_data.get("tv")
+    if not token_jti or token_tv is None or token_tv != get_user_token_version(user.id):
+        raise invalid_token_exc
+    if not consume_reset_token_jti(str(token_jti), user.id):
+        raise invalid_token_exc
+
+    # Update the password and invalidate all prior JWTs/reset tokens
+    user.hashed_password = hash_password(payload.new_password)
+    db.add(user)
+    db.commit()
+    bump_user_token_version(user.id)
+
+    return {"detail": "Password has been reset successfully"}

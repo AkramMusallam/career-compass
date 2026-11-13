@@ -47,28 +47,61 @@ import CoverLetterModal from "../../components/features/results/CoverLetterModal
 import { useAnalysisFlow } from "../../context/AnalysisContext";
 import { useToast } from "../../context/ToastContext";
 
+function getSafeExternalUrl(url) {
+  if (typeof url !== "string" || !url.trim()) return null;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "https:" || parsed.protocol === "http:"
+      ? parsed.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Results() {
   const { analysisId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { resetAnalysisFlow } = useAnalysisFlow();
+  const {
+    extractedData,
+    extractionId: flowExtractionId,
+    latestAnalysis,
+    resetAnalysisFlow,
+  } = useAnalysisFlow();
   const { showToast } = useToast();
 
-  const [analysis, setAnalysis] = useState(location.state?.analysis || null);
-  const [status, setStatus] = useState(analysis ? "loaded" : "loading");
+  const initialAnalysis =
+    location.state?.analysis?.analysis_id === analysisId
+      ? location.state.analysis
+      : null;
+  const [analysis, setAnalysis] = useState(initialAnalysis);
+  const [status, setStatus] = useState(initialAnalysis ? "loaded" : "loading");
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [showAtsBuilder, setShowAtsBuilder] = useState(false);
   const [completedSkills, setCompletedSkills] = useState(
-    () => new Set(analysis?.completed_skills || [])
+    () => new Set(initialAnalysis?.completed_skills || [])
   );
   const [showShareModal, setShowShareModal] = useState(false);
-  const [shareToken, setShareToken] = useState(analysis?.share_token || null);
+  const [shareToken, setShareToken] = useState(initialAnalysis?.share_token || null);
   const [benchmark, setBenchmark] = useState(null);
   const [isStartingInterview, setIsStartingInterview] = useState(false);
   const [coverLetterJob, setCoverLetterJob] = useState(null);
+  const [coverLetterInitialDesc, setCoverLetterInitialDesc] = useState("");
   const [coverLetterText, setCoverLetterText] = useState("");
   const [isGeneratingCL, setIsGeneratingCL] = useState(false);
-  const hasShownSaveToast = useRef(false);
+  const hasShownSaveToast = useRef(null);
+  const pendingSkillsRef = useRef(new Set());
+
+  const isCurrentSessionAnalysis = Boolean(
+    analysis &&
+      (latestAnalysis?.analysis_id === analysis.analysis_id ||
+        (flowExtractionId && analysis.extraction_id === flowExtractionId))
+  );
+  const resolvedExtractionId =
+    analysis?.extraction_id ||
+    (isCurrentSessionAnalysis ? flowExtractionId : null) ||
+    analysisId;
 
   const handleStartInterview = async (jobTitle) => {
     setIsStartingInterview(true);
@@ -82,12 +115,14 @@ export default function Results() {
     }
   };
 
-  const handleGenerateCoverLetter = async (jobTitle) => {
+  const handleGenerateCoverLetter = async (jobTitle, customJobDescription) => {
+    const targetDescription = (customJobDescription || jobTitle || "").trim();
     setCoverLetterJob(jobTitle);
+    setCoverLetterInitialDesc(targetDescription);
     setCoverLetterText("");
     setIsGeneratingCL(true);
     try {
-      const res = await generateCoverLetter(analysisId, jobTitle);
+      const res = await generateCoverLetter(resolvedExtractionId, targetDescription);
       setCoverLetterText(res.data.cover_letter);
     } catch (err) {
       setCoverLetterText(
@@ -100,6 +135,7 @@ export default function Results() {
 
   const closeCoverLetterModal = () => {
     setCoverLetterJob(null);
+    setCoverLetterInitialDesc("");
     setCoverLetterText("");
   };
 
@@ -118,14 +154,27 @@ export default function Results() {
   }, []);
 
   useEffect(() => {
-    if (analysis) {
-      if (!hasShownSaveToast.current) {
-        hasShownSaveToast.current = true;
+    const stateAnalysis = location.state?.analysis;
+    if (stateAnalysis && stateAnalysis.analysis_id === analysisId) {
+      setAnalysis(stateAnalysis);
+      setStatus("loaded");
+      if (
+        location.state?.justCreated &&
+        hasShownSaveToast.current !== analysisId
+      ) {
+        hasShownSaveToast.current = analysisId;
         showToast("تم حفظ التحليل تلقائياً في سجلك");
       }
       return;
     }
+
+    if (analysis?.analysis_id === analysisId) {
+      return;
+    }
+
     let mounted = true;
+    setStatus("loading");
+    setAnalysis(null);
     getHistoryDetail(analysisId)
       .then((res) => {
         if (mounted) {
@@ -138,7 +187,7 @@ export default function Results() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisId]);
+  }, [analysisId, location.state]);
 
   const handleRetry = () => {
     setStatus("loading");
@@ -149,7 +198,9 @@ export default function Results() {
       })
       .catch((error) => {
         setStatus("error");
-        console.error(getErrorMessage(error));
+        if (import.meta.env.DEV) {
+          console.error(getErrorMessage(error));
+        }
       });
   };
 
@@ -180,14 +231,20 @@ export default function Results() {
   };
 
   const handleToggleRoadmapSkill = async (skill) => {
+    if (pendingSkillsRef.current.has(skill)) return;
+    pendingSkillsRef.current.add(skill);
     const wasCompleted = completedSkills.has(skill);
-    const optimistic = new Set(completedSkills);
-    if (wasCompleted) {
-      optimistic.delete(skill);
-    } else {
-      optimistic.add(skill);
-    }
-    setCompletedSkills(optimistic);
+
+    setCompletedSkills((prev) => {
+      const next = new Set(prev);
+      if (wasCompleted) {
+        next.delete(skill);
+      } else {
+        next.add(skill);
+      }
+      return next;
+    });
+
     try {
       await updateRoadmapSkillProgress(
         analysis.analysis_id,
@@ -195,8 +252,18 @@ export default function Results() {
         !wasCompleted
       );
     } catch (error) {
-      setCompletedSkills(completedSkills);
+      setCompletedSkills((prev) => {
+        const reverted = new Set(prev);
+        if (wasCompleted) {
+          reverted.add(skill);
+        } else {
+          reverted.delete(skill);
+        }
+        return reverted;
+      });
       showToast(getErrorMessage(error, "تعذر تحديث حالة المهارة"), "error");
+    } finally {
+      pendingSkillsRef.current.delete(skill);
     }
   };
 
@@ -569,9 +636,9 @@ export default function Results() {
           {roadmap.map((month) => (
             <li
               key={month.month}
-              className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-4"
+              className="relative rounded-xl border border-slate-200/80 bg-slate-50/60 p-4"
             >
-              <span className="absolute -right-[9px] flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 ring-4 ring-white" />
+              <span className="absolute -right-[29px] top-4 flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 ring-4 ring-white" />
               <p className="mb-2 text-sm sm:text-base font-black text-primary-700">
                 الشهر {month.month}
               </p>
@@ -620,28 +687,44 @@ export default function Results() {
             </h2>
           </div>
           <div className="grid gap-3.5 sm:grid-cols-2 md:grid-cols-3">
-            {suggestedCourses.map((course) => (
-              <a
-                key={course.title}
-                href={course.url}
-                target="_blank"
-                rel="noreferrer"
-                className="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-4 transition-colors hover:border-primary-300"
-              >
-                <div>
-                  <span className="mb-2 inline-block rounded-md bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">
-                    {course.platform}
-                  </span>
-                  <p className="mb-2 text-sm font-bold text-slate-900 group-hover:text-primary-600 transition-colors">
-                    {course.title}
+            {suggestedCourses.map((course) => {
+              const safeUrl = getSafeExternalUrl(course.url);
+              const content = (
+                <>
+                  <div>
+                    <span className="mb-2 inline-block rounded-md bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">
+                      {course.platform}
+                    </span>
+                    <p className="mb-2 text-sm font-bold text-slate-900 group-hover:text-primary-600 transition-colors">
+                      {course.title}
+                    </p>
+                  </div>
+                  <p className="pt-2 border-t border-slate-100 text-xs font-bold text-slate-500">
+                    يغطي مهارة:{" "}
+                    <span className="text-slate-800">{course.covers_skill}</span>
                   </p>
+                </>
+              );
+
+              return safeUrl ? (
+                <a
+                  key={course.title}
+                  href={safeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-4 transition-colors hover:border-primary-300"
+                >
+                  {content}
+                </a>
+              ) : (
+                <div
+                  key={course.title}
+                  className="group flex flex-col justify-between rounded-xl border border-slate-200/90 bg-white p-4"
+                >
+                  {content}
                 </div>
-                <p className="pt-2 border-t border-slate-100 text-xs font-bold text-slate-500">
-                  يغطي مهارة:{" "}
-                  <span className="text-slate-800">{course.covers_skill}</span>
-                </p>
-              </a>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
@@ -699,17 +782,44 @@ export default function Results() {
 
       <CoverLetterModal
         coverLetterJob={coverLetterJob}
+        initialJobDescription={coverLetterInitialDesc}
         coverLetterText={coverLetterText}
         isGeneratingCL={isGeneratingCL}
+        onGenerate={handleGenerateCoverLetter}
         onClose={closeCoverLetterModal}
         onCopySuccess={() => showToast("تم نسخ خطاب التغطية بنجاح")}
       />
 
       {showAtsBuilder && (
         <AtsCvBuilderModal
-          extractionId={analysis.analysis_id || analysisId}
+          extractionId={resolvedExtractionId}
           initialSkills={
-            analysis.skills?.length ? analysis.skills : analysis.strengths || []
+            analysis.skills?.length
+              ? analysis.skills
+              : isCurrentSessionAnalysis && extractedData?.skills?.length
+                ? extractedData.skills
+                : analysis.strengths || []
+          }
+          initialExperience={
+            analysis.experience?.length
+              ? analysis.experience
+              : isCurrentSessionAnalysis
+                ? extractedData?.experience || []
+                : []
+          }
+          initialProjects={
+            analysis.projects?.length
+              ? analysis.projects
+              : isCurrentSessionAnalysis
+                ? extractedData?.projects || []
+                : []
+          }
+          initialEducation={
+            analysis.education?.length
+              ? analysis.education
+              : isCurrentSessionAnalysis
+                ? extractedData?.education || []
+                : []
           }
           defaultRole={analysis.top_jobs?.[0]?.job_title || ""}
           onClose={() => setShowAtsBuilder(false)}

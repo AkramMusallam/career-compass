@@ -38,7 +38,10 @@ export default function Login() {
     setErrorMessage("");
     try {
       await login(email, password);
-      const redirectTo = location.state?.from?.pathname || "/dashboard";
+      const from = location.state?.from;
+      const redirectTo = from?.pathname
+        ? `${from.pathname}${from.search || ""}${from.hash || ""}`
+        : "/dashboard";
       navigate(redirectTo, { replace: true });
     } catch (error) {
       setErrorMessage(

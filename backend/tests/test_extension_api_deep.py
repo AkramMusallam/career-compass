@@ -122,4 +122,5 @@ def test_extension_candidate_without_cv(client):
     data = resp.json()
     assert data["candidate_skills_count"] == 0
     assert len(data["missing_skills"]) > 0
-    assert data["match_score"] >= 10  # حد أدنى آمن
+    assert 0 <= data["match_score"] <= 100
+    assert data["match_score"] == 0

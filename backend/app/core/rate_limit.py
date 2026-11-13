@@ -10,6 +10,7 @@ from collections import defaultdict, deque
 
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
+from jose import JWTError, jwt
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
@@ -30,6 +31,52 @@ def is_trusted_proxy_ip(client_ip: str, trusted_proxies: set[str]) -> bool:
     except ValueError:
         pass
     return False
+
+
+def _is_valid_ip(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extracts client IP safely from trusted proxy headers (rightmost untrusted X-Forwarded-For)."""
+    client_ip = request.client.host if request.client else "unknown"
+    if not is_trusted_proxy_ip(client_ip, settings.TRUSTED_PROXY_IPS):
+        return client_ip
+
+    real_ip = request.headers.get("X-Real-IP", "").strip()
+    if real_ip and _is_valid_ip(real_ip) and not is_trusted_proxy_ip(real_ip, settings.TRUSTED_PROXY_IPS):
+        return real_ip
+
+    xff_raw = request.headers.get("X-Forwarded-For", "")
+    if xff_raw:
+        candidates = [part.strip() for part in xff_raw.split(",") if part.strip()]
+        for candidate in reversed(candidates):
+            if _is_valid_ip(candidate) and not is_trusted_proxy_ip(candidate, settings.TRUSTED_PROXY_IPS):
+                return candidate
+        for candidate in reversed(candidates):
+            if _is_valid_ip(candidate):
+                return candidate
+    return client_ip
+
+
+def _extract_rate_limit_subject(request: Request, client_ip: str) -> str:
+    """Keys rate-limit buckets by verified JWT sub + client IP, never raw unverified headers."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+        if token:
+            try:
+                payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+                sub = payload.get("sub")
+                if payload.get("type") == "access" and sub is not None:
+                    return f"user:{sub}:{client_ip}"
+            except JWTError:
+                pass
+    return f"ip:{client_ip}"
 
 
 class SlidingWindowRateLimiter:
@@ -71,7 +118,7 @@ rate_limiter = SlidingWindowRateLimiter()
 
 # المسارات الحساسة للمصادقة (حماية من Brute-Force و Email Bombing)
 AUTH_PATHS = {"/login", "/register", "/forgot-password", "/reset-password"}
-# المسارات الثقيلة (حماية للذكاء الاصطناعي والقرص والمعالج وبوابات الدفع والتوظيف)
+# المسارات الثقيلة والحساسة (حماية للذكاء الاصطناعي والقرص والمعالج وبوابات الدفع والشركات والدعم)
 HEAVY_PREFIXES = (
     "/upload-cv",
     "/extract",
@@ -81,17 +128,20 @@ HEAVY_PREFIXES = (
     "/extension",
     "/subscriptions/checkout-session",
     "/subscriptions/webhook",
+    "/shared",
+    "/companies",
+    "/support",
 )
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        client_ip = request.client.host if request.client else "unknown"
-        if is_trusted_proxy_ip(client_ip, settings.TRUSTED_PROXY_IPS):
-            client_ip = request.headers.get("X-Real-IP", "").strip() or request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or client_ip
+        client_ip = _get_client_ip(request)
 
-        if path in AUTH_PATHS and request.method == "POST":
+        if (path in AUTH_PATHS and request.method == "POST") or (
+            path == "/settings/password" and request.method == "PUT"
+        ):
             allowed, retry_after = rate_limiter.is_allowed(f"auth:{client_ip}:{path}", max_requests=15, window_seconds=60.0)
             if not allowed:
                 return JSONResponse(
@@ -99,9 +149,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     content={"detail": "Too many authentication attempts. Please try again later."},
                     headers={"Retry-After": str(retry_after)},
                 )
-        elif path.startswith(HEAVY_PREFIXES) and request.method in ("POST", "GET"):
-            auth_header = request.headers.get("Authorization", "")
-            subject_key = auth_header[-24:] if auth_header else client_ip
+        elif path.startswith(HEAVY_PREFIXES) and request.method in ("GET", "POST", "PUT", "PATCH", "DELETE"):
+            subject_key = _extract_rate_limit_subject(request, client_ip)
             allowed, retry_after = rate_limiter.is_allowed(f"heavy:{subject_key}:{path}", max_requests=35, window_seconds=60.0)
             if not allowed:
                 return JSONResponse(
@@ -122,4 +171,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)")
+        response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
+        if settings.ENV == "production" or request.url.path not in ("/docs", "/redoc"):
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+            )
+        if settings.ENV == "production":
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
         return response

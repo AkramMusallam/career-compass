@@ -84,7 +84,13 @@ export default function Register() {
       await register(fullName, email, password);
       await login(email, password);
       showToast("تم إنشاء الحساب بنجاح، مرحباً بك");
-      navigate(location.state?.from?.pathname || (experience === "company" ? "/companies" : "/dashboard"), { replace: true });
+      const from = location.state?.from;
+      const redirectTo = from?.pathname
+        ? `${from.pathname}${from.search || ""}${from.hash || ""}`
+        : experience === "company"
+          ? "/companies"
+          : "/dashboard";
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       setErrorMessage(
         getErrorMessage(error, "تعذر إنشاء الحساب، حاول مرة أخرى")

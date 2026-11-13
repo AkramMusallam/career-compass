@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import math
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -208,7 +209,16 @@ class AssessmentQuestionsResponse(BaseModel):
 
 class AssessmentAnswer(BaseModel):
     question_id: str
-    value: Union[str, List[str], float]
+    value: Union[str, List[str], int, float]
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def _reject_bool_and_non_finite(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            raise ValueError("Boolean is not a valid assessment answer")
+        if isinstance(v, float) and not math.isfinite(v):
+            raise ValueError("Numeric assessment answer must be finite")
+        return v
 
 
 class AssessmentSubmitRequest(BaseModel):
@@ -259,6 +269,7 @@ class SuggestedCourseOut(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     analysis_id: str
+    extraction_id: Optional[str] = None
     date: Optional[datetime] = None
     career_score: float
     career_dna: dict
@@ -309,16 +320,27 @@ class ProfileResponse(BaseModel):
     role: str = "candidate"
     subscription_tier: str = "free"
     company_name: Optional[str] = None
+    target_role: Optional[str] = None
 
 
 class ProfileUpdateRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=255)
+    target_role: Optional[str] = Field(None, max_length=120)
+
+    @field_validator("target_role")
+    @classmethod
+    def _clean_target_role(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        cleaned = v.strip()
+        return cleaned or None
 
 
 class ProfileUpdateResponse(BaseModel):
     id: str
     full_name: str
     email: EmailStr
+    target_role: Optional[str] = None
 
 
 # ============================================================
@@ -588,17 +610,17 @@ class CVTaskStatusResponse(BaseModel):
 
 
 class ATSResumeBuildRequest(BaseModel):
-    full_name: str = ""
-    target_role: str = ""
-    email: str = ""
-    phone: str = ""
-    location: str = ""
-    linkedin_url: str = ""
-    summary: str = ""
-    skills: List[str] = Field(default_factory=list)
-    experience: List[ExperienceItem] = Field(default_factory=list)
-    projects: List[ProjectItem] = Field(default_factory=list)
-    education: List[EducationItem] = Field(default_factory=list)
+    full_name: str = Field("", max_length=255)
+    target_role: str = Field("", max_length=150)
+    email: str = Field("", max_length=255)
+    phone: str = Field("", max_length=50)
+    location: str = Field("", max_length=150)
+    linkedin_url: str = Field("", max_length=500)
+    summary: str = Field("", max_length=4000)
+    skills: List[str] = Field(default_factory=list, max_length=100)
+    experience: List[ExperienceItem] = Field(default_factory=list, max_length=50)
+    projects: List[ProjectItem] = Field(default_factory=list, max_length=50)
+    education: List[EducationItem] = Field(default_factory=list, max_length=25)
 
 
 class ATSResumeOptimizeResponse(BaseModel):
@@ -700,9 +722,9 @@ class CandidateMatchItem(BaseModel):
     matched_skills: List[str]
     missing_skills: List[str]
     experience_years_summary: str
-    target_role: str
+    target_role: Optional[str] = None
     ats_score: Optional[int] = None
-    career_score: Optional[int] = None
+    career_score: Optional[float] = None
     fit_reasoning: str
     pipeline_status: str = "discovered"  # discovered | shortlisted | contacted | interviewed | rejected
     notes: Optional[str] = ""
@@ -735,13 +757,13 @@ class CandidateProfileDetail(BaseModel):
     user_id: int
     full_name: str
     email: str
-    target_role: str
+    target_role: Optional[str] = None
     ats_score: Optional[int] = None
     skills: List[str]
     experience: List[Dict[str, Any]]
     projects: List[Dict[str, Any]]
     education: List[Dict[str, Any]]
-    career_score: Optional[int] = None
+    career_score: Optional[float] = None
     pipeline_status: str = "discovered"
     notes: Optional[str] = ""
 
@@ -800,9 +822,33 @@ class CheckoutSessionRequest(BaseModel):
     def validate_redirect_url(cls, v: Optional[str]) -> Optional[str]:
         if v is None or v == "":
             return None
+        from urllib.parse import urlsplit
+        from app.core.config import settings
+
         norm = v.strip()
-        if not (norm.startswith("http://") or norm.startswith("https://")):
-            raise ValueError("Redirect URL must start with http:// or https://")
+        if not norm:
+            return None
+        # Allow strict relative paths (starting with single '/') without backslash/protocol tricks
+        if norm.startswith("/"):
+            if norm.startswith("//") or norm.startswith("/\\") or "\\" in norm:
+                raise ValueError("Invalid relative redirect URL")
+            return norm
+
+        parsed = urlsplit(norm)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc or parsed.username or parsed.password:
+            raise ValueError("Redirect URL must be a relative path or an allowed HTTP(S) origin")
+
+        request_origin = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+        allowed_origins: set[str] = set()
+        for raw_origin in [settings.FRONTEND_BASE_URL, *settings.CORS_ORIGINS]:
+            if not raw_origin:
+                continue
+            origin_parts = urlsplit(raw_origin.strip())
+            if origin_parts.scheme in ("http", "https") and origin_parts.netloc:
+                allowed_origins.add(f"{origin_parts.scheme.lower()}://{origin_parts.netloc.lower()}")
+
+        if request_origin not in allowed_origins:
+            raise ValueError("Redirect URL origin is not allowed")
         return norm
 
 

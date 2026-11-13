@@ -55,17 +55,25 @@ def public_company(company):
     return {key: value for key, value in company.items() if key not in {"_id", "invitations"}}
 
 
-@router.post("", status_code=201)
-def request_company(payload: CompanyRequest, user: User = Depends(get_current_user)):
+def create_company_application(name: str, owner_id: int) -> dict:
+    """Create a pending company application record for the given owner (capped at 3 pending)."""
+    pending_count = mongo_db["companies"].count_documents({"owner_id": owner_id, "status": "pending"})
+    if pending_count >= 3:
+        raise HTTPException(status_code=400, detail="Maximum pending company applications reached")
     company = {
         "company_id": str(uuid4()),
-        "name": payload.name,
-        "owner_id": user.id,
+        "name": name.strip()[:200],
+        "owner_id": owner_id,
         "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     mongo_db["companies"].insert_one(company)
     return public_company(company)
+
+
+@router.post("", status_code=201)
+def request_company(payload: CompanyRequest, user: User = Depends(get_current_user)):
+    return create_company_application(payload.name, user.id)
 
 
 @router.get("/mine")
@@ -133,10 +141,27 @@ def list_invitations(company_id: str, user: User = Depends(get_current_user)):
             for invitation in company.get("invitations", [])]
 
 
+@router.get("/{company_id}/members")
+def list_members(company_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    company = mongo_db["companies"].find_one({"company_id": company_id, "owner_id": user.id})
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    members = db.query(User).filter(User.id.in_(company.get("members", []))).all()
+    return [{"id": member.id, "full_name": member.full_name, "email": member.email} for member in members]
+
+
 @router.put("/{company_id}")
 def update_company(company_id: str, payload: CompanyRequest, user: User = Depends(get_current_user)):
+    existing = mongo_db["companies"].find_one({"company_id": company_id, "owner_id": user.id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Company not found")
+    updates: dict = {"name": payload.name}
+    if existing.get("status") == "approved" and payload.name != existing.get("name"):
+        updates["status"] = "pending"
+        updates["reviewed_by"] = None
+        updates["reviewed_at"] = None
     company = mongo_db["companies"].find_one_and_update(
-        {"company_id": company_id, "owner_id": user.id}, {"$set": {"name": payload.name}}, return_document=True,
+        {"company_id": company_id, "owner_id": user.id}, {"$set": updates}, return_document=True,
     )
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")

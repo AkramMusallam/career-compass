@@ -61,10 +61,20 @@ export default function SharedResults() {
     );
   }
 
-  const dnaData = Object.entries(data.career_dna).map(([axis, value]) => ({
+  const careerDna =
+    data?.career_dna && typeof data.career_dna === "object"
+      ? data.career_dna
+      : {};
+  const topJobs = Array.isArray(data?.top_jobs) ? data.top_jobs : [];
+  const dnaData = Object.entries(careerDna).map(([axis, value]) => ({
     axis,
     value,
   }));
+  const parsedDate = data?.date ? new Date(data.date) : null;
+  const formattedDate =
+    parsedDate && !Number.isNaN(parsedDate.getTime())
+      ? parsedDate.toLocaleDateString("ar-EG")
+      : "";
 
   return (
     <div className="min-h-screen bg-[#F7F8FA] px-4 py-8 sm:py-10">
@@ -77,10 +87,10 @@ export default function SharedResults() {
         </div>
 
         <section className="card flex flex-col items-center gap-2 text-center">
-          <CircularProgress value={data.career_score} size={150} />
-          <p className="text-xs text-slate-400">
-            {new Date(data.date).toLocaleDateString("ar-EG")}
-          </p>
+          <CircularProgress value={data?.career_score ?? 0} size={150} />
+          {formattedDate && (
+            <p className="text-xs text-slate-400">{formattedDate}</p>
+          )}
         </section>
 
         <section className="card">
@@ -109,36 +119,42 @@ export default function SharedResults() {
             أفضل الوظائف المناسبة
           </h2>
           <div className="space-y-3">
-            {data.top_jobs.map((job, index) => (
-              <div
-                key={job.job_title}
-                className={`rounded-xl border p-4 ${
-                  index === 0
-                    ? "border-secondary-300 bg-secondary-50/50"
-                    : "border-slate-200 bg-white"
-                }`}
-              >
-                <p className="font-bold text-slate-900 text-sm sm:text-base">
-                  {job.job_title}
-                </p>
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className={`h-full rounded-full ${
-                      index === 0 ? "bg-secondary-600" : "bg-primary-600"
-                    }`}
-                    style={{ width: `${job.match_percentage}%` }}
-                  />
-                </div>
-                <p className="mt-1 text-xs font-bold text-slate-500">
-                  نسبة التوافق {Math.round(job.match_percentage)}%
-                </p>
-                {job.explanation && (
-                  <p className="mt-2 text-xs sm:text-sm font-medium text-slate-600">
-                    {job.explanation}
+            {topJobs.map((job, index) => {
+              const matchPct = Math.round(Number(job?.match_percentage ?? 0));
+              return (
+                <div
+                  key={job.job_title || index}
+                  className={`rounded-xl border p-4 ${
+                    index === 0
+                      ? "border-secondary-300 bg-secondary-50/50"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  <p className="font-bold text-slate-900 text-sm sm:text-base">
+                    {job.job_title}
                   </p>
-                )}
-              </div>
-            ))}
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className={`h-full rounded-full ${
+                        index === 0 ? "bg-secondary-600" : "bg-primary-600"
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(0, matchPct))}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    نسبة التوافق {matchPct}%
+                  </p>
+                  {job.explanation && (
+                    <p className="mt-2 text-xs sm:text-sm font-medium text-slate-600">
+                      {job.explanation}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+            {topJobs.length === 0 && (
+              <p className="text-xs text-slate-400">لا توجد وظائف متاحة</p>
+            )}
           </div>
         </section>
 

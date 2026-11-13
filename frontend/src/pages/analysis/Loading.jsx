@@ -44,74 +44,111 @@ export default function Loading() {
   const [errorDetail, setErrorDetail] = useState("");
   const [isQuotaError, setIsQuotaError] = useState(false);
   const [waitAttempt, setWaitAttempt] = useState(0);
-  const startedRef = useRef(false);
+  const mountedRef = useRef(true);
+  const runIdRef = useRef(0);
+  const activeTaskIdRef = useRef(null);
   const messages = stage === "extract" ? EXTRACT_MESSAGES : ANALYZE_MESSAGES;
 
-  const runStep = async () => {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const runStep = async ({ resumeTaskId = null } = {}) => {
+    const myRunId = ++runIdRef.current;
+    const isStale = () => !mountedRef.current || myRunId !== runIdRef.current;
+
     setPhase("processing");
     setErrorDetail("");
     setIsQuotaError(false);
+
     try {
       if (stage === "extract") {
         if (!fileId) {
           navigate("/analysis/upload", { replace: true });
           return;
         }
-        try {
-          const asyncRes = await startAsyncCVExtraction(fileId);
-          const taskId = asyncRes.data.task_id;
-          let finalResult = null;
 
+        let taskId = resumeTaskId;
+        let finalResult = null;
+
+        if (!taskId) {
+          try {
+            const asyncRes = await startAsyncCVExtraction(fileId);
+            if (isStale()) return;
+            taskId = asyncRes.data?.task_id || null;
+            activeTaskIdRef.current = taskId;
+          } catch (asyncErr) {
+            if (isStale()) return;
+            if (asyncErr?.response?.status === 403) {
+              throw asyncErr;
+            }
+            const res = await extractCVData(fileId);
+            if (isStale()) return;
+            finalResult = res.data;
+          }
+        }
+
+        if (taskId && !finalResult) {
           for (let attempt = 0; attempt < 25; attempt++) {
+            if (isStale()) return;
             const statusRes = await getCVTaskStatus(taskId);
+            if (isStale()) return;
             if (statusRes.data.status === "completed" && statusRes.data.result) {
               finalResult = statusRes.data.result;
               break;
             }
             if (statusRes.data.status === "failed") {
-              throw new Error(statusRes.data.error || "فشل تحليل السيرة الذاتية");
+              const taskError = new Error(
+                statusRes.data.error || "فشل تحليل السيرة الذاتية"
+              );
+              taskError.isTaskFailure = true;
+              throw taskError;
             }
-            await new Promise((resolve) => setTimeout(resolve, 1200));
+            await sleep(1200);
           }
 
+          if (isStale()) return;
           if (!finalResult) {
-            const fallbackRes = await extractCVData(fileId);
-            finalResult = fallbackRes.data;
+            throw new Error("انتهى وقت استخراج السيرة الذاتية، حاول مرة أخرى");
           }
-
-          setExtractionId(finalResult.extraction_id);
-          setExtractedData(finalResult);
-          navigate("/analysis/review", { replace: true });
-        } catch {
-          const res = await extractCVData(fileId);
-          setExtractionId(res.data.extraction_id);
-          setExtractedData(res.data);
-          navigate("/analysis/review", { replace: true });
         }
+
+        if (isStale() || !finalResult) return;
+        activeTaskIdRef.current = null;
+        setExtractionId(finalResult.extraction_id);
+        setExtractedData(finalResult);
+        navigate("/analysis/review", { replace: true });
       } else {
         if (!extractionId || !assessmentId) {
           navigate("/analysis/upload", { replace: true });
           return;
         }
         const res = await runAnalysis(extractionId, assessmentId);
+        if (isStale()) return;
         setLatestAnalysis(res.data);
         navigate(`/results/${res.data.analysis_id}`, {
           replace: true,
-          state: { analysis: res.data },
+          state: { analysis: res.data, justCreated: true },
         });
       }
     } catch (error) {
+      if (isStale()) return;
+      activeTaskIdRef.current = null;
       setPhase("error");
-      setErrorDetail(getErrorMessage(error, "حدث خطأ أثناء المعالجة"));
+      setErrorDetail(
+        error?.isTaskFailure
+          ? error.message
+          : getErrorMessage(error, "حدث خطأ أثناء المعالجة")
+      );
       setIsQuotaError(error?.response?.status === 403);
-      console.error(getErrorMessage(error));
     }
   };
 
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
+    mountedRef.current = true;
     runStep();
+    return () => {
+      mountedRef.current = false;
+      runIdRef.current += 1;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -120,7 +157,13 @@ export default function Loading() {
       setMessageIndex((i) => (i + 1) % messages.length);
     }, 2500);
     const timeoutTimer = setTimeout(() => {
-      setPhase((p) => (p === "processing" ? "timeout" : p));
+      setPhase((p) => {
+        if (p === "processing") {
+          runIdRef.current += 1;
+          return "timeout";
+        }
+        return p;
+      });
     }, TIMEOUT_MS);
     return () => {
       clearInterval(rotateTimer);
@@ -129,9 +172,14 @@ export default function Loading() {
   }, [messages.length, waitAttempt]);
 
   const handleRetry = () => {
-    startedRef.current = false;
+    activeTaskIdRef.current = null;
+    setWaitAttempt((n) => n + 1);
     runStep();
-    startedRef.current = true;
+  };
+
+  const handleContinueWaiting = () => {
+    setWaitAttempt((n) => n + 1);
+    runStep({ resumeTaskId: activeTaskIdRef.current });
   };
 
   return (
@@ -157,10 +205,7 @@ export default function Loading() {
           <div className="flex justify-center gap-3">
             <button
               className="btn-outline"
-              onClick={() => {
-                setPhase("processing");
-                setWaitAttempt((n) => n + 1);
-              }}
+              onClick={handleContinueWaiting}
             >
               متابعة الانتظار
             </button>
@@ -176,19 +221,17 @@ export default function Loading() {
           <p className="text-sm sm:text-base font-bold text-danger leading-relaxed">
             {errorDetail || "حدث خطأ أثناء المعالجة"}
           </p>
+          {isQuotaError && (
+            <p className="text-xs font-medium text-slate-600 leading-relaxed">
+              لقد وصلت إلى الحد الأقصى المسموح به للتحليلات في باقتك الحالية.
+            </p>
+          )}
           <div className="flex flex-wrap justify-center gap-3">
-            <button className="btn-outline" onClick={() => navigate("/dashboard")}>
+            <button className="btn-primary" onClick={() => navigate("/dashboard")}>
               العودة للوحة التحكم
             </button>
-            {isQuotaError ? (
-              <button
-                className="btn-primary"
-                onClick={() => navigate("/pricing")}
-              >
-                ترقية الباقة الآن (AI Pro)
-              </button>
-            ) : (
-              <button className="btn-primary" onClick={handleRetry}>
+            {!isQuotaError && (
+              <button className="btn-outline" onClick={handleRetry}>
                 إعادة المحاولة
               </button>
             )}

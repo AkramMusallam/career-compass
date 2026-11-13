@@ -59,6 +59,7 @@ class User(Base):
     role = Column(String(50), default="candidate", nullable=False)  # candidate | recruiter | admin
     subscription_tier = Column(String(50), default="free", nullable=False)  # free | pro | enterprise
     company_name = Column(String(255), nullable=True)
+    target_role = Column(String(120), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

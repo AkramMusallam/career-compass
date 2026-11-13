@@ -72,7 +72,7 @@ def match_extension_job(
 
     total_req = max(1, len(required_skills))
     match_score = int(round((len(matched) / total_req) * 100))
-    match_score = max(10, min(98, match_score))
+    match_score = max(0, min(100, match_score))
 
     # الحكم والتقييم
     if match_score >= 75:

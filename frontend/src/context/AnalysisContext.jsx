@@ -1,21 +1,35 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+
+import { useAuth } from "./AuthContext";
 
 const AnalysisContext = createContext(null);
 
 export function AnalysisProvider({ children }) {
+  const { user } = useAuth();
   const [fileId, setFileId] = useState(null);
   const [extractionId, setExtractionId] = useState(null);
   const [extractedData, setExtractedData] = useState(null); // { skills, projects, education, experience }
   const [assessmentId, setAssessmentId] = useState(null);
   const [latestAnalysis, setLatestAnalysis] = useState(null);
 
-  const resetAnalysisFlow = () => {
+  const resetAnalysisFlow = useCallback(() => {
     setFileId(null);
     setExtractionId(null);
     setExtractedData(null);
     setAssessmentId(null);
     setLatestAnalysis(null);
-  };
+  }, []);
+
+  const currentUserKey = user?.id || user?.email || null;
+  const prevUserKeyRef = useRef(currentUserKey);
+
+  useEffect(() => {
+    const prevKey = prevUserKeyRef.current;
+    if (!currentUserKey || (prevKey && prevKey !== currentUserKey)) {
+      resetAnalysisFlow();
+    }
+    prevUserKeyRef.current = currentUserKey;
+  }, [currentUserKey, resetAnalysisFlow]);
 
   const value = useMemo(
     () => ({
@@ -31,7 +45,7 @@ export function AnalysisProvider({ children }) {
       setLatestAnalysis,
       resetAnalysisFlow,
     }),
-    [fileId, extractionId, extractedData, assessmentId, latestAnalysis]
+    [fileId, extractionId, extractedData, assessmentId, latestAnalysis, resetAnalysisFlow]
   );
 
   return <AnalysisContext.Provider value={value}>{children}</AnalysisContext.Provider>;

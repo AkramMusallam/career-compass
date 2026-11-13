@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   Clock,
 } from "lucide-react";
+import { getHealthStatus } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import CompassLogo from "./CompassLogo";
@@ -43,6 +44,25 @@ export default function AppLayout() {
   const { showToast } = useToast();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [aiStatus, setAiStatus] = useState("checking");
+
+  useEffect(() => {
+    let mounted = true;
+    getHealthStatus()
+      .then((res) => {
+        if (!mounted) return;
+        setAiStatus(res.data?.status === "healthy" ? "healthy" : "degraded");
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setAiStatus(
+          err?.response?.data?.status === "degraded" ? "degraded" : "offline"
+        );
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const isActive = (path) => {
     if (path === "/analysis/upload") {
@@ -65,13 +85,13 @@ export default function AppLayout() {
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F8FA] text-slate-800">
       {/* Unified Top Header with Corner Menu Button */}
-      <header className="sticky top-0 z-30 flex h-15 sm:h-16 items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 sm:px-6 lg:px-8 backdrop-blur-md">
+      <header className="sticky top-0 z-30 flex h-[60px] sm:h-16 items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 sm:px-6 lg:px-8 backdrop-blur-md">
         <div className="flex items-center gap-3">
           {user && (
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 shadow-2xs transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-700 shadow-sm transition-colors hover:bg-slate-100 hover:text-slate-900"
               aria-label="فتح قائمة الأقسام"
               title="فتح قائمة الأقسام"
             >
@@ -90,7 +110,7 @@ export default function AppLayout() {
             <>
               <Link
                 to="/analysis/upload"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white shadow-2xs transition-colors hover:bg-primary-700"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-primary-700"
               >
                 <Sparkles size={14} className="text-secondary-400" />
                 <span>فحص سيرة جديد</span>
@@ -124,12 +144,12 @@ export default function AppLayout() {
 
       {/* Slide-Over Navigation Drawer (Opens on Corner Button Click for Desktop & Mobile) */}
       {user && drawerOpen && (
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex justify-start">
           <div
-            className="fixed inset-0 bg-slate-900/45 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm transition-opacity"
             onClick={() => setDrawerOpen(false)}
           />
-          <aside className="relative mr-auto flex w-80 max-w-[85vw] flex-col bg-white shadow-2xl h-full z-10 border-l border-slate-200 animate-fade-in">
+          <aside className="relative flex w-80 max-w-[85vw] flex-col bg-white shadow-2xl h-full z-10 border-l border-slate-200 animate-fade-in">
             {/* Drawer Header */}
             <div className="flex h-16 items-center justify-between px-5 border-b border-slate-100">
               <CompassLogo size={32} showText={true} />
@@ -254,9 +274,37 @@ export default function AppLayout() {
               <span className="text-slate-800 font-bold">CareerCompass AI</span> — منصة الذكاء المهني وتحليل السير الذاتية
             </p>
           </div>
-          <div className="flex items-center gap-2 text-xs font-bold text-secondary-700 bg-secondary-50 border border-secondary-200/80 px-3 py-1 rounded-full">
-            <span className="h-2 w-2 rounded-full bg-secondary-500" />
-            <span>محرك الذكاء الاصطناعي متصل</span>
+          <div
+            className={`flex items-center gap-2 text-xs font-bold border px-3 py-1 rounded-full ${
+              aiStatus === "healthy"
+                ? "text-secondary-700 bg-secondary-50 border-secondary-200/80"
+                : aiStatus === "degraded"
+                  ? "text-amber-700 bg-amber-50 border-amber-200/80"
+                  : aiStatus === "offline"
+                    ? "text-red-700 bg-red-50 border-red-200/80"
+                    : "text-slate-600 bg-slate-100 border-slate-200"
+            }`}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                aiStatus === "healthy"
+                  ? "bg-secondary-500"
+                  : aiStatus === "degraded"
+                    ? "bg-amber-500"
+                    : aiStatus === "offline"
+                      ? "bg-red-500"
+                      : "bg-slate-400 animate-pulse"
+              }`}
+            />
+            <span>
+              {aiStatus === "healthy"
+                ? "محرك الذكاء الاصطناعي متصل"
+                : aiStatus === "degraded"
+                  ? "حالة المحرك محدودة"
+                  : aiStatus === "offline"
+                    ? "تعذر الاتصال بمحرك الذكاء الاصطناعي"
+                    : "جاري فحص حالة النظام..."}
+            </span>
           </div>
         </div>
       </footer>

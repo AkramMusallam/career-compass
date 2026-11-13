@@ -15,50 +15,83 @@ import {
 const FALLBACK_PLANS = [
   {
     id: "free",
+    name: "Free Starter",
     name_ar: "الباقة المجانية",
-    description_ar: "مناسبة للباحثين عن عمل والخريجين الجدد لاستكشاف المسار المهني.",
-    monthly_price: 0,
-    annual_price: 0,
+    price_monthly: 0,
+    price_annual: 0,
     currency: "USD",
-    badge_ar: "مفتوحة مجاناً للجميع",
+    description: "Suitable for job seekers and fresh graduates exploring career paths.",
+    description_ar: "مناسبة للباحثين عن عمل والخريجين الجدد لاستكشاف المسار المهني.",
+    badge: "مفتوحة مجاناً للجميع",
+    recommended: false,
+    limits: { monthly_analyses: 2, interviews: 1 },
     features: [
-      { text: "تحليل غير محدود للسيرة الذاتية (مفتوح حالياً)", included: true },
-      { text: "خارطة طريق تعليمية لمدة 3 أشهر", included: true },
-      { text: "مطابقة الوظائف في السوق المحلي", included: true },
-      { text: "محاكاة المقابلات التقنية بالذكاء الاصطناعي", included: true },
-      { text: "تصدير تقرير السيرة الذاتية بصيغة PDF", included: true },
+      "CV analysis and skill extraction",
+      "3-month personalized learning roadmap",
+      "Market job matching",
+      "AI mock interview simulation",
+      "PDF report export",
+    ],
+    features_ar: [
+      "تحليل غير محدود للسيرة الذاتية (مفتوح حالياً)",
+      "خارطة طريق تعليمية لمدة 3 أشهر",
+      "مطابقة الوظائف في السوق المحلي",
+      "محاكاة المقابلات التقنية بالذكاء الاصطناعي",
+      "تصدير تقرير السيرة الذاتية بصيغة PDF",
     ],
   },
   {
     id: "pro",
+    name: "AI Pro",
     name_ar: "باقة المحترفين (AI Pro)",
-    description_ar: "للراغبين بتسريع نموهم المهني واجتياز المقابلات الوظيفية بكفاءة عالية.",
-    monthly_price: 9.99,
-    annual_price: 99.0,
+    price_monthly: 9.99,
+    price_annual: 99.0,
     currency: "USD",
-    badge_ar: "الأكثر طلباً",
+    description: "For professionals accelerating career growth and interview readiness.",
+    description_ar: "للراغبين بتسريع نموهم المهني واجتياز المقابلات الوظيفية بكفاءة عالية.",
+    badge: "الأكثر طلباً",
+    recommended: true,
+    limits: { monthly_analyses: -1, interviews: -1 },
     features: [
-      { text: "كل ميزات الباقة المجانية", included: true },
-      { text: "محاكاة صوتية تفاعلية للمقابلات بـ Whisper", included: true },
-      { text: "تحليل نبرة الصوت وسرعة الإلقاء والطلاقة", included: true },
-      { text: "إنشاء خطابات تقديم مخصصة غير محدودة", included: true },
-      { text: "إضافة المتصفح الذكية لربط وظائف LinkedIn", included: true },
+      "All Free Starter features",
+      "Interactive voice interview simulation with Whisper",
+      "Speech clarity, pace, and fluency analytics",
+      "Unlimited tailored cover letters",
+      "Smart browser extension for job matching",
+    ],
+    features_ar: [
+      "كل ميزات الباقة المجانية",
+      "محاكاة صوتية تفاعلية للمقابلات بـ Whisper",
+      "تحليل نبرة الصوت وسرعة الإلقاء والطلاقة",
+      "إنشاء خطابات تقديم مخصصة غير محدودة",
+      "إضافة المتصفح الذكية لربط وظائف LinkedIn",
     ],
   },
   {
     id: "enterprise",
+    name: "Enterprise & Recruiters",
     name_ar: "باقة الشركات والتوظيف",
-    description_ar: "لمسؤولي التوظيف والشركات لفرز المرشحين ومطابقة الوظائف تلقائياً.",
-    monthly_price: 29.99,
-    annual_price: 299.0,
+    price_monthly: 29.99,
+    price_annual: 299.0,
     currency: "USD",
-    badge_ar: "للشركات ومسؤولي التوظيف",
+    description: "For hiring teams and companies to screen and match candidates.",
+    description_ar: "لمسؤولي التوظيف والشركات لفرز المرشحين ومطابقة الوظائف تلقائياً.",
+    badge: "للشركات ومسؤولي التوظيف",
+    recommended: false,
+    limits: { job_postings: -1, team_members: 20 },
     features: [
-      { text: "بوابة توظيف متكاملة لنشر ومتابعة الشواغر", included: true },
-      { text: "ترتيب وتصنيف المتقدمين تلقائياً بنسبة التوافق", included: true },
-      { text: "إدارة أعضاء الفريق ودعوات الشركاء", included: true },
-      { text: "فلاتر متقدمة بحسب المهارات ونسب التطابق", included: true },
-      { text: "دعم فني مخصص وأولوية في معالجة البيانات", included: true },
+      "Complete B2B recruiter portal",
+      "Automated candidate ranking by match score",
+      "Team management and partner invitations",
+      "Advanced skill and score filtering",
+      "Priority support and processing",
+    ],
+    features_ar: [
+      "بوابة توظيف متكاملة لنشر ومتابعة الشواغر",
+      "ترتيب وتصنيف المتقدمين تلقائياً بنسبة التوافق",
+      "إدارة أعضاء الفريق ودعوات الشركاء",
+      "فلاتر متقدمة بحسب المهارات ونسب التطابق",
+      "دعم فني مخصص وأولوية في معالجة البيانات",
     ],
   },
 ];
@@ -82,7 +115,9 @@ export default function PricingPlans() {
       setPlans(plansRes.data && plansRes.data.length > 0 ? plansRes.data : FALLBACK_PLANS);
       setCurrentSub(subRes.data);
     } catch (err) {
-      console.error("Error loading plans:", err);
+      if (import.meta.env.DEV) {
+        console.error("Error loading plans:", err);
+      }
       setPlans(FALLBACK_PLANS);
     } finally {
       setIsLoading(false);
@@ -174,11 +209,11 @@ export default function PricingPlans() {
               >
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                   {isFree ? (
-                    <span className="px-3 py-0.5 rounded-full text-[11px] font-bold shadow-xs bg-secondary-50 text-secondary-700 border border-secondary-200">
-                      مفعّلة ومفتوحة حالياً
+                    <span className="px-3 py-0.5 rounded-full text-[11px] font-bold shadow-sm bg-secondary-50 text-secondary-700 border border-secondary-200">
+                      {plan.badge || "مفعّلة ومفتوحة حالياً"}
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[11px] font-bold shadow-xs bg-amber-500 text-slate-950">
+                    <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[11px] font-bold shadow-sm bg-amber-500 text-slate-950">
                       <Clock size={11} />
                       <span>قريباً — Coming Soon</span>
                     </span>

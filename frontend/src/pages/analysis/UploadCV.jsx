@@ -136,7 +136,7 @@ export default function UploadCV() {
         >
           {!file ? (
             <>
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-secondary-400 shadow-xs">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-secondary-400 shadow-sm">
                 <FileUp size={26} />
               </div>
               <div>

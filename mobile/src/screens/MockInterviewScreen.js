@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from "expo-audio";
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from "react-native";
+import { Alert, BackHandler, StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from "react-native";
 import { fetchLatestRoadmap, sendInterviewChat, sendVoiceAnswer, startMockInterview } from "../services/api";
 
 export default function MockInterviewScreen({ onBack, token }) {
@@ -14,13 +14,25 @@ export default function MockInterviewScreen({ onBack, token }) {
   const recording = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const startedRef = useRef(0);
 
+  function leave() {
+    if (isSending) return;
+    if (isRecording || inputText.trim()) {
+      Alert.alert("مغادرة المقابلة؟", "سيُفقد التسجيل أو النص غير المرسل.", [{ text: "متابعة", style: "cancel" }, { text: "مغادرة", style: "destructive", onPress: onBack }]);
+    } else onBack();
+  }
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => { leave(); return true; });
+    return () => subscription.remove();
+  }, [isSending, isRecording, inputText, onBack]);
+
   useEffect(() => {
     let active = true;
     (async () => {
       try {
         const latest = await fetchLatestRoadmap(token);
         if (!latest?.analysis_id || !latest?.top_jobs?.[0]?.job_title) {
-          throw new Error("أكمل تحليلك المهني من الموقع قبل بدء المقابلة.");
+          throw new Error("أكمل تحليلك المهني قبل بدء المقابلة.");
         }
         const session = await startMockInterview(token, latest.analysis_id, latest.top_jobs[0].job_title);
         if (active) {
@@ -91,7 +103,7 @@ export default function MockInterviewScreen({ onBack, token }) {
     <View style={styles.container}>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+        <TouchableOpacity onPress={leave} style={styles.backBtn} accessibilityRole="button" accessibilityLabel="العودة للرئيسية">
           <Text style={styles.backText}>← رجوع</Text>
         </TouchableOpacity>
         <Text style={styles.topTitle}>🎙️ محاكاة المقابلة التقنية</Text>
@@ -140,7 +152,7 @@ export default function MockInterviewScreen({ onBack, token }) {
           <Text style={styles.micIcon}>{isRecording ? "⏹️" : "🎙️"}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.sendBtn} onPress={handleSend}>
+        <TouchableOpacity style={styles.sendBtn} onPress={handleSend} disabled={!sessionId || isSending || isRecording || !inputText.trim()} accessibilityRole="button" accessibilityLabel="إرسال الإجابة">
           <Text style={styles.sendText}>إرسال</Text>
         </TouchableOpacity>
       </View>

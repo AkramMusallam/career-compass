@@ -34,9 +34,16 @@ export default function ShareModal({
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      if (!navigator?.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      showToast("تعذر النسخ التلقائي، انسخ الرابط يدوياً", "error");
+    }
   };
 
   const handleRevoke = async () => {
@@ -54,7 +61,7 @@ export default function ShareModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs px-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4"
       onClick={onClose}
       role="presentation"
     >

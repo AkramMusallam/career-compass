@@ -49,8 +49,6 @@ def send_weekly_progress_emails_task(self):
 @celery_app.task(
     name="app.tasks.parse_cv_task",
     bind=True,
-    max_retries=1,
-    default_retry_delay=10,
 )
 def parse_cv_task(self, file_id: str, user_id: int, task_id: str | None = None) -> dict:
     """Phase 2 (Section 7.1): Celery Asynchronous PDF Worker for CV parsing (`parse_cv_task`).
@@ -125,13 +123,21 @@ def parse_cv_task(self, file_id: str, user_id: int, task_id: str | None = None) 
         )
         return result_payload
     except Exception as exc:
-        logger.warning("Async CV parse task %s failed: %s", effective_task_id, exc)
+        logger.exception("Async CV parse task %s failed", effective_task_id)
+        if isinstance(exc, ValueError) and str(exc) in {
+            "Uploaded file not found",
+            "PDF exceeds maximum allowed page limit (30 pages)",
+            "Invalid uploaded file path",
+        }:
+            safe_error = str(exc)
+        else:
+            safe_error = "CV processing failed. Please verify the PDF file and try again."
         cv_tasks_collection.update_one(
             {"task_id": effective_task_id},
             {
                 "$set": {
                     "status": "failed",
-                    "error": str(exc),
+                    "error": safe_error,
                     "updated_at": datetime.now(timezone.utc),
                 }
             },

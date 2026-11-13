@@ -76,6 +76,10 @@ def init_db() -> None:
             alter_statements.append(
                 "ALTER TABLE users ADD COLUMN company_name VARCHAR(255) NULL"
             )
+        if "target_role" not in existing_cols:
+            alter_statements.append(
+                "ALTER TABLE users ADD COLUMN target_role VARCHAR(120) NULL"
+            )
         if "notifications_opt_in" not in existing_cols:
             alter_statements.append("ALTER TABLE users ADD COLUMN notifications_opt_in BOOLEAN NOT NULL DEFAULT TRUE")
         if alter_statements:

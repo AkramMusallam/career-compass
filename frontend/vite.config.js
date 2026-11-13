@@ -5,6 +5,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   build: {
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -23,7 +24,7 @@ export default defineConfig({
     },
   },
   server: {
-    host: true,
+    host: process.env.VITE_DEV_HOST === "true" ? true : "127.0.0.1",
     port: 5173,
     proxy: {
       // أي طلب لمسار API خلال التطوير المحلي يُوجَّه تلقائياً إلى الباك إند المحلي

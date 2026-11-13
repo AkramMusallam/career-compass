@@ -126,6 +126,37 @@ def delete_job(job_id: str, company_id: str) -> bool:
     return False
 
 
+def _find_consented_extraction(candidate_id: str) -> Optional[Dict[str, Any]]:
+    """Lookup candidate extraction by extraction_id or ObjectId and verify active consent."""
+    ext = extractions_collection.find_one({"extraction_id": candidate_id})
+    if not ext:
+        try:
+            from bson import ObjectId
+
+            ext = extractions_collection.find_one({"_id": ObjectId(candidate_id)})
+        except Exception:
+            ext = None
+    if not ext or not mongo_db["recruiter_consent"].find_one({"_id": ext.get("user_id")}):
+        return None
+    return ext
+
+
+def _compute_experience_summary(experience_list: List[Dict[str, Any]]) -> str:
+    """Compute experience summary from stored duration_months rather than fixed guesses."""
+    if not experience_list:
+        return "خريج جديد / مشاريع شخصية"
+    total_months = 0
+    for exp in experience_list:
+        if isinstance(exp, dict):
+            raw_months = exp.get("duration_months")
+            if isinstance(raw_months, (int, float)) and not isinstance(raw_months, bool) and raw_months > 0:
+                total_months += int(raw_months)
+    if total_months > 0:
+        years_val = round(total_months / 12.0, 1)
+        return f"{len(experience_list)} أدوار وظيفية ({years_val:g} سنوات خبرة)"
+    return f"{len(experience_list)} أدوار وظيفية"
+
+
 def discover_and_rank_candidates(
     job_id: str,
     company_id: str,
@@ -145,7 +176,7 @@ def discover_and_rank_candidates(
     req_skills = job.get("required_skills", [])
     bon_skills = job.get("bonus_skills", [])
 
-    # جلب أحدث السير الذاتية المؤكدة أو المتاحة (مرتبة تنازلياً لأخذ أحدث استخراج لكل مستخدم)
+    # Fetch all consented extractions ordered newest-first before deduplicating by user_id
     extractions = list(
         extractions_collection.find(
             {"user_id": {"$in": mongo_db["recruiter_consent"].distinct("_id")}},
@@ -154,20 +185,19 @@ def discover_and_rank_candidates(
                 "user_id": 1,
                 "skills": 1,
                 "experience": 1,
+                "target_role": 1,
                 "ats_score": 1,
                 "career_score": 1,
             },
-        )
-        .sort("_id", -1)
-        .limit(200)
+        ).sort("_id", -1)
     )
     if not extractions:
         return {"job_id": job_id, "job_title": job["title"], "total_matches": 0, "candidates": []}
 
-    # جلب مسار التوظيف الحالي للوظيفة
+    # Scope pipeline records strictly to this company and job
     pipeline_records = {
         p["candidate_id"]: p
-        for p in recruitment_pipeline_collection.find({"job_id": job_id})
+        for p in recruitment_pipeline_collection.find({"company_id": company_id, "job_id": job_id})
     }
 
     preliminary_candidates = []
@@ -193,13 +223,18 @@ def discover_and_rank_candidates(
         missing_req = [r for r in req_skills if not _is_job_skill_match(r, cand_skills)]
         matched_bon = [b for b in bon_skills if _is_job_skill_match(b, cand_skills)]
 
-        total_req_count = max(1, len(req_skills))
-        total_bon_count = max(1, len(bon_skills))
+        if req_skills and bon_skills:
+            req_score = (len(matched_req) / len(req_skills)) * 80.0
+            bon_score = (len(matched_bon) / len(bon_skills)) * 20.0
+            raw_percentage = req_score + bon_score
+        elif req_skills:
+            raw_percentage = (len(matched_req) / len(req_skills)) * 100.0
+        elif bon_skills:
+            raw_percentage = (len(matched_bon) / len(bon_skills)) * 100.0
+        else:
+            raw_percentage = 0.0
 
-        req_score = (len(matched_req) / total_req_count) * 80.0
-        bon_score = (len(matched_bon) / total_bon_count) * 20.0
-        final_percentage = int(round(req_score + bon_score))
-        final_percentage = max(5, min(100, final_percentage))
+        final_percentage = max(0, min(100, int(round(raw_percentage))))
 
         if final_percentage < min_match:
             continue
@@ -225,14 +260,26 @@ def discover_and_rank_candidates(
     preliminary_candidates.sort(key=lambda c: c["final_percentage"], reverse=True)
     selected_candidates = preliminary_candidates[:limit]
 
-    # جلب أسماء المستخدمين وإيميلاتهم من SQL دفعة واحدة للمرشحين المطابقين فقط
+    # Batch-fetch user profiles and latest real career_score values
     user_ids = [c["uid"] for c in selected_candidates]
-    user_map: Dict[int, Dict[str, str]] = {}
+    user_map: Dict[int, Dict[str, Optional[str]]] = {}
+    career_score_map: Dict[int, float] = {}
     if user_ids:
         with SessionLocal() as db:
             users = db.query(User).filter(User.id.in_(user_ids)).all()
             for u in users:
-                user_map[u.id] = {"full_name": u.full_name, "email": u.email}
+                user_map[u.id] = {
+                    "full_name": u.full_name,
+                    "email": u.email,
+                    "target_role": getattr(u, "target_role", None),
+                }
+        for doc in analysis_results_collection.find(
+            {"user_id": {"$in": user_ids}},
+            {"user_id": 1, "career_score": 1},
+        ).sort([("date", -1), ("_id", -1)]):
+            doc_uid = doc.get("user_id")
+            if doc_uid is not None and doc_uid not in career_score_map and doc.get("career_score") is not None:
+                career_score_map[doc_uid] = float(doc["career_score"])
 
     candidates = []
     for item in selected_candidates:
@@ -246,25 +293,26 @@ def discover_and_rank_candidates(
         matched_bon = item["matched_bon"]
         final_percentage = item["final_percentage"]
 
-        user_info = user_map.get(uid, {"full_name": "مرشح تقني", "email": "candidate@example.com"})
+        user_info = user_map.get(uid, {"full_name": "مرشح تقني", "email": "candidate@example.com", "target_role": None})
+        exp_summary = _compute_experience_summary(experience_list)
 
-        # تقدير سنوات الخبرة
-        exp_years_val = len(experience_list) * 1.5
-        exp_summary = (
-            f"{len(experience_list)} أدوار وظيفية (~{int(exp_years_val)} سنوات خبرة)"
-            if experience_list
-            else "خريج جديد / مشاريع شخصية"
-        )
-
-        # حالة المسار والملاحظات
         pipeline_info = pipeline_records.get(candidate_id, {})
         status_val = pipeline_info.get("pipeline_status", "discovered")
         notes_val = pipeline_info.get("notes", "")
 
+        real_target_role = ext.get("target_role") or user_info.get("target_role")
+        raw_ats = ext.get("ats_score")
+        real_ats = int(round(raw_ats)) if isinstance(raw_ats, (int, float)) and not isinstance(raw_ats, bool) else None
+        raw_career = ext.get("career_score")
+        if isinstance(raw_career, (int, float)) and not isinstance(raw_career, bool):
+            real_career: Optional[float] = float(raw_career)
+        else:
+            real_career = career_score_map.get(uid)
+
         # تحليل الملاءمة (استخدام القوالب الإقليمية الفورية لتجنب تأخير N استدعاءات LLM متزامنة)
         fit_eval = generate_candidate_fit_evaluation(
-            candidate_name=user_info["full_name"],
-            target_role=job["title"],
+            candidate_name=user_info["full_name"] or "مرشح تقني",
+            target_role=real_target_role or job["title"],
             candidate_skills=cand_skills,
             job_title=job["title"],
             required_skills=req_skills,
@@ -284,9 +332,9 @@ def discover_and_rank_candidates(
             "matched_skills": matched_req + matched_bon,
             "missing_skills": missing_req,
             "experience_years_summary": exp_summary,
-            "target_role": job["title"],
-            "ats_score": ext.get("ats_score", 85),
-            "career_score": ext.get("career_score", float(final_percentage)),
+            "target_role": real_target_role,
+            "ats_score": real_ats,
+            "career_score": real_career,
             "fit_reasoning": fit_eval.get("fit_summary", ""),
             "pipeline_status": status_val,
             "notes": notes_val,
@@ -310,19 +358,19 @@ def update_candidate_pipeline_status(
     notes: Optional[str] = None,
 ) -> Dict[str, Any]:
     """تحديث مرحلة المرشح في خط التوظيف (Shortlist, Contact, Interview, Reject)."""
-    # التحقق من أن الوظيفة تتبع للمسؤول
     job = get_job_by_id(job_id, company_id)
     if not job:
         raise ValueError("Job posting not found or unauthorized")
 
-    ext = extractions_collection.find_one({"extraction_id": candidate_id})
-    if not ext or not mongo_db["recruiter_consent"].find_one({"_id": ext.get("user_id")}):
+    ext = _find_consented_extraction(candidate_id)
+    if not ext:
         raise ValueError("Candidate not found")
 
+    canonical_id = ext.get("extraction_id") or candidate_id
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
     update_fields: Dict[str, Any] = {
         "job_id": job_id,
-        "candidate_id": candidate_id,
+        "candidate_id": canonical_id,
         "recruiter_id": recruiter_id,
         "company_id": company_id,
         "pipeline_status": pipeline_status,
@@ -332,7 +380,7 @@ def update_candidate_pipeline_status(
         update_fields["notes"] = notes
 
     recruitment_pipeline_collection.update_one(
-        {"job_id": job_id, "candidate_id": candidate_id},
+        {"company_id": company_id, "job_id": job_id, "candidate_id": canonical_id},
         {"$set": update_fields},
         upsert=True,
     )
@@ -342,44 +390,72 @@ def update_candidate_pipeline_status(
 def get_candidate_profile_detail(
     candidate_id: str,
     company_id: str,
+    job_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """عرض الملف التقني الكامل للمرشح (سيرة ذاتية، مهارات، مشاريع)."""
-    ext = extractions_collection.find_one({"extraction_id": candidate_id})
+    ext = _find_consented_extraction(candidate_id)
     if not ext:
-        try:
-            from bson import ObjectId
-            ext = extractions_collection.find_one({"_id": ObjectId(candidate_id)})
-        except Exception:
-            pass
-
-    if not ext or not mongo_db["recruiter_consent"].find_one({"_id": ext.get("user_id")}):
         return None
 
+    canonical_id = ext.get("extraction_id") or candidate_id
+    candidate_ids = list({candidate_id, canonical_id})
     uid = ext.get("user_id")
+    user_target_role: Optional[str] = None
     with SessionLocal() as db:
         user = db.query(User).filter(User.id == uid).first()
         full_name = user.full_name if user else "مرشح مسجل"
         email = user.email if user else "candidate@example.com"
+        user_target_role = getattr(user, "target_role", None) if user else None
 
-    job_ids = recruiter_jobs_collection.distinct("job_id", {"company_id": company_id})
-    pipeline_query: Dict[str, Any] = {"candidate_id": candidate_id, "job_id": {"$in": job_ids}}
+    if job_id:
+        pipeline_query: Dict[str, Any] = {
+            "company_id": company_id,
+            "job_id": job_id,
+            "candidate_id": {"$in": candidate_ids},
+        }
+    else:
+        job_ids = recruiter_jobs_collection.distinct("job_id", {"company_id": company_id})
+        pipeline_query = {
+            "company_id": company_id,
+            "candidate_id": {"$in": candidate_ids},
+            "job_id": {"$in": job_ids},
+        }
     pipeline_doc = recruitment_pipeline_collection.find_one(
         pipeline_query,
         sort=[("updated_at", -1)],
     )
 
+    raw_ats = ext.get("ats_score")
+    real_ats = int(round(raw_ats)) if isinstance(raw_ats, (int, float)) and not isinstance(raw_ats, bool) else None
+    raw_career = ext.get("career_score")
+    if isinstance(raw_career, (int, float)) and not isinstance(raw_career, bool):
+        real_career: Optional[float] = float(raw_career)
+    elif uid is not None:
+        latest_analysis = analysis_results_collection.find_one(
+            {"user_id": uid},
+            {"career_score": 1},
+            sort=[("date", -1), ("_id", -1)],
+        )
+        real_career = (
+            float(latest_analysis["career_score"])
+            if latest_analysis and latest_analysis.get("career_score") is not None
+            else None
+        )
+    else:
+        real_career = None
+
     return {
-        "candidate_id": candidate_id,
+        "candidate_id": canonical_id,
         "user_id": uid,
         "full_name": full_name,
         "email": email,
-        "target_role": ext.get("target_role", "Software Engineer"),
-        "ats_score": ext.get("ats_score", 85),
+        "target_role": ext.get("target_role") or user_target_role,
+        "ats_score": real_ats,
         "skills": ext.get("skills", []),
         "experience": ext.get("experience", []),
         "projects": ext.get("projects", []),
         "education": ext.get("education", []),
-        "career_score": ext.get("career_score", 80.0),
+        "career_score": real_career,
         "pipeline_status": pipeline_doc.get("pipeline_status", "discovered") if pipeline_doc else "discovered",
         "notes": pipeline_doc.get("notes", "") if pipeline_doc else "",
     }

@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ "master", "main" ]
 
+permissions:
+  contents: read
+
 jobs:
   test-backend:
     runs-on: ubuntu-latest
@@ -79,3 +82,39 @@ jobs:
       env:
         CHROME_PATH: /usr/bin/google-chrome
       run: npm run test:browser
+
+  build-mobile:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24.x'
+        cache: 'npm'
+        cache-dependency-path: './mobile/package-lock.json'
+    - name: Install and check mobile app
+      working-directory: ./mobile
+      env:
+        EXPO_PUBLIC_API_BASE_URL: https://example.com/api
+      run: |
+        npm ci
+        node --test tests/*.test.cjs
+        npx expo export --platform all --output-dir dist
+
+  lint-extension:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+
+    - name: Check Chrome Extension Syntax & Manifest
+      working-directory: ./chrome-extension
+      run: |
+        node --check background.js
+        node --check content.js
+        node --check popup.js
+        node -e "const fs=require('fs'); const m=JSON.parse(fs.readFileSync('manifest.json','utf8')); if(m.manifest_version!==3) throw new Error('Expected MV3');"

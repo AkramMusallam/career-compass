@@ -257,10 +257,14 @@ def test_payment_invoice_and_usage_tracking(client, registered_user_token):
 
     q_resp = client.get("/assessment", headers=headers)
     questions = q_resp.json()["questions"]
-    answers = [
-        {"question_id": q["id"], "value": q["options"][0] if q.get("options") else 4}
-        for q in questions[:3]
-    ]
+    answers = []
+    for q in questions:
+        if q["type"] == "scale":
+            answers.append({"question_id": q["id"], "value": 4})
+        elif q["type"] == "multiple_choice":
+            answers.append({"question_id": q["id"], "value": q["options"][:1]})
+        else:
+            answers.append({"question_id": q["id"], "value": q["options"][0]})
     ass_resp = client.post("/assessment", json={"answers": answers}, headers=headers)
     assert ass_resp.status_code == 200
     assessment_id = ass_resp.json()["assessment_id"]

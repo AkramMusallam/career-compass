@@ -23,7 +23,7 @@ from app.schemas.schemas import (
     UpdateCandidatePipelineRequest,
 )
 from app.services import recruiter_service
-from app.api.routes.companies import CompanyRequest, request_company
+from app.api.routes.companies import create_company_application
 
 router = APIRouter(prefix="/recruiter", tags=["Recruiter Portal (B2B)"])
 
@@ -159,10 +159,15 @@ def update_candidate_status(
 @router.get("/candidates/{candidate_id}/profile", response_model=CandidateProfileDetail)
 def get_candidate_profile(
     candidate_id: str,
+    job_id: Optional[str] = Query(None),
     company: dict = Depends(require_company),
 ):
     """معاينة الملف التقني المفصّل للمرشح."""
-    profile_data = recruiter_service.get_candidate_profile_detail(candidate_id, company_id=company["company_id"])
+    profile_data = recruiter_service.get_candidate_profile_detail(
+        candidate_id,
+        company_id=company["company_id"],
+        job_id=job_id,
+    )
     if not profile_data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate profile not found")
     return CandidateProfileDetail(**profile_data)
@@ -180,17 +185,18 @@ def switch_to_recruiter(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    resolved_company = company_name or (payload.company_name if payload else None)
-    if not resolved_company or not resolved_company.strip():
+    resolved_company = (company_name or (payload.company_name if payload else "") or "").strip()
+    if not resolved_company:
         raise HTTPException(status_code=400, detail="Company name is required")
-    if resolved_company:
-        user.company_name = resolved_company.strip()[:200]
+    user.company_name = resolved_company[:200]
     db.commit()
     db.refresh(user)
 
-    existing = mongo_db["companies"].find_one({"owner_id": user.id, "name": user.company_name, "status": {"$in": ["pending", "approved"]}})
+    existing = mongo_db["companies"].find_one(
+        {"owner_id": user.id, "name": user.company_name, "status": {"$in": ["pending", "approved"]}}
+    )
     if not existing:
-        request_company(CompanyRequest(name=user.company_name), user)
+        create_company_application(user.company_name, user.id)
 
     return {
         "detail": "تم إرسال طلب التوظيف للمراجعة من إدارة المنصة.",

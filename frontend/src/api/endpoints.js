@@ -194,3 +194,4 @@ export const createCheckoutSession = (data) => apiClient.post("/subscriptions/ch
 export const cancelSubscription = () => apiClient.post("/subscriptions/cancel");
 
 export const matchExtensionJob = (data) => apiClient.post("/extension/match-job", data);
+export const getHealthStatus = () => apiClient.get("/health");

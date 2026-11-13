@@ -3,16 +3,16 @@ services:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-dev_root_pass}
       MYSQL_DATABASE: career_compass
-      MYSQL_USER: career_user
-      MYSQL_PASSWORD: career_pass
+      MYSQL_USER: ${MYSQL_USER:-career_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dev_career_pass}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysqladmin ping -h 127.0.0.1 -u \"$$MYSQL_USER\""]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -21,7 +21,7 @@ services:
     image: mongo:7.0
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -30,12 +30,12 @@ services:
       timeout: 5s
       retries: 10
 
-  # Batch 5.4 — Broker/Backend لـ Celery (المهام المجدولة: التنبيهات البريدية الأسبوعية)
+  # Broker/Backend for Celery (scheduled weekly progress emails & async tasks)
   redis:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -55,22 +55,25 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       ENV: development
-      JWT_SECRET_KEY: change-this-to-a-long-random-secret-in-production
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-only-local-jwt-secret-not-for-prod}
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
+      MYSQL_USER: ${MYSQL_USER:-career_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dev_career_pass}
       MYSQL_DB: career_compass
       USE_SQLITE_FALLBACK: "0"
       MONGO_URI: mongodb://mongo:27017
       MONGO_DB: career_compass
       USE_MONGOMOCK: "0"
-      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
       REDIS_URL: redis://redis:6379/0
       FRONTEND_BASE_URL: "http://localhost:3000"
-      # اضبط EMAIL_NOTIFICATIONS_ENABLED=1 وبيانات SMTP_* الحقيقية عند توفرها لتفعيل الإرسال الفعلي
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
       EMAIL_NOTIFICATIONS_ENABLED: "0"
       SMTP_HOST: ""
       SMTP_PORT: "587"
@@ -80,11 +83,10 @@ services:
       SMTP_FROM_EMAIL: "no-reply@career-compass.app"
       SMTP_FROM_NAME: "Career Compass"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - backend_uploads:/app/uploads
 
-  # Batch 5.4 — Worker: ينفّذ مهمة إرسال التنبيهات الأسبوعية عند جدولتها من celery-beat
   celery-worker:
     build:
       context: ./backend
@@ -97,13 +99,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       ENV: development
-      JWT_SECRET_KEY: change-this-to-a-long-random-secret-in-production
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-only-local-jwt-secret-not-for-prod}
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
+      MYSQL_USER: ${MYSQL_USER:-career_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dev_career_pass}
       MYSQL_DB: career_compass
       USE_SQLITE_FALLBACK: "0"
       MONGO_URI: mongodb://mongo:27017
@@ -111,6 +115,8 @@ services:
       USE_MONGOMOCK: "0"
       REDIS_URL: redis://redis:6379/0
       FRONTEND_BASE_URL: "http://localhost:3000"
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
       EMAIL_NOTIFICATIONS_ENABLED: "0"
       SMTP_HOST: ""
       SMTP_PORT: "587"
@@ -122,18 +128,17 @@ services:
     volumes:
       - backend_uploads:/app/uploads
 
-  # Batch 5.4 — Beat: المجدوِل الذي يُطلق المهمة الأسبوعية بالتوقيت المضبوط في WEEKLY_EMAIL_*
   celery-beat:
     build:
       context: ./backend
     restart: unless-stopped
-    command: celery -A app.worker.celery_app beat --loglevel=info
+    command: celery -A app.worker.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     depends_on:
       redis:
         condition: service_healthy
     environment:
       ENV: development
-      JWT_SECRET_KEY: change-this-to-a-long-random-secret-in-production
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-only-local-jwt-secret-not-for-prod}
       REDIS_URL: redis://redis:6379/0
       WEEKLY_EMAIL_DAY_OF_WEEK: monday
       WEEKLY_EMAIL_HOUR: "8"
@@ -146,7 +151,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
 
 volumes:
   mysql_data:

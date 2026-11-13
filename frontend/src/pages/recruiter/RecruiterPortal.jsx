@@ -28,6 +28,7 @@ import {
   ArrowRight,
   TrendingUp,
 } from "lucide-react";
+import { getErrorMessage } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
@@ -51,7 +52,9 @@ export default function RecruiterPortal() {
   const [approvalLoaded, setApprovalLoaded] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [candidatesData, setCandidatesData] = useState({ candidates: [], total_matches: 0 });
+  const [hasLoadedPipeline, setHasLoadedPipeline] = useState(false);
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+  const [jobsError, setJobsError] = useState("");
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
 
   // Filters
@@ -83,13 +86,14 @@ export default function RecruiterPortal() {
   const fetchJobs = useCallback(async () => {
     try {
       setIsLoadingJobs(true);
+      setJobsError("");
       const res = await getRecruiterJobs();
       setJobs(res.data || []);
       if (res.data && res.data.length > 0) {
         setSelectedJobId((curr) => curr || res.data[0].job_id);
       }
     } catch (err) {
-      console.error("Error fetching jobs:", err);
+      setJobsError(getErrorMessage(err, "تعذر تحميل الشواغر الوظيفية"));
     } finally {
       setIsLoadingJobs(false);
     }
@@ -104,8 +108,11 @@ export default function RecruiterPortal() {
       }
       const res = await getJobCandidates(jobId, params);
       setCandidatesData(res.data || { candidates: [], total_matches: 0 });
+      setHasLoadedPipeline(true);
     } catch (err) {
-      console.error("Error fetching candidates:", err);
+      if (import.meta.env.DEV) {
+        console.error("Error fetching candidates:", err);
+      }
       showToast("تعذر جلب قائمة المرشحين", "error");
     } finally {
       setIsLoadingCandidates(false);
@@ -309,6 +316,14 @@ export default function RecruiterPortal() {
     return Math.round(total / list.length);
   }, [candidatesData.candidates]);
 
+  const totalCandidatesMetric = hasLoadedPipeline
+    ? (candidatesData.total_matches ?? candidatesData.candidates?.length ?? 0)
+    : jobs.reduce((sum, j) => sum + (Number(j.total_candidates_count) || 0), 0);
+
+  const shortlistedCandidatesMetric = hasLoadedPipeline
+    ? (candidatesData.candidates || []).filter((c) => c.pipeline_status === "shortlisted").length
+    : jobs.reduce((sum, j) => sum + (Number(j.shortlisted_count) || 0), 0);
+
   if (!approvalLoaded) return <div className="card">جاري التحقق من صلاحية التوظيف...</div>;
   if (!approved) return (
     <div className="card space-y-4">
@@ -362,12 +377,12 @@ export default function RecruiterPortal() {
           </div>
           <div className="bg-slate-800/40 p-3 rounded-2xl border border-slate-800">
             <p className="text-[11px] font-semibold text-slate-400">الكفاءات المطابقة</p>
-            <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">{candidatesData.total_matches || candidatesData.candidates?.length || 0}</p>
+            <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">{totalCandidatesMetric}</p>
           </div>
           <div className="bg-slate-800/40 p-3 rounded-2xl border border-slate-800">
             <p className="text-[11px] font-semibold text-slate-400">في القائمة المختصرة</p>
             <p className="text-xl sm:text-2xl font-black text-primary-400 mt-1">
-              {(candidatesData.candidates || []).filter((c) => c.pipeline_status === "shortlisted").length}
+              {shortlistedCandidatesMetric}
             </p>
           </div>
           <div className="bg-slate-800/40 p-3 rounded-2xl border border-slate-800">
@@ -385,7 +400,7 @@ export default function RecruiterPortal() {
           onClick={() => setActiveTab("jobs")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition ${
             activeTab === "jobs"
-              ? "bg-slate-900 text-white shadow-xs"
+              ? "bg-slate-900 text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
@@ -397,7 +412,7 @@ export default function RecruiterPortal() {
           onClick={() => setActiveTab("pipeline")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition ${
             activeTab === "pipeline"
-              ? "bg-slate-900 text-white shadow-xs"
+              ? "bg-slate-900 text-white shadow-sm"
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           }`}
         >
@@ -411,6 +426,14 @@ export default function RecruiterPortal() {
         <div className="space-y-4">
           {isLoadingJobs ? (
             <div className="py-20 text-center text-slate-500 font-bold">جاري تحميل الشواغر...</div>
+          ) : jobsError ? (
+            <div className="card p-8 text-center space-y-3 border-red-200 bg-red-50/50">
+              <AlertCircle className="w-8 h-8 text-red-600 mx-auto" />
+              <p className="text-sm font-bold text-red-700">{jobsError}</p>
+              <button type="button" onClick={fetchJobs} className="btn-primary !py-2 !px-4 !text-xs">
+                إعادة المحاولة
+              </button>
+            </div>
           ) : jobs.length === 0 ? (
             <div className="card p-10 text-center space-y-3">
               <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
@@ -617,8 +640,8 @@ export default function RecruiterPortal() {
                   {/* Match Score Badge Bar */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-teal-600 text-white flex flex-col items-center justify-center shrink-0 shadow-xs">
-                        <span className="text-sm font-black leading-none">{cand.match_score || cand.match_percentage}%</span>
+                      <div className="w-12 h-12 rounded-xl bg-teal-600 text-white flex flex-col items-center justify-center shrink-0 shadow-sm">
+                        <span className="text-sm font-black leading-none">{cand.match_score ?? cand.match_percentage ?? 0}%</span>
                         <span className="text-[8px] font-bold text-teal-100 mt-0.5">تطابق</span>
                       </div>
                       <div>
@@ -628,7 +651,7 @@ export default function RecruiterPortal() {
                     </div>
 
                     <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
-                      ATS: {cand.ats_score || 85}%
+                      ATS: {cand.ats_score != null ? `${cand.ats_score}%` : "غير متوفر"}
                     </span>
                   </div>
 
@@ -697,7 +720,7 @@ export default function RecruiterPortal() {
 
       {/* MODAL: CREATE NEW JOB */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-7 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
@@ -839,12 +862,17 @@ export default function RecruiterPortal() {
 
       {/* MODAL: CANDIDATE PROFILE DEEP-DIVE */}
       {selectedCandidateProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-7 shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-5">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">{selectedCandidateProfile.full_name}</h3>
-                <p className="text-xs text-slate-500">{selectedCandidateProfile.email} • {selectedCandidateProfile.target_role}</p>
+                <p className="text-xs text-slate-500">
+                  {selectedCandidateProfile.email}
+                  {selectedCandidateProfile.target_role
+                    ? ` • ${selectedCandidateProfile.target_role}`
+                    : ""}
+                </p>
               </div>
               <button
                 onClick={() => setSelectedCandidateProfile(null)}
@@ -922,13 +950,15 @@ export default function RecruiterPortal() {
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-slate-100">
-              <a
-                href={`mailto:${selectedCandidateProfile.email}?subject=دعوة مقابلة تقنية عبر Career Compass`}
-                className="btn-primary !py-2 !px-5 !text-xs inline-flex items-center justify-center gap-1.5 w-full sm:w-auto"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                <span>إرسال بريد دعوة للمقابلة الفنية</span>
-              </a>
+              {selectedCandidateProfile.email && (
+                <a
+                  href={`mailto:${encodeURIComponent(selectedCandidateProfile.email)}?subject=${encodeURIComponent("دعوة مقابلة تقنية عبر Career Compass")}`}
+                  className="btn-primary !py-2 !px-5 !text-xs inline-flex items-center justify-center gap-1.5 w-full sm:w-auto"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>إرسال بريد دعوة للمقابلة الفنية</span>
+                </a>
+              )}
               <button
                 onClick={() => setSelectedCandidateProfile(null)}
                 className="btn-outline !py-2 !px-4 !text-xs w-full sm:w-auto"

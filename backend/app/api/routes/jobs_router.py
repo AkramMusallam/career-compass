@@ -18,6 +18,8 @@ router = APIRouter(prefix="/jobs", tags=["Live Job Matches"])
 @router.get("/matched")
 def get_matched_jobs(
     analysis_id: str = Query(..., description="ID of the completed analysis"),
+    limit: int = Query(50, ge=1, le=200, description="Max matched jobs to return"),
+    offset: int = Query(0, ge=0, description="Number of matched jobs to skip"),
     current_user: User = Depends(get_current_user),
 ):
     """Epic 6 Feature 6.5: Live Market Job Matching Endpoint.
@@ -40,7 +42,7 @@ def get_matched_jobs(
     candidate_skills: list[str] = list(analysis.get("skills") or [])
     if not candidate_skills and analysis.get("extraction_id"):
         extraction = extractions_collection.find_one(
-            {"extraction_id": analysis["extraction_id"]}
+            {"extraction_id": analysis["extraction_id"], "user_id": current_user.id}
         )
         if extraction and extraction.get("skills"):
             candidate_skills = list(extraction["skills"])
@@ -77,9 +79,12 @@ def get_matched_jobs(
             "missing_skills": missing, "bonus_skills_missing": [s for s in bonus if s not in matching],
         })
     matched.sort(key=lambda job: job["match_percentage"], reverse=True)
+    paginated_jobs = matched[offset : offset + limit]
 
     return {
         "analysis_id": analysis_id,
         "total": len(matched),
-        "jobs": matched,
+        "limit": limit,
+        "offset": offset,
+        "jobs": paginated_jobs,
     }

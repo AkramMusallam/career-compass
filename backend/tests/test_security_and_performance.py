@@ -312,11 +312,12 @@ def test_rate_limit_uses_proxy_addresses(client, monkeypatch):
     from app.core.config import settings
 
     keys = []
-    monkeypatch.setattr(settings, "TRUSTED_PROXY_IPS", {"testclient"})
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_IPS", {"testclient", "127.0.0.1"})
     monkeypatch.setattr(rate_limiter, "is_allowed", lambda key, **kwargs: (keys.append(key) or True, 0))
     client.post("/login", headers={"X-Real-IP": "192.0.2.1", "X-Forwarded-For": "192.0.2.2, 192.0.2.3"}, json={})
     client.post("/login", headers={"X-Forwarded-For": "192.0.2.2, 192.0.2.3"}, json={})
-    assert keys == ["auth:192.0.2.1:/login", "auth:192.0.2.2:/login"]
+    client.post("/login", headers={"X-Forwarded-For": "198.51.100.9, 192.0.2.4, 127.0.0.1"}, json={})
+    assert keys == ["auth:192.0.2.1:/login", "auth:192.0.2.3:/login", "auth:192.0.2.4:/login"]
 
 
 def test_rate_limit_ignores_untrusted_proxy_headers(client, monkeypatch):

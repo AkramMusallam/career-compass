@@ -26,6 +26,7 @@ export default function Profile() {
   const [status, setStatus] = useState("loading");
   const [profile, setProfile] = useState(null);
   const [fullName, setFullName] = useState("");
+  const [targetRole, setTargetRole] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [badges, setBadges] = useState([]);
@@ -35,7 +36,8 @@ export default function Profile() {
     getProfile()
       .then((res) => {
         setProfile(res.data);
-        setFullName(res.data.full_name);
+        setFullName(res.data.full_name || "");
+        setTargetRole(res.data.target_role || "");
         setStatus("loaded");
       })
       .catch(() => setStatus("error"));
@@ -49,10 +51,14 @@ export default function Profile() {
       .catch(() => setBadges([]));
   }, []);
 
+  const normalizedName = fullName.trim();
+  const normalizedRole = targetRole.trim();
+  const savedRole = (profile?.target_role || "").trim();
   const isDirty =
-    profile &&
-    fullName.trim() !== profile.full_name &&
-    fullName.trim().length >= 2;
+    Boolean(profile) &&
+    normalizedName.length >= 2 &&
+    (normalizedName !== (profile.full_name || "").trim() ||
+      normalizedRole !== savedRole);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -60,9 +66,21 @@ export default function Profile() {
     setIsSaving(true);
     setErrorMessage("");
     try {
-      const res = await updateProfile({ full_name: fullName.trim() });
-      setProfile((prev) => ({ ...prev, full_name: res.data.full_name }));
-      updateStoredUser({ full_name: res.data.full_name });
+      const res = await updateProfile({
+        full_name: normalizedName,
+        target_role: normalizedRole || null,
+      });
+      setProfile((prev) => ({
+        ...prev,
+        full_name: res.data.full_name,
+        target_role: res.data.target_role ?? null,
+      }));
+      setFullName(res.data.full_name || "");
+      setTargetRole(res.data.target_role || "");
+      updateStoredUser({
+        full_name: res.data.full_name,
+        target_role: res.data.target_role ?? null,
+      });
       showToast("تم حفظ التغييرات بنجاح");
     } catch (error) {
       setErrorMessage(getErrorMessage(error, "تعذر حفظ التغييرات"));
@@ -100,7 +118,12 @@ export default function Profile() {
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
               {profile.full_name}
             </h1>
-            <p className="text-xs sm:text-sm font-medium text-slate-400" dir="ltr">
+            {profile.target_role && (
+              <p className="mt-1 text-xs sm:text-sm font-bold text-secondary-300">
+                {profile.target_role}
+              </p>
+            )}
+            <p className="text-xs sm:text-sm font-medium text-slate-400 mt-0.5" dir="ltr">
               {profile.email}
             </p>
           </div>
@@ -111,13 +134,15 @@ export default function Profile() {
       <div className="grid grid-cols-3 gap-3 sm:gap-4 text-center">
         <div className="card !p-4">
           <p className="text-xl sm:text-2xl font-black text-primary-600">
-            {profile.total_analyses}
+            {profile.total_analyses ?? 0}
           </p>
           <p className="mt-1 text-[11px] font-bold text-slate-500">إجمالي التحليلات</p>
         </div>
         <div className="card !p-4">
           <p className="text-xl sm:text-2xl font-black text-secondary-600">
-            {Math.round(profile.highest_career_score)}
+            {Number.isFinite(Number(profile.highest_career_score))
+              ? Math.round(Number(profile.highest_career_score))
+              : 0}
           </p>
           <p className="mt-1 text-[11px] font-bold text-slate-500">أعلى Career Score</p>
         </div>
@@ -209,6 +234,22 @@ export default function Profile() {
             className="input-field"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
+          />
+        </div>
+
+        <div className="mb-4">
+          <label htmlFor="targetRole" className="label-text">
+            المسمى الوظيفي المستهدف
+          </label>
+          <input
+            id="targetRole"
+            type="text"
+            maxLength={120}
+            className="input-field"
+            dir="auto"
+            value={targetRole}
+            onChange={(e) => setTargetRole(e.target.value)}
+            placeholder="مثال: Backend Engineer"
           />
         </div>
 
