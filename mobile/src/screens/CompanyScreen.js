@@ -56,9 +56,10 @@ export default function CompanyScreen({ token, onBack }) {
   async function openCandidate(selected) {
     setBusy(true); setError(""); setNotice("");
     try {
-      const result = await companyRequest(token, `/recruiter/candidates/${encodeURIComponent(selected.candidate_id)}/profile`, company.company_id);
-      setProfile(result); setCandidate(selected);
-      setStage(selected.pipeline_status); setNotes(selected.notes || "");
+      const result = await companyRequest(token, `/recruiter/candidates/${encodeURIComponent(selected.candidate_id)}/profile?job_id=${encodeURIComponent(job.job_id)}`, company.company_id);
+      setProfile(result);
+      setStage(result.pipeline_status); setNotes(result.notes || "");
+      setCandidate({ ...selected, pipeline_status: result.pipeline_status, notes: result.notes || "" });
     } catch { setError("تعذر عرض ملف المرشح. ربما لم تعد موافقته سارية؛ أعد تحميل قائمة المرشحين."); }
     finally { setBusy(false); }
   }
@@ -120,7 +121,7 @@ export default function CompanyScreen({ token, onBack }) {
     finally { setBusy(false); }
   }
 
-  return <ScrollView style={styles.page} contentContainerStyle={styles.content}>
+  return <ScrollView style={styles.page} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <Button title={company ? "رجوع" : "العودة للرئيسية"} onPress={back} disabled={busy} />
     <Text style={styles.title}>{candidate ? candidate.full_name : job ? `مرشحو ${job.title}` : company ? company.name : "شركاتي والتوظيف"}</Text>
     {!!error && <Text style={styles.error}>{error}</Text>}

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Button from "./src/components/AppButton";
 import { StatusBar } from "expo-status-bar";
-import { StyleSheet, View, Text, TextInput, SafeAreaView, ScrollView } from "react-native";
+import { KeyboardAvoidingView, Platform, StyleSheet, View, Text, TextInput, ScrollView } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { login, register, forgotPassword, setUnauthorizedHandler } from "./src/services/api";
@@ -107,18 +108,20 @@ export default function App() {
   if (restoring) return null;
 
   return (
+    <SafeAreaProvider>
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
-      <View style={styles.container}>
-        {userToken && sessionExpired && <Text style={styles.sessionNotice}>انتهت الجلسة. ارجع للرئيسية وسجّل الدخول من جديد. احفظ عملك أولًا إن أمكن.</Text>}
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        {userToken && sessionExpired && <View><Text style={styles.sessionNotice}>انتهت الجلسة. احفظ عملك أولًا إن أمكن، ثم سجّل الدخول من جديد.</Text><Button title="العودة لتسجيل الدخول" onPress={handleLogout} /></View>}
+        {!!userToken && !!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
         {!userToken ? (
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.login}>
             <Text style={styles.brand}>🧭  CAREER COMPASS</Text>
             <Text style={styles.label}>{authMode === "register" ? "إنشاء حساب" : authMode === "forgot" ? "استعادة كلمة المرور" : "تسجيل الدخول إلى Career Compass"}</Text>
             <Text style={styles.subtitle}>{authMode === "login" ? "خطوتك القادمة في مسيرتك المهنية تبدأ هنا" : authMode === "register" ? "أنشئ حسابك وابدأ رحلتك المهنية" : "أدخل بريدك لنرسل لك رابط الاستعادة"}</Text>
-            {authMode === "register" && <TextInput style={styles.input} placeholder="الاسم الكامل" placeholderTextColor="#94a3b8" value={fullName} onChangeText={setFullName} />}
-            <TextInput style={styles.input} placeholder="البريد الإلكتروني" placeholderTextColor="#94a3b8" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-            {authMode !== "forgot" && <TextInput style={styles.input} placeholder="كلمة المرور" placeholderTextColor="#94a3b8" value={password} onChangeText={setPassword} secureTextEntry />}
+            {authMode === "register" && <TextInput style={styles.input} placeholder="الاسم الكامل" accessibilityLabel="الاسم الكامل" autoComplete="name" placeholderTextColor="#94a3b8" value={fullName} onChangeText={setFullName} />}
+            <TextInput style={styles.input} placeholder="البريد الإلكتروني" accessibilityLabel="البريد الإلكتروني" autoComplete="email" placeholderTextColor="#94a3b8" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" />
+            {authMode !== "forgot" && <TextInput style={styles.input} placeholder="كلمة المرور" accessibilityLabel="كلمة المرور" autoComplete={authMode === "register" ? "new-password" : "current-password"} autoCapitalize="none" placeholderTextColor="#94a3b8" value={password} onChangeText={setPassword} secureTextEntry />}
             {!!error && <Text style={styles.error}>{error}</Text>}
             {!!notice && <Text style={styles.notice}>{notice}</Text>}
             <Button title={loading ? "جارٍ الانتظار..." : authMode === "register" ? "إنشاء الحساب" : authMode === "forgot" ? "إرسال رابط الاستعادة" : "تسجيل الدخول"} onPress={handleAccount} disabled={loading || !email.trim() || (authMode !== "forgot" && !password)} />
@@ -133,7 +136,7 @@ export default function App() {
         ) : currentScreen === "history" ? (
           <HistoryScreen onBack={() => setCurrentScreen("dashboard")} token={userToken} />
         ) : currentScreen === "profile" ? (
-          <ProfileScreen onBack={() => setCurrentScreen("dashboard")} token={userToken} />
+          <ProfileScreen onBack={() => setCurrentScreen("dashboard")} onAccountDeleted={handleLogout} token={userToken} />
         ) : currentScreen === "company" ? (
           <CompanyScreen onBack={() => setCurrentScreen("dashboard")} token={userToken} />
         ) : currentScreen === "admin" ? (
@@ -141,8 +144,9 @@ export default function App() {
         ) : (
           <RoadmapScreen onBack={() => setCurrentScreen("dashboard")} token={userToken} />
         )}
-      </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

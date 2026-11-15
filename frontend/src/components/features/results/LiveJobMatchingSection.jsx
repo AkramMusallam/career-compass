@@ -8,16 +8,26 @@ import {
   Check,
   Mic,
   RefreshCw,
+  ExternalLink,
+  Globe,
+  Calendar,
 } from "lucide-react";
 import { getErrorMessage } from "../../../api/client";
 import { getMatchedJobs } from "../../../api/endpoints";
 
+const SOURCE_TABS = [
+  { id: "all", label: "الكل" },
+  { id: "internal", label: "فرص الشركات المسجلة" },
+  { id: "external", label: "سوق العمل المباشر" },
+];
+
 export default function LiveJobMatchingSection({ analysisId, onStartInterview }) {
   const [jobs, setJobs] = useState([]);
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const fetchJobs = () => {
+  const fetchJobs = (selectedSource = sourceFilter) => {
     if (!analysisId) {
       setLoading(false);
       return;
@@ -25,7 +35,7 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
     setLoading(true);
     setError("");
 
-    getMatchedJobs(analysisId)
+    getMatchedJobs(analysisId, { source: selectedSource })
       .then((res) => {
         setJobs(res.data.jobs || []);
         setLoading(false);
@@ -37,9 +47,9 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
   };
 
   useEffect(() => {
-    fetchJobs();
+    fetchJobs(sourceFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisId]);
+  }, [analysisId, sourceFilter]);
 
   if (loading) {
     return (
@@ -90,10 +100,26 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
             <Briefcase size={18} className="text-primary-600" />
             <span>شواغر التوظيف المطابقة</span>
           </h2>
+          <div className="flex flex-wrap gap-1.5">
+            {SOURCE_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSourceFilter(tab.id)}
+                className={`rounded-xl px-3 py-1 text-xs font-bold border transition ${
+                  sourceFilter === tab.id
+                    ? "bg-primary-600 text-white border-primary-600"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="rounded-xl border border-accent-200 bg-accent-50/60 p-4 text-center">
           <p className="text-xs sm:text-sm font-bold text-accent-800">
-            لم يتم العثور على شواغر بنسبة تطابق مباشرة لمهاراتك في الوقت الحالي. سيتم تحديث الشواغر تلقائياً عند إضافة مهارات جديدة لسجلك.
+            لم يتم العثور على شواغر بنسبة تطابق مباشرة لمهاراتك في هذا الفلتر حالياً. جرّب التبديل بين مصادر الوظائف أو تحديث مهاراتك.
           </p>
         </div>
       </section>
@@ -109,17 +135,36 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
             <span>شواغر التوظيف المطابقة</span>
           </h2>
           <p className="text-xs font-medium text-slate-500 mt-0.5">
-            وظائف منشورة من الشركات المعتمدة على المنصة ومطابَقة مع مهاراتك الحالية.
+            فرص الشركات المعتمدة على المنصة إلى جانب الشواغر الحية من سوق العمل المباشر المطابَقة لمهاراتك.
           </p>
         </div>
-        <span className="bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1 rounded-full border border-primary-200">
-          {jobs.length} وظيفة متطابقة
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {SOURCE_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSourceFilter(tab.id)}
+                className={`rounded-xl px-3 py-1 text-xs font-bold border transition ${
+                  sourceFilter === tab.id
+                    ? "bg-primary-600 text-white border-primary-600"
+                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <span className="bg-primary-50 text-primary-700 text-xs font-bold px-3 py-1 rounded-full border border-primary-200">
+            {jobs.length} وظيفة متطابقة
+          </span>
+        </div>
       </div>
 
       <div className="grid gap-3.5 sm:grid-cols-1 md:grid-cols-2">
         {jobs.map((item) => {
           const isHighMatch = item.match_percentage >= 70;
+          const isExternal = item.source === "external";
           return (
             <div
               key={item.id}
@@ -128,6 +173,18 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
               <div>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold border ${
+                          isExternal
+                            ? "bg-teal-50 text-teal-700 border-teal-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        {isExternal ? <Globe size={10} /> : <Building2 size={10} />}
+                        <span>{isExternal ? `سوق مباشر • ${item.source_name || "External"}` : "شركات المنصة"}</span>
+                      </span>
+                    </div>
                     <h3 className="font-bold text-slate-900 text-sm truncate">
                       {item.title}
                     </h3>
@@ -159,6 +216,12 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
                     <DollarSign size={12} className="text-slate-400" />
                     <span>{item.salary_range}</span>
                   </span>
+                  {item.posted_date && (
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar size={12} className="text-slate-400" />
+                      <span>{String(item.posted_date).slice(0, 10)}</span>
+                    </span>
+                  )}
                 </div>
 
                 <p className="text-xs text-slate-600 line-clamp-2 mb-3 leading-relaxed">
@@ -206,6 +269,17 @@ export default function LiveJobMatchingSection({ analysisId, onStartInterview })
               </div>
 
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2 mt-auto">
+                {item.apply_url && (
+                  <a
+                    href={item.apply_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary !py-1.5 !px-2.5 !text-xs inline-flex items-center gap-1"
+                  >
+                    <ExternalLink size={13} />
+                    <span>التقديم المباشر</span>
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={() => onStartInterview && onStartInterview(item.title)}

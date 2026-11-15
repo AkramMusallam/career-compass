@@ -20,6 +20,7 @@ from app.core.database import SessionLocal, init_db
 from app.core.mongo import ensure_mongo_indexes, mongo_db
 from app.core.rate_limit import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.api.routes import (
+    admin,
     analyze,
     assessment,
     auth,
@@ -148,3 +149,4 @@ app.include_router(companies.router)
 app.include_router(support.router)
 app.include_router(subscriptions.router)
 app.include_router(extension.router)
+app.include_router(admin.router)

@@ -5,9 +5,12 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
+import json
 import uuid
 from typing import Any, Dict, List, Optional
 
+from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.mongo import (
     analysis_results_collection,
@@ -19,8 +22,126 @@ from app.core.mongo import (
 from app.models.mysql_models import User
 from app.seed.skills_data import normalize_and_dedupe_skills
 from app.services.finetuned_llm_service import generate_candidate_fit_evaluation
+from app.services.llm_client import is_ollama_mocked
 from app.services.recommendation_engine import _is_job_skill_match
 from app.services.regional_taxonomy import normalize_regional_job_title
+
+
+def _score_candidate_against_job(
+    req_skills: List[str],
+    bon_skills: List[str],
+    cand_skills: List[str],
+) -> tuple[List[str], List[str], List[str], int]:
+    matched_req = [r for r in req_skills if _is_job_skill_match(r, cand_skills)]
+    missing_req = [r for r in req_skills if not _is_job_skill_match(r, cand_skills)]
+    matched_bon = [b for b in bon_skills if _is_job_skill_match(b, cand_skills)]
+
+    if req_skills and bon_skills:
+        raw_percentage = (len(matched_req) / len(req_skills)) * 80.0 + (len(matched_bon) / len(bon_skills)) * 20.0
+    elif req_skills:
+        raw_percentage = (len(matched_req) / len(req_skills)) * 100.0
+    elif bon_skills:
+        raw_percentage = (len(matched_bon) / len(bon_skills)) * 100.0
+    else:
+        raw_percentage = 0.0
+
+    return matched_req, missing_req, matched_bon, max(0, min(100, int(round(raw_percentage))))
+
+
+def _fit_cache_key(
+    *,
+    job_id: str,
+    candidate_id: str,
+    job_title: str,
+    req_skills: List[str],
+    bon_skills: List[str],
+    cand_skills: List[str],
+    target_role: str,
+    match_percentage: int,
+) -> str:
+    payload_str = json.dumps(
+        {
+            "job_title": job_title,
+            "req": req_skills,
+            "bon": bon_skills,
+            "skills": cand_skills,
+            "role": target_role,
+            "pct": match_percentage,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    digest = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()[:24]
+    return f"{job_id}:{candidate_id}:{digest}"
+
+
+def _resolve_candidate_fit(
+    *,
+    job: Dict[str, Any],
+    candidate_id: str,
+    candidate_name: str,
+    target_role: str,
+    cand_skills: List[str],
+    matched_req: List[str],
+    missing_req: List[str],
+    matched_bon: List[str],
+    match_percentage: int,
+    allow_llm: bool,
+    force_refresh: bool = False,
+) -> Dict[str, Any]:
+    req_skills = job.get("required_skills", [])
+    bon_skills = job.get("bonus_skills", [])
+    cache_key = _fit_cache_key(
+        job_id=job["job_id"],
+        candidate_id=candidate_id,
+        job_title=job["title"],
+        req_skills=req_skills,
+        bon_skills=bon_skills,
+        cand_skills=cand_skills,
+        target_role=target_role,
+        match_percentage=match_percentage,
+    )
+
+    if not force_refresh:
+        try:
+            cached = mongo_db["recruiter_fit_cache"].find_one({"cache_key": cache_key})
+            if cached and isinstance(cached.get("fit_eval"), dict):
+                return dict(cached["fit_eval"])
+        except Exception:
+            pass
+
+    fit_eval = generate_candidate_fit_evaluation(
+        candidate_name=candidate_name or "مرشح تقني",
+        target_role=target_role or job["title"],
+        candidate_skills=cand_skills,
+        job_title=job["title"],
+        required_skills=req_skills,
+        bonus_skills=bon_skills,
+        matched_skills=matched_req + matched_bon,
+        missing_skills=missing_req,
+        match_percentage=match_percentage,
+        use_llm=allow_llm,
+    )
+
+    if fit_eval.get("evaluation_source") == "llm":
+        try:
+            mongo_db["recruiter_fit_cache"].update_one(
+                {"cache_key": cache_key},
+                {
+                    "$set": {
+                        "cache_key": cache_key,
+                        "job_id": job["job_id"],
+                        "candidate_id": candidate_id,
+                        "fit_eval": fit_eval,
+                        "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    }
+                },
+                upsert=True,
+            )
+        except Exception:
+            pass
+
+    return fit_eval
 
 
 def create_job_posting(recruiter: User, data: Dict[str, Any], company: Dict[str, Any]) -> Dict[str, Any]:
@@ -219,22 +340,9 @@ def discover_and_rank_candidates(
             continue
 
         # حساب المهارات المتوفرة والناقصة
-        matched_req = [r for r in req_skills if _is_job_skill_match(r, cand_skills)]
-        missing_req = [r for r in req_skills if not _is_job_skill_match(r, cand_skills)]
-        matched_bon = [b for b in bon_skills if _is_job_skill_match(b, cand_skills)]
-
-        if req_skills and bon_skills:
-            req_score = (len(matched_req) / len(req_skills)) * 80.0
-            bon_score = (len(matched_bon) / len(bon_skills)) * 20.0
-            raw_percentage = req_score + bon_score
-        elif req_skills:
-            raw_percentage = (len(matched_req) / len(req_skills)) * 100.0
-        elif bon_skills:
-            raw_percentage = (len(matched_bon) / len(bon_skills)) * 100.0
-        else:
-            raw_percentage = 0.0
-
-        final_percentage = max(0, min(100, int(round(raw_percentage))))
+        matched_req, missing_req, matched_bon, final_percentage = _score_candidate_against_job(
+            req_skills, bon_skills, cand_skills
+        )
 
         if final_percentage < min_match:
             continue
@@ -282,7 +390,9 @@ def discover_and_rank_candidates(
                 career_score_map[doc_uid] = float(doc["career_score"])
 
     candidates = []
-    for item in selected_candidates:
+    llm_runtime_ready = settings.ENV != "testing" or is_ollama_mocked()
+    llm_budget = max(0, int(settings.RECRUITER_LLM_TOP_K))
+    for idx, item in enumerate(selected_candidates):
         ext = item["ext"]
         uid = item["uid"]
         candidate_id = item["candidate_id"]
@@ -309,18 +419,18 @@ def discover_and_rank_candidates(
         else:
             real_career = career_score_map.get(uid)
 
-        # تحليل الملاءمة (استخدام القوالب الإقليمية الفورية لتجنب تأخير N استدعاءات LLM متزامنة)
-        fit_eval = generate_candidate_fit_evaluation(
+        # تحليل الملاءمة بالذكاء الاصطناعي لأعلى K مرشحين مع تخزين مؤقت (cache) في MongoDB
+        fit_eval = _resolve_candidate_fit(
+            job=job,
+            candidate_id=candidate_id,
             candidate_name=user_info["full_name"] or "مرشح تقني",
             target_role=real_target_role or job["title"],
-            candidate_skills=cand_skills,
-            job_title=job["title"],
-            required_skills=req_skills,
-            bonus_skills=bon_skills,
-            matched_skills=matched_req + matched_bon,
-            missing_skills=missing_req,
+            cand_skills=cand_skills,
+            matched_req=matched_req,
+            missing_req=missing_req,
+            matched_bon=matched_bon,
             match_percentage=final_percentage,
-            use_llm=False,
+            allow_llm=llm_runtime_ready and idx < llm_budget,
         )
 
         candidates.append({
@@ -336,6 +446,10 @@ def discover_and_rank_candidates(
             "ats_score": real_ats,
             "career_score": real_career,
             "fit_reasoning": fit_eval.get("fit_summary", ""),
+            "evaluation_source": fit_eval.get("evaluation_source"),
+            "fit_verdict": fit_eval.get("verdict"),
+            "interview_focus_areas": fit_eval.get("interview_focus_areas", []),
+            "hiring_readiness": fit_eval.get("hiring_readiness"),
             "pipeline_status": status_val,
             "notes": notes_val,
             "updated_at": pipeline_info.get("updated_at"),
@@ -393,6 +507,8 @@ def get_candidate_profile_detail(
     job_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """عرض الملف التقني الكامل للمرشح (سيرة ذاتية، مهارات، مشاريع)."""
+    if job_id and not get_job_by_id(job_id, company_id):
+        return None
     ext = _find_consented_extraction(candidate_id)
     if not ext:
         return None
@@ -444,6 +560,29 @@ def get_candidate_profile_detail(
     else:
         real_career = None
 
+    fit_eval: Dict[str, Any] = {}
+    if job_id:
+        job_doc = get_job_by_id(job_id, company_id)
+        if job_doc:
+            cand_skills = ext.get("skills", [])
+            matched_req, missing_req, matched_bon, pct = _score_candidate_against_job(
+                job_doc.get("required_skills", []),
+                job_doc.get("bonus_skills", []),
+                cand_skills,
+            )
+            fit_eval = _resolve_candidate_fit(
+                job=job_doc,
+                candidate_id=canonical_id,
+                candidate_name=full_name,
+                target_role=(ext.get("target_role") or user_target_role or job_doc["title"]),
+                cand_skills=cand_skills,
+                matched_req=matched_req,
+                missing_req=missing_req,
+                matched_bon=matched_bon,
+                match_percentage=pct,
+                allow_llm=settings.ENV != "testing" or is_ollama_mocked(),
+            )
+
     return {
         "candidate_id": canonical_id,
         "user_id": uid,
@@ -456,6 +595,67 @@ def get_candidate_profile_detail(
         "projects": ext.get("projects", []),
         "education": ext.get("education", []),
         "career_score": real_career,
+        "evaluation_source": fit_eval.get("evaluation_source"),
+        "fit_verdict": fit_eval.get("verdict"),
+        "fit_reasoning": fit_eval.get("fit_summary"),
+        "interview_focus_areas": fit_eval.get("interview_focus_areas", []),
+        "hiring_readiness": fit_eval.get("hiring_readiness"),
         "pipeline_status": pipeline_doc.get("pipeline_status", "discovered") if pipeline_doc else "discovered",
         "notes": pipeline_doc.get("notes", "") if pipeline_doc else "",
+    }
+
+
+def evaluate_candidate_fit_on_demand(
+    *,
+    job_id: str,
+    candidate_id: str,
+    company_id: str,
+    force_refresh: bool = True,
+) -> Dict[str, Any]:
+    """تشغيل وتخزين تقييم الملاءمة المعمّق عبر نموذج النطاق (career-model) لمرشح محدد عند الطلب."""
+    job = get_job_by_id(job_id, company_id)
+    if not job:
+        raise ValueError("Job posting not found or unauthorized")
+    ext = _find_consented_extraction(candidate_id)
+    if not ext:
+        raise ValueError("Candidate not found")
+
+    canonical_id = ext.get("extraction_id") or candidate_id
+    cand_skills = ext.get("skills", [])
+    uid = ext.get("user_id")
+    full_name = "مرشح مسجل"
+    user_target_role = None
+    with SessionLocal() as db:
+        user = db.query(User).filter(User.id == uid).first()
+        if user:
+            full_name = user.full_name or full_name
+            user_target_role = getattr(user, "target_role", None)
+
+    matched_req, missing_req, matched_bon, pct = _score_candidate_against_job(
+        job.get("required_skills", []),
+        job.get("bonus_skills", []),
+        cand_skills,
+    )
+    fit_eval = _resolve_candidate_fit(
+        job=job,
+        candidate_id=canonical_id,
+        candidate_name=full_name,
+        target_role=(ext.get("target_role") or user_target_role or job["title"]),
+        cand_skills=cand_skills,
+        matched_req=matched_req,
+        missing_req=missing_req,
+        matched_bon=matched_bon,
+        match_percentage=pct,
+        allow_llm=True,
+        force_refresh=force_refresh,
+    )
+    return {
+        "job_id": job_id,
+        "candidate_id": canonical_id,
+        "match_percentage": pct,
+        "fit_verdict": fit_eval.get("verdict"),
+        "fit_reasoning": fit_eval.get("fit_summary"),
+        "interview_focus_areas": fit_eval.get("interview_focus_areas", []),
+        "hiring_readiness": fit_eval.get("hiring_readiness"),
+        "evaluation_source": fit_eval.get("evaluation_source"),
     }

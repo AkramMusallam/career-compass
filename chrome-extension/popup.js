@@ -340,8 +340,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         parsed.protocol === "https:" ? parsed.origin : ""
       );
 
-      await chrome.storage.local.set({ api_base: parsed.normalized });
-      document.getElementById("server-url").value = parsed.normalized;
+      let resolvedBase = parsed.normalized;
+      try {
+        const directHealth = await fetch(`${resolvedBase}/health`, { method: "GET" });
+        const contentType = directHealth.headers.get("content-type") || "";
+        if (!directHealth.ok || !contentType.includes("application/json")) {
+          if (!resolvedBase.endsWith("/api")) {
+            const apiHealth = await fetch(`${resolvedBase}/api/health`, { method: "GET" });
+            const apiType = apiHealth.headers.get("content-type") || "";
+            if (apiHealth.ok && apiType.includes("application/json")) {
+              resolvedBase = `${resolvedBase}/api`;
+            }
+          }
+        }
+      } catch {
+        // Keep parsed.normalized if server is temporarily offline or self-signed cert blocks probe
+      }
+
+      await chrome.storage.local.set({ api_base: resolvedBase });
+      document.getElementById("server-url").value = resolvedBase;
       showStatus("تم حفظ عنوان الخادم بنجاح!", "success");
     } catch {
       showStatus(

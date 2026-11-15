@@ -62,6 +62,10 @@ def ensure_mongo_indexes() -> None:
         subscriptions_collection.create_index("subscription_id", unique=True)
         subscriptions_collection.create_index("user_id")
         subscriptions_collection.create_index([("user_id", 1), ("status", 1), ("created_at", -1)])
+        mongo_db["external_jobs_cache"].create_index("cache_key", unique=True)
+        mongo_db["prompt_templates"].create_index("key", unique=True)
+        mongo_db["recruiter_fit_cache"].create_index("cache_key", unique=True)
+        logs_collection.create_index([("event", 1), ("timestamp", -1)])
     except Exception:
         pass
 

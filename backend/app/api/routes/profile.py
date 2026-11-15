@@ -48,6 +48,7 @@ def get_profile(current_user: User = Depends(get_current_user)):
     if top_doc:
         highest = top_doc.get("career_score", 0.0)
 
+    is_owner = bool(mongo_db["platform_owner"].find_one({"_id": "owner", "user_id": current_user.id}))
     return ProfileResponse(
         id=str(current_user.id),
         full_name=current_user.full_name,
@@ -61,6 +62,7 @@ def get_profile(current_user: User = Depends(get_current_user)):
         subscription_tier=getattr(current_user, "subscription_tier", "free") or "free",
         company_name=getattr(current_user, "company_name", None),
         target_role=getattr(current_user, "target_role", None),
+        is_platform_owner=is_owner,
     )
 
 

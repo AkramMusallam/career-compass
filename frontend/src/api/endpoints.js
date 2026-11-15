@@ -133,8 +133,8 @@ export const evaluateInterview = (sessionId) =>
 // ============================================================
 // Epic 6 Feature 6.5: Real Job Matching
 // ============================================================
-export const getMatchedJobs = (analysisId) =>
-  apiClient.get("/jobs/matched", { params: { analysis_id: analysisId } });
+export const getMatchedJobs = (analysisId, params = {}) =>
+  apiClient.get("/jobs/matched", { params: { analysis_id: analysisId, ...params } });
 
 // ============================================================
 // Phase 2 (Section 7.1): Celery Async CV Worker, Voice Interview, & ATS CV Builder
@@ -183,10 +183,35 @@ export const getJobCandidates = (jobId, params) =>
   apiClient.get(`/recruiter/jobs/${jobId}/candidates`, { params });
 export const updateCandidatePipelineStatus = (jobId, candidateId, data) =>
   apiClient.post(`/recruiter/jobs/${jobId}/candidates/${candidateId}/status`, data);
-export const getCandidateProfile = (candidateId) =>
-  apiClient.get(`/recruiter/candidates/${candidateId}/profile`);
+export const getCandidateProfile = (candidateId, jobId) =>
+  apiClient.get(`/recruiter/candidates/${candidateId}/profile`, { params: { job_id: jobId } });
+export const triggerCandidateAiReview = (jobId, candidateId, forceRefresh = true) =>
+  apiClient.post(`/recruiter/jobs/${jobId}/candidates/${candidateId}/ai-review`, null, {
+    params: { force_refresh: forceRefresh },
+  });
 export const switchToRecruiterRole = (companyName) =>
   apiClient.post("/recruiter/switch-role", null, { params: { company_name: companyName } });
+
+// ============================================================
+// System Administrator Portal (Platform Owner)
+// ============================================================
+export const getAdminOverview = () => apiClient.get("/admin/overview");
+export const getAdminUsers = (params) => apiClient.get("/admin/users", { params });
+export const updateAdminUserSuspension = (userId, data) =>
+  apiClient.patch(`/admin/users/${userId}/suspension`, data);
+export const getAdminAiLogs = (params) => apiClient.get("/admin/ai-logs", { params });
+export const getAdminPrompts = () => apiClient.get("/admin/prompts");
+export const updateAdminPrompt = (promptKey, systemPrompt) =>
+  apiClient.put(`/admin/prompts/${promptKey}`, { system_prompt: systemPrompt });
+export const resetAdminPrompt = (promptKey) =>
+  apiClient.post(`/admin/prompts/${promptKey}/reset`);
+export const getAdminSupportGrants = (params) =>
+  apiClient.get("/admin/support-grants", { params });
+export const revokeAdminSupportGrant = (grantId) =>
+  apiClient.post(`/admin/support-grants/${grantId}/revoke`);
+export const getCompaniesReview = () => apiClient.get("/companies/review");
+export const updateCompanyReviewStatus = (companyId, status) =>
+  apiClient.patch(`/companies/${companyId}/status`, { status });
 
 export const getSubscriptionPlans = () => apiClient.get("/subscriptions/plans");
 export const getCurrentSubscription = () => apiClient.get("/subscriptions/current");

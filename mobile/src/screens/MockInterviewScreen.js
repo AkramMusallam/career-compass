@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import Button from "../components/AppButton";
 import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from "expo-audio";
 import { Alert, BackHandler, StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, ActivityIndicator } from "react-native";
 import { fetchLatestRoadmap, sendInterviewChat, sendVoiceAnswer, startMockInterview } from "../services/api";
@@ -11,12 +12,13 @@ export default function MockInterviewScreen({ onBack, token }) {
   const [isSending, setIsSending] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState(null);
+  const [pendingRecording, setPendingRecording] = useState(null);
   const recording = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const startedRef = useRef(0);
 
   function leave() {
     if (isSending) return;
-    if (isRecording || inputText.trim()) {
+    if (isRecording || pendingRecording || inputText.trim()) {
       Alert.alert("مغادرة المقابلة؟", "سيُفقد التسجيل أو النص غير المرسل.", [{ text: "متابعة", style: "cancel" }, { text: "مغادرة", style: "destructive", onPress: onBack }]);
     } else onBack();
   }
@@ -24,7 +26,7 @@ export default function MockInterviewScreen({ onBack, token }) {
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => { leave(); return true; });
     return () => subscription.remove();
-  }, [isSending, isRecording, inputText, onBack]);
+  }, [isSending, isRecording, pendingRecording, inputText, onBack]);
 
   useEffect(() => {
     let active = true;
@@ -48,12 +50,21 @@ export default function MockInterviewScreen({ onBack, token }) {
     };
   }, [token]);
 
+  async function submitRecording(answer) {
+    const result = await sendVoiceAnswer(token, sessionId, answer.uri, answer.duration);
+    setMessages(result.messages || []);
+    setVoiceFeedback(result.voice_feedback || null);
+    setPendingRecording(null);
+  }
+
   const toggleRecording = async () => {
     if (!sessionId || isSending) return;
     setError("");
     setIsSending(true);
     try {
-      if (!isRecording) {
+      if (pendingRecording) {
+        await submitRecording(pendingRecording);
+      } else if (!isRecording) {
         const permission = await requestRecordingPermissionsAsync();
         if (!permission.granted) throw new Error("يرجى السماح بالوصول إلى الميكروفون.");
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
@@ -67,9 +78,10 @@ export default function MockInterviewScreen({ onBack, token }) {
         await recording.stop();
         const uri = recording.uri;
         if (!uri) throw new Error("تعذر حفظ التسجيل الصوتي.");
-        const result = await sendVoiceAnswer(token, sessionId, uri, Math.max(1, (Date.now() - startedRef.current) / 1000));
-        setMessages(result.messages || []);
-        setVoiceFeedback(result.voice_feedback || null);
+        const answer = { uri, duration: Math.max(1, (Date.now() - startedRef.current) / 1000) };
+        setPendingRecording(answer);
+        await setAudioModeAsync({ allowsRecording: false });
+        await submitRecording(answer);
       }
     } catch (err) {
       setError(err.message || "تعذر تسجيل أو إرسال الصوت.");
@@ -79,7 +91,7 @@ export default function MockInterviewScreen({ onBack, token }) {
   };
 
   const handleSend = async () => {
-    if (!inputText.trim() || !sessionId || isSending || isRecording) return;
+    if (!inputText.trim() || !sessionId || isSending || isRecording || pendingRecording) return;
     const text = inputText.trim();
     const userMsg = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
@@ -138,6 +150,7 @@ export default function MockInterviewScreen({ onBack, token }) {
       </ScrollView>
 
       {/* Input & Voice Controls */}
+      {pendingRecording && !isSending && <View style={styles.recordingNotice}><Text style={styles.msgContent}>لم يتأكد إرسال التسجيل. أعد الإرسال أو احذفه قبل تسجيل إجابة جديدة.</Text><Button title="إعادة إرسال التسجيل" onPress={toggleRecording} disabled={isSending} /><Button title="حذف التسجيل" color="#b91c1c" disabled={isSending} onPress={() => Alert.alert("حذف التسجيل؟", "ستفقد هذه الإجابة الصوتية.", [{ text: "إلغاء", style: "cancel" }, { text: "حذف", style: "destructive", onPress: () => setPendingRecording(null) }])} /></View>}
       <View style={styles.inputBar}>
         <TextInput
           style={styles.textInput}
@@ -145,14 +158,16 @@ export default function MockInterviewScreen({ onBack, token }) {
           placeholderTextColor="#64748b"
           value={inputText}
           onChangeText={setInputText}
+          accessibilityLabel="إجابتك في المقابلة"
+          editable={!isSending && !isRecording && !pendingRecording}
           multiline
         />
 
-        <TouchableOpacity style={[styles.micBtn, isRecording && styles.micBtnActive]} onPress={toggleRecording} disabled={!sessionId || isSending} accessibilityLabel={isRecording ? "إيقاف وإرسال التسجيل" : "بدء التسجيل الصوتي"}>
+        <TouchableOpacity style={[styles.micBtn, isRecording && styles.micBtnActive]} onPress={toggleRecording} disabled={!sessionId || isSending || !!pendingRecording} accessibilityRole="button" accessibilityLabel={isRecording ? "إيقاف وإرسال التسجيل" : "بدء التسجيل الصوتي"}>
           <Text style={styles.micIcon}>{isRecording ? "⏹️" : "🎙️"}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.sendBtn} onPress={handleSend} disabled={!sessionId || isSending || isRecording || !inputText.trim()} accessibilityRole="button" accessibilityLabel="إرسال الإجابة">
+        <TouchableOpacity style={styles.sendBtn} onPress={handleSend} disabled={!sessionId || isSending || isRecording || !!pendingRecording || !inputText.trim()} accessibilityRole="button" accessibilityLabel="إرسال الإجابة">
           <Text style={styles.sendText}>إرسال</Text>
         </TouchableOpacity>
       </View>
@@ -167,15 +182,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 45,
+    paddingTop: 8,
     paddingBottom: 14,
     backgroundColor: "#1e293b",
     borderBottomWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-  backBtn: { padding: 6 },
+  backBtn: { padding: 6, minHeight: 48, minWidth: 48, justifyContent: "center" },
   backText: { color: "#38bdf8", fontSize: 14, fontWeight: "bold" },
-  topTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  topTitle: { color: "#fff", fontSize: 16, fontWeight: "900", flex: 1, textAlign: "right" },
   chatScroll: { flex: 1, padding: 16 },
   msgBubble: {
     padding: 14,
@@ -194,7 +209,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#4f46e5",
   },
   senderLabel: { fontSize: 10, color: "#94a3b8", marginBottom: 4, fontWeight: "bold" },
-  msgContent: { color: "#f8fafc", fontSize: 13, lineHeight: 20 },
+  msgContent: { color: "#f8fafc", fontSize: 15, lineHeight: 23, textAlign: "right" },
+  recordingNotice: { padding: 12, gap: 8 },
   loadingText: { color: "#94a3b8", fontSize: 11, marginTop: 4 },
   inputBar: {
     flexDirection: "row-reverse",
@@ -214,11 +230,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 12,
     maxHeight: 80,
+    textAlign: "right",
   },
   micBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "#334155",
     alignItems: "center",
     justifyContent: "center",
@@ -226,6 +243,8 @@ const styles = StyleSheet.create({
   micBtnActive: { backgroundColor: "#ef4444" },
   micIcon: { fontSize: 18 },
   sendBtn: {
+    minHeight: 48,
+    justifyContent: "center",
     backgroundColor: "#38bdf8",
     paddingHorizontal: 14,
     paddingVertical: 10,

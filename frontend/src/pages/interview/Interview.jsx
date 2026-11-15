@@ -526,6 +526,14 @@ export default function Interview() {
               <span className="rounded-lg bg-white border border-primary-200 px-2 py-0.5 font-bold text-primary-700">
                 الثقة الصوتية: {latestVoiceFeedback.confidence_score}/10
               </span>
+              {latestVoiceFeedback.acoustic_analysis_used && latestVoiceFeedback.audio_duration_seconds != null && (
+                <span className="rounded-lg bg-white border border-slate-200 px-2 py-0.5 font-bold text-slate-600">
+                  المدة: {latestVoiceFeedback.audio_duration_seconds}ث
+                  {latestVoiceFeedback.silence_ratio != null
+                    ? ` • صمت ${Math.round(latestVoiceFeedback.silence_ratio * 100)}%`
+                    : ""}
+                </span>
+              )}
             </div>
           </div>
           {latestVoiceFeedback.tips?.length > 0 && (

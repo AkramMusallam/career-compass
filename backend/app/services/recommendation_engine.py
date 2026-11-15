@@ -391,12 +391,19 @@ Return ONLY a valid JSON array with 3 objects. Format exactly like this:
 ]
 """
         try:
+            from app.services.admin_service import get_effective_system_prompt
+
+            sys_prompt = get_effective_system_prompt(
+                "roadmap_generation",
+                "You are a career advisor API that strictly outputs JSON arrays.",
+            )
             raw_content = call_llm(
                 prompt,
-                "You are a career advisor API that strictly outputs JSON arrays.",
+                sys_prompt,
                 is_json=True,
                 max_tokens=320,
                 timeout=12.0,
+                task="roadmap_generation",
             )
             ai_raw = json.loads(strip_json_fences(raw_content))
             if isinstance(ai_raw, dict):

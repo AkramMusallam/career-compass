@@ -287,6 +287,7 @@ def voice_interview_turn(
         transcript=transcript,
         duration_seconds=duration_seconds,
         job_title=job_title,
+        audio_bytes=audio_bytes,
     )
 
     user_msg = {

@@ -43,6 +43,48 @@ def bump_user_token_version(user_id: int) -> int:
     return int(doc.get("token_version", 2)) if doc else 2
 
 
+def get_user_suspension(user_id: int) -> Optional[dict]:
+    """Returns active suspension record from MongoDB user_auth_state if user is suspended."""
+    doc = mongo_db["user_auth_state"].find_one({"_id": int(user_id)})
+    if doc and doc.get("suspended") is True:
+        return doc
+    return None
+
+
+def set_user_suspension(
+    user_id: int,
+    suspended: bool,
+    reason: Optional[str] = None,
+    actor_id: Optional[int] = None,
+) -> dict:
+    """Suspends or reactivates a user account in MongoDB and revokes active JWTs when suspended."""
+    uid = int(user_id)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    mongo_db["user_auth_state"].update_one(
+        {"_id": uid},
+        {
+            "$set": {
+                "suspended": bool(suspended),
+                "suspended_reason": (reason or "").strip()[:300] if suspended else None,
+                "suspended_at": now_iso if suspended else None,
+                "updated_by": actor_id,
+                "updated_at": now_iso,
+            },
+            "$setOnInsert": {"token_version": 1},
+        },
+        upsert=True,
+    )
+    if suspended:
+        bump_user_token_version(uid)
+    doc = mongo_db["user_auth_state"].find_one({"_id": uid}) or {}
+    return {
+        "user_id": uid,
+        "suspended": bool(doc.get("suspended", False)),
+        "suspended_reason": doc.get("suspended_reason"),
+        "suspended_at": doc.get("suspended_at"),
+    }
+
+
 def consume_reset_token_jti(jti: str, user_id: int) -> bool:
     """Records a password reset token jti as used; returns False if already consumed."""
     if not jti:
@@ -168,6 +210,12 @@ def get_current_user(
     token_tv = payload.get("tv")
     if token_tv is None or token_tv != get_user_token_version(parsed_user_id):
         raise credentials_exception
+
+    if get_user_suspension(parsed_user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is suspended",
+        )
 
     with SessionLocal() as db:
         user = db.query(User).filter(User.id == parsed_user_id).first()

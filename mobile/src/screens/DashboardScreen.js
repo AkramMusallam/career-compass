@@ -14,7 +14,7 @@ export default function DashboardScreen({ onNavigate, onLogout, token }) {
 
   useEffect(() => {
     let mounted = true;
-    companyRequest(token, "/companies/review").then(() => { if (mounted) setAdminAccess(true); }).catch((err) => { if (mounted && err.status !== 403 && err.status !== 401) setAdminAccess(true); });
+    companyRequest(token, "/companies/review").then(() => { if (mounted) setAdminAccess(true); }).catch(() => { if (mounted) setAdminAccess(false); });
     return () => { mounted = false; };
   }, [token]);
 
@@ -57,14 +57,14 @@ export default function DashboardScreen({ onNavigate, onLogout, token }) {
   }, [token, onLogout]);
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 30 }}>
       {!!error && <Text style={{ color: "#fca5a5", marginBottom: 12 }}>{error}</Text>}
       {/* Header Profile Card */}
       <View style={styles.cardHeader}>
         <View style={styles.headerTopRow}>
           <Text style={styles.badge}>🧭 Career Compass Mobile</Text>
           {!!onLogout && (
-            <TouchableOpacity onPress={onLogout} style={styles.logoutBtn}>
+            <TouchableOpacity onPress={onLogout} style={styles.logoutBtn} accessibilityRole="button">
               <Text style={styles.logoutText}>تسجيل الخروج</Text>
             </TouchableOpacity>
           )}
@@ -119,7 +119,7 @@ export default function DashboardScreen({ onNavigate, onLogout, token }) {
       >
         <Text style={styles.actionIcon}>🗺️</Text>
         <View style={styles.actionTextCol}>
-          <Text style={styles.actionBtnTitle}>متابعة الـ 3-Month Roadmap</Text>
+          <Text style={styles.actionBtnTitle}>خطة التطوير لثلاثة أشهر</Text>
           <Text style={styles.actionBtnSub}>
             أنجزت {stats.completedRoadmapSkills} من أصل {stats.totalRoadmapSkills} مهارات
           </Text>
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   cardHeader: { marginBottom: 20, backgroundColor: "#172554", borderRadius: 20, padding: 18, borderWidth: 1, borderColor: "#1e40af" },
   headerTopRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   badge: { color: "#38bdf8", fontSize: 12, fontWeight: "bold" },
-  logoutBtn: { backgroundColor: "rgba(239, 68, 68, 0.15)", borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.3)", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 },
+  logoutBtn: { backgroundColor: "rgba(239, 68, 68, 0.15)", borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.3)", minHeight: 48, justifyContent: "center", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8 },
   logoutText: { color: "#fca5a5", fontSize: 11, fontWeight: "bold" },
   greeting: { fontSize: 24, fontWeight: "900", color: "#f8fafc", textAlign: "right", marginTop: 14 },
   roleSub: { fontSize: 14, color: "#cbd5e1", marginTop: 4, textAlign: "right" },
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   actionSecondary: { backgroundColor: "#1e293b", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
   actionIcon: { fontSize: 26, marginLeft: 12 },
   actionTextCol: { flex: 1 },
-  actionBtnTitle: { color: "#fff", fontSize: 14, fontWeight: "bold" },
-  actionBtnSub: { color: "#cbd5e1", fontSize: 11, marginTop: 2 },
+  actionBtnTitle: { color: "#fff", fontSize: 14, fontWeight: "bold", textAlign: "right" },
+  actionBtnSub: { color: "#cbd5e1", fontSize: 11, marginTop: 2, textAlign: "right" },
   actionArrow: { color: "#fff", fontSize: 18, fontWeight: "bold", marginRight: 8 },
 });

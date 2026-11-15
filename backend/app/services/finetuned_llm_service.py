@@ -69,12 +69,23 @@ def generate_candidate_fit_evaluation(
 أرجع فقط كود JSON بدون أي مقدمات أو علامات نصية خارجية.
 """
         try:
+            from app.services.admin_service import get_effective_system_prompt
+
+            sys_prompt = get_effective_system_prompt(
+                "recruiter_fit_evaluation",
+                (
+                    "أنت خبير توظيف تقني أول متخصص في أسواق التكنولوجيا الإقليمية والعالمية. "
+                    "أرجع تقييماً موضوعياً ومختصراً بصيغة JSON صالحة فقط."
+                ),
+            )
             raw = call_llm_messages(
                 [{"role": "user", "content": prompt}],
+                system_instruction=sys_prompt,
                 is_json=True,
                 temperature=0.3,
                 max_tokens=400,
                 timeout=10.0,
+                task="recruiter_fit_evaluation",
             )
         except Exception:
             pass
@@ -88,6 +99,7 @@ def generate_candidate_fit_evaluation(
                 "fit_summary": data.get("fit_summary", f"المرشح يحقق نسبة تطابق {match_percentage}% مع المتطلبات الأساسية."),
                 "interview_focus_areas": data.get("interview_focus_areas", [f"التركيز على مهارة {missing_skills[0]}" if missing_skills else "فحص خبرة المشاريع الحقيقية"]),
                 "hiring_readiness": data.get("hiring_readiness", "High" if match_percentage >= 70 else "Medium"),
+                "evaluation_source": "llm",
             }
         except Exception:
             logger.warning("Failed to parse LLM candidate fit evaluation, using deterministic fallback")
@@ -117,4 +129,5 @@ def generate_candidate_fit_evaluation(
         "fit_summary": summary,
         "interview_focus_areas": focus_areas,
         "hiring_readiness": readiness,
+        "evaluation_source": "template_fallback",
     }

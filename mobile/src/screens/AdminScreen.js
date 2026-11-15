@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Button from "../components/AppButton";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, BackHandler, ScrollView, StyleSheet, Text, View } from "react-native";
 import { companyRequest } from "../services/api";
 
 const statuses = { pending: "قيد المراجعة", approved: "معتمدة", rejected: "مرفوضة", suspended: "معلّقة" };
@@ -19,6 +19,10 @@ export default function AdminScreen({ token, onBack }) {
     finally { setBusy(false); }
   }
   useEffect(() => { load(); }, [token]);
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => { if (!busy) onBack(); return true; });
+    return () => subscription.remove();
+  }, [busy, onBack]);
 
   function changeStatus(company, status, label) {
     Alert.alert(`${label} الشركة`, `هل تريد ${label} شركة ${company.name}؟`, [

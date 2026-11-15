@@ -14,8 +14,9 @@ import {
   Sparkles,
   ChevronLeft,
   Clock,
+  ShieldCheck,
 } from "lucide-react";
-import { getHealthStatus } from "../../api/endpoints";
+import { getHealthStatus, getProfile } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import CompassLogo from "./CompassLogo";
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { to: "/recruiter", label: "بوابة التوظيف للشركات", shortLabel: "التوظيف", Icon: Building2 },
   { to: "/companies", label: "طلبات الشركات", shortLabel: "الشركات", Icon: Building2 },
   { to: "/support-access", label: "صلاحيات الدعم", shortLabel: "الدعم", Icon: User },
+  { to: "/admin", label: "بوابة مدير النظام", shortLabel: "الإدارة", Icon: ShieldCheck, ownerOnly: true },
   {
     to: "/pricing",
     label: "الباقات والاشتراكات",
@@ -40,7 +42,7 @@ const NAV_ITEMS = [
 ];
 
 export default function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateStoredUser } = useAuth();
   const { showToast } = useToast();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -56,13 +58,32 @@ export default function AppLayout() {
       .catch((err) => {
         if (!mounted) return;
         setAiStatus(
-          err?.response?.data?.status === "degraded" ? "degraded" : "offline"
+          err?.response?.status === 503 || err?.response?.data?.status === "degraded"
+            ? "degraded"
+            : "offline"
         );
       });
     return () => {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user) return undefined;
+    getProfile()
+      .then((res) => {
+        if (!mounted || !res.data) return;
+        const ownerFlag = Boolean(res.data.is_platform_owner);
+        if (Boolean(user.is_platform_owner) !== ownerFlag) {
+          updateStoredUser({ is_platform_owner: ownerFlag });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [user, updateStoredUser]);
 
   const isActive = (path) => {
     if (path === "/analysis/upload") {
@@ -193,7 +214,7 @@ export default function AppLayout() {
               <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 أقسام المنصة
               </p>
-              {NAV_ITEMS.map((item) => {
+              {NAV_ITEMS.filter((item) => !item.ownerOnly || user?.is_platform_owner).map((item) => {
                 const active = !item.comingSoon && isActive(item.to);
                 const IconComponent = item.Icon;
 

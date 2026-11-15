@@ -9,12 +9,14 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.mongo import mongo_db
 from app.core.security import (
     bump_user_token_version,
     consume_reset_token_jti,
     create_access_token,
     create_reset_token,
     decode_access_token,
+    get_user_suspension,
     get_user_token_version,
     hash_password,
     verify_password,
@@ -75,7 +77,11 @@ def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session 
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
+    if get_user_suspension(user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is suspended")
+
     token = create_access_token(subject=str(user.id))
+    is_owner = bool(mongo_db["platform_owner"].find_one({"_id": "owner", "user_id": user.id}))
     # إرسال إشعار تسجيل الدخول في الخلفية
     background_tasks.add_task(send_login_welcome_email, user.email, user.full_name)
     return LoginResponse(
@@ -88,6 +94,7 @@ def login(payload: LoginRequest, background_tasks: BackgroundTasks, db: Session 
             role=getattr(user, "role", "candidate") or "candidate",
             subscription_tier=getattr(user, "subscription_tier", "free") or "free",
             company_name=getattr(user, "company_name", None),
+            is_platform_owner=is_owner,
         ),
     )
 

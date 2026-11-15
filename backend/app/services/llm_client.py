@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, NonCallableMagicMock
 
@@ -24,11 +25,39 @@ except ImportError:
     openai = None
 
 from app.core.config import settings
+from app.core.mongo import logs_collection
 
 logger = logging.getLogger("career_compass.llm")
 
 _client: ollama.Client | None = None
 _client_lock = threading.Lock()
+
+
+def _record_ai_inference_log(
+    *,
+    task: str,
+    provider: str,
+    model: str,
+    status: str,
+    latency_ms: int,
+    error_type: str | None = None,
+) -> None:
+    """Persists sanitized AI inference telemetry (never stores raw prompts/CVs)."""
+    try:
+        logs_collection.insert_one(
+            {
+                "event": "ai_inference",
+                "task": (task or "general")[:80],
+                "provider": provider[:40],
+                "model": model[:80],
+                "status": status[:32],
+                "latency_ms": max(0, int(latency_ms)),
+                "error_type": error_type[:80] if error_type else None,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+    except Exception:
+        pass
 
 
 def get_client() -> ollama.Client:
@@ -73,6 +102,7 @@ def ollama_chat(
     temperature: float | None = None,
     max_tokens: int | None = None,
     timeout: float | None = None,
+    task: str = "general",
 ) -> str:
     """يستدعي نموذج Ollama المحلي ويعيد نص الرد."""
     options: dict[str, Any] = {
@@ -109,14 +139,39 @@ def ollama_chat(
             response = client.chat(**kwargs)
             elapsed = time.monotonic() - started
             logger.info("Ollama call ok in %.1fs (model=%s)", elapsed, settings.OLLAMA_MODEL)
+            _record_ai_inference_log(
+                task=task,
+                provider="ollama",
+                model=settings.OLLAMA_MODEL,
+                status="ok",
+                latency_ms=int(elapsed * 1000),
+            )
             return response["message"]["content"] or ""
         except (httpx.ConnectError, httpx.RemoteProtocolError, ConnectionError) as exc:
+            elapsed = time.monotonic() - started
             logger.warning("Ollama connection error (attempt %d/%d): %s", attempt, attempts, exc)
             if attempt == attempts:
+                _record_ai_inference_log(
+                    task=task,
+                    provider="ollama",
+                    model=settings.OLLAMA_MODEL,
+                    status="error",
+                    latency_ms=int(elapsed * 1000),
+                    error_type=type(exc).__name__,
+                )
                 raise
             time.sleep(1.5)
-        except httpx.TimeoutException:
+        except httpx.TimeoutException as exc:
+            elapsed = time.monotonic() - started
             logger.warning("Ollama call timed out after %.0fs", timeout or settings.OLLAMA_TIMEOUT)
+            _record_ai_inference_log(
+                task=task,
+                provider="ollama",
+                model=settings.OLLAMA_MODEL,
+                status="timeout",
+                latency_ms=int(elapsed * 1000),
+                error_type=type(exc).__name__,
+            )
             raise
     raise RuntimeError("unreachable")
 
@@ -129,6 +184,7 @@ def call_llm_messages(
     temperature: float = 0.4,
     max_tokens: int | None = 220,
     timeout: float | None = 15.0,
+    task: str = "general",
 ) -> str:
     """دالة موحدة لاستدعاء OpenAI (إن توفر المفتاح) مع التراجع التلقائي إلى Ollama المحلي."""
     full_messages: list[dict[str, Any]] = []
@@ -143,6 +199,7 @@ def call_llm_messages(
         full_messages = sys_msgs + recent_msgs
 
     if settings.OPENAI_API_KEY and openai is not None:
+        started = time.monotonic()
         try:
             client = openai.OpenAI(api_key=settings.OPENAI_API_KEY, timeout=timeout or 15.0)
             kwargs: dict[str, Any] = {
@@ -156,8 +213,25 @@ def call_llm_messages(
                 kwargs["response_format"] = {"type": "json_object"}
 
             resp = client.chat.completions.create(**kwargs)
+            elapsed = time.monotonic() - started
+            _record_ai_inference_log(
+                task=task,
+                provider="openai",
+                model="gpt-3.5-turbo",
+                status="ok",
+                latency_ms=int(elapsed * 1000),
+            )
             return resp.choices[0].message.content or ""
         except Exception as exc:
+            elapsed = time.monotonic() - started
+            _record_ai_inference_log(
+                task=task,
+                provider="openai",
+                model="gpt-3.5-turbo",
+                status="fallback",
+                latency_ms=int(elapsed * 1000),
+                error_type=type(exc).__name__,
+            )
             logger.warning("OpenAI call failed (%s), falling back to Ollama...", exc)
 
     return ollama_chat(
@@ -166,6 +240,7 @@ def call_llm_messages(
         temperature=temperature,
         max_tokens=max_tokens,
         timeout=timeout,
+        task=task,
     )
 
 
@@ -175,6 +250,7 @@ def call_llm(
     is_json: bool = False,
     max_tokens: int | None = 220,
     timeout: float | None = 15.0,
+    task: str = "general",
 ) -> str:
     """واجهة مختصرة لإرسال prompt + system_prompt عبر العميل الموحّد."""
     return call_llm_messages(
@@ -184,6 +260,7 @@ def call_llm(
         temperature=0.4,
         max_tokens=max_tokens,
         timeout=timeout,
+        task=task,
     )
 
 

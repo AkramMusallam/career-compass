@@ -15,6 +15,8 @@ from typing import Any
 
 from app.core.config import settings
 from app.schemas.schemas import VoiceFeedbackModel
+from app.services.admin_service import get_effective_system_prompt
+from app.services.audio_metrics import extract_acoustic_metrics
 from app.services.llm_client import call_llm_messages, sanitize_prompt_input, strip_json_fences
 
 logger = logging.getLogger("career_compass.interview_service")
@@ -39,13 +41,15 @@ def call_interview_llm(
     timeout: float = 18.0,
 ) -> str:
     """Helper to call LLM (OpenAI or Ollama) with concise token limits for fast CPU inference."""
+    effective_sys = system_instruction or get_effective_system_prompt("interview_reply")
     return call_llm_messages(
         messages,
-        system_instruction=system_instruction,
+        system_instruction=effective_sys,
         is_json=False,
         temperature=0.4,
         max_tokens=max_tokens,
         timeout=timeout,
+        task="interview_reply",
     )
 
 
@@ -87,13 +91,23 @@ def transcribe_audio_with_whisper(
     return ""
 
 
-def analyze_vocal_delivery(transcript: str, duration_seconds: float, job_title: str) -> VoiceFeedbackModel:
-    """Phase 2 (Section 7.1): Evaluates speech clarity, pace (WPM), and vocal confidence."""
+def analyze_vocal_delivery(
+    transcript: str,
+    duration_seconds: float,
+    job_title: str,
+    audio_bytes: bytes = b"",
+) -> VoiceFeedbackModel:
+    """Phase 2 (Section 7.1): Evaluates speech clarity, pace (WPM), acoustic steadiness, and vocal confidence."""
+    metrics = extract_acoustic_metrics(audio_bytes) if audio_bytes else None
     words = [w for w in transcript.split() if w.strip()]
     word_count = len(words)
-    effective_duration = (
-        duration_seconds if duration_seconds and duration_seconds > 1.0 else max(4.0, word_count * 0.45)
-    )
+    if metrics is not None and metrics.decoded_duration_seconds > 0.5:
+        effective_duration = metrics.decoded_duration_seconds
+    elif duration_seconds and duration_seconds > 1.0:
+        effective_duration = duration_seconds
+    else:
+        effective_duration = max(4.0, word_count * 0.45)
+
     wpm = int(round((word_count / effective_duration) * 60)) if word_count > 0 else 0
 
     filler_tokens = {"um", "uh", "er", "ah", "like", "يعني", "امم", "اممم", "اه", "آه", "ممم"}
@@ -121,18 +135,31 @@ def analyze_vocal_delivery(transcript: str, duration_seconds: float, job_title: 
     else:
         clarity_score = max(5, min(10, clarity_base - min(3, filler_count)))
 
+    if metrics is not None and metrics.silence_ratio > 0.55:
+        clarity_score = max(5, clarity_score - 1)
+
+    confidence_bonus = 1 if (word_count >= 20 and filler_count <= 1) else 0
+    if metrics is not None:
+        if metrics.energy_stability >= 0.65 and metrics.rms_db > -30.0 and metrics.silence_ratio <= 0.45:
+            confidence_bonus = min(2, confidence_bonus + 1)
+        elif metrics.rms_db <= -38.0 or metrics.pause_count >= 4:
+            confidence_bonus = max(-1, confidence_bonus - 1)
+
     confidence_score = min(
         10,
         max(
             5,
-            int(round((clarity_score + pace_score) / 2))
-            + (1 if word_count >= 20 and filler_count <= 1 else 0),
+            int(round((clarity_score + pace_score) / 2)) + confidence_bonus,
         ),
     )
 
     tips: list[str] = []
     if filler_count > 1:
         tips.append("حاول تقليل كلمات التردد والحشو واستبدالها بوقفات قصيرة واثقة.")
+    if metrics is not None and metrics.pause_count >= 4:
+        tips.append("رُصدت عدة وقفات صمت طويلة؛ حاول تنظيم أفكارك بنقاط مترابطة لتقليل التوقفات المتكررة.")
+    if metrics is not None and metrics.rms_db <= -36.0:
+        tips.append("مستوى الصوت منخفض نسبياً؛ اقترب من الميكروفون أو تحدّث بنبرة أوضح لزيادة الحضور.")
     if wpm > 165:
         tips.append("تمهّل قليلاً عند شرح المصطلحات التقنية لمنح المحاور وقتاً لاستيعاب التفاصيل.")
     elif wpm < 85 and word_count > 0:
@@ -157,6 +184,9 @@ def analyze_vocal_delivery(transcript: str, duration_seconds: float, job_title: 
         filler_words_count=filler_count,
         feedback_summary=feedback_summary,
         tips=tips,
+        audio_duration_seconds=metrics.decoded_duration_seconds if metrics else None,
+        silence_ratio=metrics.silence_ratio if metrics else None,
+        acoustic_analysis_used=metrics is not None,
     )
 
 
@@ -322,12 +352,15 @@ def evaluate_interview_session(messages: list[dict[str, Any]], job_title: str) -
 
     eval_data = None
     try:
+        sys_eval_prompt = get_effective_system_prompt("interview_evaluation")
         raw_json_str = call_llm_messages(
             [{"role": "user", "content": eval_prompt}],
+            system_instruction=sys_eval_prompt,
             is_json=True,
             temperature=0.3,
             max_tokens=550,
             timeout=9.0,
+            task="interview_evaluation",
         )
         parsed = json.loads(strip_json_fences(raw_json_str))
         if isinstance(parsed, dict) and parsed.get("final_score") is not None:

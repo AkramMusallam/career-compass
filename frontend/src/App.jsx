@@ -27,6 +27,7 @@ const RecruiterPortal = lazy(() => import("./pages/recruiter/RecruiterPortal"));
 const Companies = lazy(() => import("./pages/recruiter/Companies"));
 const AcceptInvitation = lazy(() => import("./pages/recruiter/AcceptInvitation"));
 const SupportAccess = lazy(() => import("./pages/dashboard/SupportAccess"));
+const AdminPortal = lazy(() => import("./pages/admin/AdminPortal"));
 
 function PublicOnlyRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -92,6 +93,7 @@ export default function App() {
           <Route path="/companies" element={<Companies />} />
           <Route path="/company-invitation/:token" element={<AcceptInvitation />} />
           <Route path="/support-access" element={<SupportAccess />} />
+          <Route path="/admin" element={<AdminPortal />} />
           <Route path="/pricing" element={<Navigate to="/dashboard" replace />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/settings" element={<Settings />} />

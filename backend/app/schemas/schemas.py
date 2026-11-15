@@ -85,6 +85,7 @@ class UserPublic(BaseModel):
     role: str = "candidate"
     subscription_tier: str = "free"
     company_name: Optional[str] = None
+    is_platform_owner: bool = False
 
 
 class LoginResponse(BaseModel):
@@ -321,6 +322,7 @@ class ProfileResponse(BaseModel):
     subscription_tier: str = "free"
     company_name: Optional[str] = None
     target_role: Optional[str] = None
+    is_platform_owner: bool = False
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -539,6 +541,9 @@ class VoiceFeedbackModel(BaseModel):
     filler_words_count: int = 0
     feedback_summary: str
     tips: List[str] = Field(default_factory=list)
+    audio_duration_seconds: Optional[float] = None
+    silence_ratio: Optional[float] = None
+    acoustic_analysis_used: bool = False
 
 
 class InterviewVoiceResponse(BaseModel):
@@ -726,6 +731,10 @@ class CandidateMatchItem(BaseModel):
     ats_score: Optional[int] = None
     career_score: Optional[float] = None
     fit_reasoning: str
+    evaluation_source: Optional[str] = None
+    fit_verdict: Optional[str] = None
+    interview_focus_areas: List[str] = Field(default_factory=list)
+    hiring_readiness: Optional[str] = None
     pipeline_status: str = "discovered"  # discovered | shortlisted | contacted | interviewed | rejected
     notes: Optional[str] = ""
     updated_at: Optional[str] = None
@@ -764,6 +773,11 @@ class CandidateProfileDetail(BaseModel):
     projects: List[Dict[str, Any]]
     education: List[Dict[str, Any]]
     career_score: Optional[float] = None
+    evaluation_source: Optional[str] = None
+    fit_verdict: Optional[str] = None
+    fit_reasoning: Optional[str] = None
+    interview_focus_areas: List[str] = Field(default_factory=list)
+    hiring_readiness: Optional[str] = None
     pipeline_status: str = "discovered"
     notes: Optional[str] = ""
 
@@ -904,3 +918,17 @@ class ExtensionMatchResponse(BaseModel):
     suggested_cover_letter_snippet: str
     candidate_skills_count: int
     required_skills_count: int
+
+
+# ============================================================
+# System Administrator Governance Schemas
+# ============================================================
+
+
+class AdminUserSuspensionRequest(BaseModel):
+    suspended: bool
+    reason: Optional[str] = Field(None, max_length=300)
+
+
+class AdminPromptUpdateRequest(BaseModel):
+    system_prompt: str = Field(..., min_length=10, max_length=2000)

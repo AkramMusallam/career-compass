@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
+import { BackHandler, StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
 import { fetchLatestRoadmap, toggleMilestoneSkill } from "../services/api";
 
 export default function RoadmapScreen({ onBack, token }) {
@@ -8,6 +8,11 @@ export default function RoadmapScreen({ onBack, token }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => { if (!savingRef.current) onBack(); return true; });
+    return () => subscription.remove();
+  }, [onBack]);
 
   useEffect(() => {
     if (!token) return;
@@ -63,10 +68,10 @@ export default function RoadmapScreen({ onBack, token }) {
     <View style={styles.container}>
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+        <TouchableOpacity onPress={onBack} disabled={saving} style={styles.backBtn} accessibilityRole="button" accessibilityState={{ disabled: saving }} accessibilityLabel="العودة للرئيسية">
           <Text style={styles.backText}>← رجوع</Text>
         </TouchableOpacity>
-        <Text style={styles.topTitle}>🗺️ خارطة الطريق (3-Month Roadmap)</Text>
+        <Text style={styles.topTitle}>🗺️ خطة التطوير لثلاثة أشهر</Text>
       </View>
 
       {/* Progress Bar Card */}
@@ -119,15 +124,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 45,
+    paddingTop: 8,
     paddingBottom: 14,
     backgroundColor: "#1e293b",
     borderBottomWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-  backBtn: { padding: 6 },
+  backBtn: { padding: 6, minHeight: 48, minWidth: 48, justifyContent: "center" },
   backText: { color: "#38bdf8", fontSize: 14, fontWeight: "bold" },
-  topTitle: { color: "#fff", fontSize: 15, fontWeight: "900" },
+  topTitle: { color: "#fff", fontSize: 15, fontWeight: "900", flex: 1, textAlign: "right" },
   progressCard: {
     backgroundColor: "#1e293b",
     margin: 16,

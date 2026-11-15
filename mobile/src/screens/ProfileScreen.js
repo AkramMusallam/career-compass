@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import Button from "../components/AppButton";
 import { ActivityIndicator, Alert, BackHandler, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import { fetchProfile, updateProfile, getRecruiterConsent, updateRecruiterConsent } from "../services/api";
+import * as SecureStore from "expo-secure-store";
+import { createDraftStore } from "../services/draft";
+import { companyRequest, fetchProfile, updateProfile, getRecruiterConsent, updateRecruiterConsent } from "../services/api";
 
-export default function ProfileScreen({ token, onBack }) {
+export default function ProfileScreen({ token, onBack, onAccountDeleted }) {
   const [profile, setProfile] = useState(null);
   const [name, setName] = useState("");
   const [targetRole, setTargetRole] = useState("");
@@ -59,6 +61,22 @@ export default function ProfileScreen({ token, onBack }) {
     finally { setBusy(false); }
   }
 
+  function deleteAccount() {
+    Alert.alert("حذف الحساب نهائيًا؟", "سيُحذف حسابك وسيرتك وتحليلاتك وموافقة المشاركة. لا يمكن التراجع عن الحذف.", [
+      { text: "إلغاء", style: "cancel" },
+      { text: "حذف الحساب", style: "destructive", onPress: async () => {
+        setBusy(true); setError(""); setNotice("");
+        try {
+          await companyRequest(token, "/profile", null, "DELETE");
+          await createDraftStore(SecureStore, profile.id).clear().catch(() => Alert.alert("تم حذف الحساب", "تعذر مسح المسودة الآمنة من هذا الجهاز. امسح بيانات التطبيق من إعدادات الجهاز."));
+          await onAccountDeleted();
+        } catch (err) {
+          setError(err.status === 409 ? "لا يمكن حذف حساب مالك شركة أو المنصة قبل معالجة ملكيته. تواصل مع إدارة المنصة." : "تعذر تأكيد حذف الحساب. تحقق من الاتصال وحاول تسجيل الدخول لمعرفة حالته.");
+        } finally { setBusy(false); }
+      } },
+    ]);
+  }
+
   return <ScrollView style={styles.page} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <Button title="العودة للرئيسية" onPress={leave} disabled={busy || consentBusy} />
     <Text style={styles.title}>الملف الشخصي</Text>
@@ -73,6 +91,7 @@ export default function ProfileScreen({ token, onBack }) {
       {consentBusy && <ActivityIndicator color="#38bdf8" />}
       {consent === null && !consentBusy && <Button title="تحميل حالة المشاركة" onPress={loadConsent} />}
     </View>
+    {profile && <View style={styles.consent}><Text style={styles.heading}>حذف الحساب</Text><Text style={styles.text}>حذف دائم للحساب والبيانات المرتبطة به. حسابات مالكي الشركات والمنصة تتطلب معالجة الملكية أولًا.</Text><Button title="حذف حسابي نهائيًا" color="#b91c1c" onPress={deleteAccount} disabled={busy || consentBusy} /></View>}
   </ScrollView>;
 }
 

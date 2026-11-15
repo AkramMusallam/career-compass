@@ -320,8 +320,13 @@ Return ONLY a valid JSON object matching exactly this structure, with no markdow
 """
     try:
         from app.seed.skills_data import normalize_and_dedupe_skills
+        from app.services.admin_service import get_effective_system_prompt
 
-        content = call_llm(prompt, 'You are a precise data extraction API that only outputs valid JSON.', is_json=True)
+        sys_prompt = get_effective_system_prompt(
+            "cv_extraction",
+            "You are a precise data extraction API that only outputs valid JSON.",
+        )
+        content = call_llm(prompt, sys_prompt, is_json=True, task="cv_extraction")
         data = json.loads(strip_json_fences(content))
         if not isinstance(data, dict):
             return None
@@ -480,7 +485,13 @@ Return ONLY a valid JSON object matching exactly this structure:
 </candidate_cv>
 """
     try:
-        content = call_llm(prompt, 'You are a precise JSON-only ATS evaluator.', is_json=True)
+        from app.services.admin_service import get_effective_system_prompt
+
+        sys_prompt = get_effective_system_prompt(
+            "ats_evaluation",
+            "You are a precise JSON-only ATS evaluator.",
+        )
+        content = call_llm(prompt, sys_prompt, is_json=True, task="ats_evaluation")
         data = json.loads(strip_json_fences(content))
         if not isinstance(data, dict):
             raise ValueError("Invalid ATS JSON payload")
@@ -535,7 +546,13 @@ Return ONLY the cover letter text, no markdown, no intro or outro.
 </candidate_cv>
 """
     try:
-        content = call_llm(prompt, 'You are a concise professional cover letter writer.', is_json=False, max_tokens=200, timeout=12.0)
+        from app.services.admin_service import get_effective_system_prompt
+
+        sys_prompt = get_effective_system_prompt(
+            "cover_letter",
+            "You are a concise professional cover letter writer.",
+        )
+        content = call_llm(prompt, sys_prompt, is_json=False, max_tokens=200, timeout=12.0, task="cover_letter")
         return content.strip()
     except Exception as e:
         logger.warning(f"Ollama Cover Letter generation failed ({e}), using structured template.")

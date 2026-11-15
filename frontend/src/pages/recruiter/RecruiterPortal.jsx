@@ -40,6 +40,7 @@ import {
   getJobCandidates,
   updateCandidatePipelineStatus,
   getCandidateProfile,
+  triggerCandidateAiReview,
 } from "../../api/endpoints";
 
 export default function RecruiterPortal() {
@@ -68,6 +69,7 @@ export default function RecruiterPortal() {
   const [candidateNotesDraft, setCandidateNotesDraft] = useState("");
   const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [isRunningAiReview, setIsRunningAiReview] = useState(false);
 
   // New Job Form State
   const [jobForm, setJobForm] = useState({
@@ -269,14 +271,11 @@ export default function RecruiterPortal() {
   const handleViewProfile = async (candidateId) => {
     try {
       setIsLoadingProfile(true);
-      const res = await getCandidateProfile(candidateId);
-      const targetCand = (candidatesData.candidates || []).find(
-        (c) => c.candidate_id === candidateId
-      );
-      const mergedNotes = targetCand?.notes || res.data?.notes || "";
+      const res = await getCandidateProfile(candidateId, selectedJobId);
+      const mergedNotes = res.data?.notes || "";
       setSelectedCandidateProfile({
         ...res.data,
-        pipeline_status: targetCand?.pipeline_status || res.data?.pipeline_status || "discovered",
+        pipeline_status: res.data?.pipeline_status || "discovered",
         notes: mergedNotes,
       });
       setCandidateNotesDraft(mergedNotes);
@@ -284,6 +283,51 @@ export default function RecruiterPortal() {
       showToast("تعذر جلب تفاصيل ملف المرشح", "error");
     } finally {
       setIsLoadingProfile(false);
+    }
+  };
+
+  const handleTriggerAiReview = async () => {
+    if (!selectedJobId || !selectedCandidateProfile) return;
+    setIsRunningAiReview(true);
+    try {
+      const res = await triggerCandidateAiReview(
+        selectedJobId,
+        selectedCandidateProfile.candidate_id,
+        true
+      );
+      const data = res.data || {};
+      setSelectedCandidateProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              fit_verdict: data.fit_verdict ?? prev.fit_verdict,
+              fit_reasoning: data.fit_reasoning ?? prev.fit_reasoning,
+              interview_focus_areas: data.interview_focus_areas ?? prev.interview_focus_areas,
+              hiring_readiness: data.hiring_readiness ?? prev.hiring_readiness,
+              evaluation_source: data.evaluation_source ?? prev.evaluation_source,
+            }
+          : null
+      );
+      setCandidatesData((prev) => ({
+        ...prev,
+        candidates: prev.candidates.map((c) =>
+          c.candidate_id === selectedCandidateProfile.candidate_id
+            ? {
+                ...c,
+                fit_verdict: data.fit_verdict ?? c.fit_verdict,
+                fit_reasoning: data.fit_reasoning ?? c.fit_reasoning,
+                interview_focus_areas: data.interview_focus_areas ?? c.interview_focus_areas,
+                hiring_readiness: data.hiring_readiness ?? c.hiring_readiness,
+                evaluation_source: data.evaluation_source ?? c.evaluation_source,
+              }
+            : c
+        ),
+      }));
+      showToast("تم تحديث تحليل الملاءمة المعمّق عبر نموذج AI الإقليمي", "success");
+    } catch (err) {
+      showToast(getErrorMessage(err, "تعذر تشغيل التحليل المعمّق بالذكاء الاصطناعي"), "error");
+    } finally {
+      setIsRunningAiReview(false);
     }
   };
 
@@ -656,9 +700,26 @@ export default function RecruiterPortal() {
                   </div>
 
                   {/* AI Fit Reasoning */}
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700 leading-relaxed">
-                    <span className="font-bold text-primary-700">تقييم الذكاء الاصطناعي: </span>
-                    {cand.fit_reasoning}
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700 leading-relaxed space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <span className="font-bold text-primary-700">
+                        تقييم الذكاء الاصطناعي{cand.fit_verdict ? ` — ${cand.fit_verdict}` : ":"}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {cand.hiring_readiness && (
+                          <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-bold text-slate-700">
+                            {cand.hiring_readiness}
+                          </span>
+                        )}
+                        {cand.evaluation_source === "llm" && (
+                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md bg-primary-50 border border-primary-200 text-[10px] font-bold text-primary-700">
+                            <Sparkles className="w-2.5 h-2.5" />
+                            <span>career-model</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p>{cand.fit_reasoning}</p>
                   </div>
 
                   {/* Skills Cloud */}
@@ -869,8 +930,8 @@ export default function RecruiterPortal() {
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">{selectedCandidateProfile.full_name}</h3>
                 <p className="text-xs text-slate-500">
                   {selectedCandidateProfile.email}
-                  {selectedCandidateProfile.target_role
-                    ? ` • ${selectedCandidateProfile.target_role}`
+                  {selectedCandidateProfile.target_role?.trim()
+                    ? ` • ${selectedCandidateProfile.target_role.trim()}`
                     : ""}
                 </p>
               </div>
@@ -880,6 +941,49 @@ export default function RecruiterPortal() {
               >
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Domain AI Fit Review Panel */}
+            <div className="p-3.5 rounded-xl bg-primary-50/60 border border-primary-100 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary-600" />
+                  <span className="text-xs font-bold text-primary-900">
+                    {selectedCandidateProfile.fit_verdict || "التحليل الذكي لملاءمة المرشح"}
+                  </span>
+                  {selectedCandidateProfile.hiring_readiness && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-primary-200 text-[10px] font-bold text-primary-700">
+                      {selectedCandidateProfile.hiring_readiness}
+                    </span>
+                  )}
+                </div>
+                {selectedJobId && (
+                  <button
+                    type="button"
+                    onClick={handleTriggerAiReview}
+                    disabled={isRunningAiReview}
+                    className="btn-secondary !py-1 !px-3 !text-[11px] rounded-lg inline-flex items-center gap-1"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>{isRunningAiReview ? "جاري التحليل..." : "تحليل ملاءمة معمّق بالـ AI"}</span>
+                  </button>
+                )}
+              </div>
+              {selectedCandidateProfile.fit_reasoning && (
+                <p className="text-xs text-slate-700 leading-relaxed">
+                  {selectedCandidateProfile.fit_reasoning}
+                </p>
+              )}
+              {selectedCandidateProfile.interview_focus_areas?.length > 0 && (
+                <div className="pt-1">
+                  <p className="text-[11px] font-bold text-slate-700 mb-1">محاور المقابلة المقترحة:</p>
+                  <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-600">
+                    {selectedCandidateProfile.interview_focus_areas.map((area, idx) => (
+                      <li key={idx}>{area}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Profile verified skills */}

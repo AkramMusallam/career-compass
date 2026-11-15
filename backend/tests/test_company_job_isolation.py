@@ -45,6 +45,17 @@ def test_company_job_and_pipeline_isolation(client):
         status = client.post(f"/recruiter/jobs/{job_id}/candidates/{extraction_id}/status", headers=member,
                              json={"pipeline_status": "shortlisted", "notes": "private note"})
         assert status.status_code == 200, status.text
+        second_job = client.post("/recruiter/jobs", headers=owner, json={"title": "Second role"}).json()["job_id"]
+        detail = f"/recruiter/candidates/{extraction_id}/profile"
+        first_profile = client.get(detail, headers=owner, params={"job_id": job_id})
+        assert first_profile.status_code == 200
+        assert first_profile.json()["notes"] == "private note"
+        second_profile = client.get(detail, headers=owner, params={"job_id": second_job})
+        assert second_profile.status_code == 200
+        assert second_profile.json()["notes"] == ""
+        assert second_profile.json()["pipeline_status"] == "discovered"
+        assert client.get(detail, headers=other, params={"job_id": job_id}).status_code == 404
+        assert client.get(detail, headers=owner, params={"job_id": "missing"}).status_code == 404
         assert client.get(f"/recruiter/candidates/{extraction_id}/profile", headers=owner).json()["notes"] == "private note"
         assert client.get(f"/recruiter/candidates/{extraction_id}/profile", headers=other).json()["notes"] == ""
         assert client.delete("/profile", headers=owner).status_code == 409

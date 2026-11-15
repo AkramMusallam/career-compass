@@ -173,6 +173,25 @@ def get_candidate_profile(
     return CandidateProfileDetail(**profile_data)
 
 
+@router.post("/jobs/{job_id}/candidates/{candidate_id}/ai-review", status_code=status.HTTP_200_OK)
+def trigger_candidate_ai_review(
+    job_id: str,
+    candidate_id: str,
+    force_refresh: bool = Query(True),
+    company: dict = Depends(require_company),
+):
+    """تشغيل تقييم الملاءمة المعمّق للمرشح عبر نموذج الذكاء الاصطناعي الإقليمي."""
+    try:
+        return recruiter_service.evaluate_candidate_fit_on_demand(
+            job_id=job_id,
+            candidate_id=candidate_id,
+            company_id=company["company_id"],
+            force_refresh=force_refresh,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
 @router.post("/switch-role", status_code=status.HTTP_200_OK)
 def switch_to_recruiter(
     company_name: Optional[str] = Query(None, max_length=200),

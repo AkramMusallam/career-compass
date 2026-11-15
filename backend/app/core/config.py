@@ -131,6 +131,15 @@ class Settings:
     PAYPAL_SECRET: str = os.getenv("PAYPAL_SECRET", "")
     PAYPAL_MODE: str = os.getenv("PAYPAL_MODE", "sandbox")
 
+    # ---- Live Market Job Matching & B2B AI Tuning ----
+    LIVE_JOBS_ENABLED: bool = os.getenv("LIVE_JOBS_ENABLED", "1") == "1"
+    LIVE_JOBS_CACHE_TTL_SECONDS: int = int(os.getenv("LIVE_JOBS_CACHE_TTL_SECONDS", "21600"))
+    LIVE_JOBS_FETCH_TIMEOUT: float = float(os.getenv("LIVE_JOBS_FETCH_TIMEOUT", "5.0"))
+    ADZUNA_APP_ID: str = os.getenv("ADZUNA_APP_ID", "")
+    ADZUNA_APP_KEY: str = os.getenv("ADZUNA_APP_KEY", "")
+    ADZUNA_COUNTRY: str = os.getenv("ADZUNA_COUNTRY", "gb")
+    RECRUITER_LLM_TOP_K: int = int(os.getenv("RECRUITER_LLM_TOP_K", "3"))
+
 
 @lru_cache
 def get_settings() -> Settings:

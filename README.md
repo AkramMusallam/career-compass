@@ -102,7 +102,7 @@ flowchart TD
 | **Task Queue** | Celery 5.3+, Redis 7.0+ (Async PDF Extraction Worker & Weekly Progress Email Cron) |
 | **AI / LLMs** | Ollama (`career-model` / `llama3.2`), OpenAI (`gpt-3.5-turbo`, Whisper Audio Transcription) |
 | **PDF Processing**| `pdfplumber` (multi-column parsing), `reportlab` (bilingual RTL Arabic PDF career & ATS reports) |
-| **Testing** | Pytest, FastAPI TestClient, Mongomock, Unittest.mock (**131 automated tests — 100% passing**) |
+| **Testing** | Pytest, FastAPI TestClient, Mongomock, Unittest.mock (**185 automated tests — 100% passing**) |
 
 ---
 
@@ -113,22 +113,22 @@ career-compass/
 ├── backend/
 │   ├── alembic/                  # Database schema migrations (Phase 1–3)
 │   ├── app/
-│   │   ├── api/routes/           # REST API routers (auth, cv, analyze, interview, recruiter, subscriptions, extension, ...)
+│   │   ├── api/routes/           # REST API routers (auth, cv, analyze, interview, recruiter, admin, subscriptions, extension, ...)
 │   │   ├── assets/fonts/         # Bundled Amiri Arabic fonts for RTL PDF generation
 │   │   ├── core/                 # Config, MySQL/SQLite pool, MongoDB indexes, JWT security, Rate Limiter
 │   │   ├── models/               # SQLAlchemy relational models (User, Job, Skill, Question, Course)
 │   │   ├── schemas/              # Strict Pydantic v2 request/response schemas & validators
 │   │   ├── seed/                 # Reference skills (117), jobs (30), assessment questions & courses
-│   │   ├── services/             # Recommendation engine, ATS builder, Interview AI, Recruiter B2B, Stripe Billing, Regional Taxonomy
+│   │   ├── services/             # Recommendation engine, ATS builder, Interview AI, Acoustic Audio, Live Jobs, Recruiter B2B, Admin, Regional Taxonomy
 │   │   └── worker/               # Celery background tasks & scheduled weekly beat jobs
-│   ├── scripts/                  # Fine-tuning dataset generator (ChatML / JSONL)
+│   ├── scripts/                  # Fine-tuning dataset generator (ChatML / JSONL) & platform-owner admin bootstrap
 │   └── tests/                    # automated backend test suites
 ├── frontend/
 │   └── src/
 │       ├── api/                  # Axios client & typed API endpoint wrappers
 │       ├── components/           # Layout, ATS Resume Builder modal, Live Job Matching, Charts & UI primitives
 │       ├── context/              # AuthContext, AnalysisContext, ToastContext
-│       └── pages/                # Dashboard, Analysis, Mock Interview, Recruiter Portal (B2B), Pricing Plans
+│       └── pages/                # Dashboard, Analysis, Mock Interview, Recruiter Portal (B2B), System Admin, Pricing Plans
 ├── chrome-extension/             # Manifest V3 LinkedIn Job Matcher extension
 ├── mobile/                       # React Native (Expo) companion app
 ├── .github/workflows/ci.yml      # CI pipeline (backend pytest, frontend build/E2E, extension lint)
@@ -245,21 +245,23 @@ docker compose -f docker-compose.prod.yml exec backend python -c "from app.seed.
 | **Export** | `GET` | `/history/{id}/export/pdf` | Branded RTL Arabic & English PDF career report |
 | **Roadmap**| `PATCH`| `/history/{id}/roadmap` | Interactive checklist milestone completion |
 | **Shared** | `POST`, `GET`| `/history/{id}/share`, `/shared/{token}` | Public tokenized analysis report view |
-| **Jobs** | `GET` | `/jobs/matched` | Active market vacancy matching with smart synonyms |
+| **Jobs** | `GET` | `/jobs/matched` | Active internal & live external market matching (Remotive, Arbeitnow, optional Adzuna) |
 | **Interview**| `POST`| `/interview/start`, `/interview/chat` | Interactive AI technical mock interview session |
-| **Interview**| `POST`| `/interview/{id}/voice`, `/interview/{id}/evaluate` | Whisper voice simulation & 10-point scoring |
+| **Interview**| `POST`| `/interview/{id}/voice`, `/interview/{id}/evaluate` | Whisper voice simulation, PyAV acoustic delivery metrics & 10-point scoring |
 | **Recruiter (B2B)**| `POST`, `GET`, `PUT`, `DELETE` | `/recruiter/jobs`, `/recruiter/jobs/{id}` | Corporate job postings & vacancy management |
 | **Recruiter (B2B)**| `GET` | `/recruiter/jobs/{id}/candidates` | AI-driven candidate discovery & match ranking |
 | **Recruiter (B2B)**| `POST`| `/recruiter/jobs/{id}/candidates/{cand_id}/status` | Update candidate recruitment pipeline stage |
+| **Recruiter (B2B)**| `POST`| `/recruiter/jobs/{id}/candidates/{cand_id}/ai-review` | On-demand fine-tuned LLM candidate fit evaluation & structured reasoning |
 | **Recruiter (B2B)**| `GET` | `/recruiter/candidates/{cand_id}/profile` | Candidate verified profile, projects & ATS score (RBAC protected) |
 | **Recruiter (B2B)**| `POST`| `/recruiter/switch-role` | Upgrade account role to B2B Recruiter mode |
+| **System Admin** | `GET`, `PATCH`, `PUT`, `POST` | `/admin/overview`, `/admin/users/{id}/suspension`, `/admin/ai-logs`, `/admin/prompts/{key}`, `/admin/support-grants/{id}/revoke` | Platform-owner governance, AI telemetry, live prompt tuning & support grant revocation |
 | **Monetization** | `GET` | `/subscriptions/plans`, `/subscriptions/current` | Pricing tiers (Free, Pro, Enterprise) & status |
 | **Monetization** | `POST`| `/subscriptions/checkout-session`, `/cancel`, `/webhook` | Experimental; payment and subscriptions are not launched |
-| **Extension** | `POST`| `/extension/match-job` | Real-time LinkedIn job text compatibility matcher |
+| **Extension** | `POST`| `/extension/match-job` | Real-time LinkedIn job text compatibility matcher (with `/health` & `/api/health` base discovery) |
 
 ---
 
-## 🧪 Automated Testing & Test Suite (131/131 Tests Passing)
+## 🧪 Automated Testing & Test Suite (185/185 Tests Passing)
 
 Career Compass comes with a comprehensive, enterprise-grade test suite covering every core capability, service, API endpoint, edge case, and multi-tenant security boundary:
 
@@ -269,11 +271,13 @@ python -m pytest backend/tests/ -v
 ```
 
 ### Test Coverage Highlights:
-- **Phase 3 B2B Recruiter Portal & Pipeline (`test_phase3_b2b_and_monetization.py`, `test_phase3_edge_cases_and_isolation.py`):** Multi-tenant job posting CRUD, newest-CV candidate ranking algorithm, pipeline status transitions across all 6 stages, and RBAC-protected deep-dive profile previews.
+- **System Administrator Portal (`test_admin_portal.py`):** Platform-owner RBAC enforcement, user suspension with instant JWT token revocation, AI inference telemetry logs, live AI prompt overrides/reset, and support grant revocation.
+- **Live Market Job Matching (`test_live_jobs_matching.py`):** Remotive & Arbeitnow external vacancy aggregation, SSRF/URL scheme sanitization, TTL cache hits, and `source` / `include_external` filtering on `/jobs/matched`.
+- **Phase 3 B2B Recruiter Portal & LLM Fit Evaluation (`test_phase3_b2b_and_monetization.py`, `test_phase3_edge_cases_and_isolation.py`, `test_b2b_llm_and_audio.py`):** Multi-tenant job posting CRUD, newest-CV candidate ranking with cached/top-K & on-demand fine-tuned LLM fit review, pipeline status transitions across all 6 stages, and RBAC-protected profile previews.
 - **Monetization & Billing Gateways (`test_monetization_deep.py`, `test_phase3_advanced_expansion.py`):** Freemium/Pro/Enterprise plans configuration, 20% annual discount calculations, Stripe checkout sessions, open-redirect protection, sandbox instant activation, automated role assignment, subscription cancellation, and webhook handling.
 - **Chrome Extension Matcher (`test_extension_api_deep.py`):** Real-time HTML and raw text job parsing, pre-compiled regex skill overlap (including symbol skills like `C++` and `C#`), salary benchmark alignment, and fallback modes.
-- **Regional Market Intelligence & Fine-Tuning (`test_regional_taxonomy_deep.py`, `prepare_finetuning_dataset.py`):** MENA tech salary percentile validations, bilingual role normalization, university/tech-hub recognition, ChatML JSONL dataset generation.
-- **Voice AI & Mock Interview Evaluation (`test_interview_service_and_scoring.py`, `test_phase3_advanced_expansion.py`):** Speech rate (WPM) calculations, filler words detection (Arabic/English), 10-point scoring rubrics, and model answer generation.
+- **Regional Market Intelligence & Fine-Tuning (`test_regional_taxonomy_deep.py`, `test_b2b_llm_and_audio.py`, `prepare_finetuning_dataset.py`):** MENA tech salary percentile validations, bilingual role normalization, university/tech-hub recognition, ChatML JSONL dataset generation from `regional_taxonomy.py`.
+- **Voice AI, PyAV Acoustics & Mock Interview Evaluation (`test_interview_service_and_scoring.py`, `test_phase3_advanced_expansion.py`, `test_b2b_llm_and_audio.py`):** Speech rate (WPM), PyAV real-audio duration/silence/RMS acoustic metrics (`audio_metrics.py`), filler words detection (Arabic/English), 10-point scoring rubrics, and model answer generation.
 - **ATS Audit & Resume Builder (`test_cv_and_ats_deep.py`):** Formatting risk audit, section scoring breakdown, ATS resume builder optimization, and PDF generation.
 - **Authentication, Security & Performance (`test_security_auth_and_profile_deep.py`, `test_security_and_performance.py`):** Password strength validation, privilege escalation prevention, IDOR protection on job matching, RBAC enforcement, single-use reset tokens, JWT invalidation on password change, bounded sliding-window rate limiting, and N+1 query elimination.
 
