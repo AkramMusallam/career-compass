@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { getErrorMessage } from "../../api/client";
+import { resendVerification } from "../../api/endpoints";
 import CompassLogo from "../../components/layout/CompassLogo";
 import Spinner from "../../components/ui/Spinner";
 import { useAuth } from "../../context/AuthContext";
@@ -27,6 +28,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendStatus, setResendStatus] = useState("");
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const canSubmit = emailValid && password.length > 0 && !isLoading;
@@ -36,6 +39,8 @@ export default function Login() {
     if (!canSubmit) return;
     setIsLoading(true);
     setErrorMessage("");
+    setNeedsVerification(false);
+    setResendStatus("");
     try {
       await login(email, password);
       const from = location.state?.from;
@@ -44,11 +49,26 @@ export default function Login() {
         : "/dashboard";
       navigate(redirectTo, { replace: true });
     } catch (error) {
-      setErrorMessage(
-        getErrorMessage(error, "البريد الإلكتروني أو كلمة المرور غير صحيحة")
-      );
+      if (error?.response?.status === 403 && String(error?.response?.data?.detail || "").toLowerCase().includes("verify")) {
+        setNeedsVerification(true);
+        setErrorMessage("يرجى تأكيد بريدك الإلكتروني أولاً قبل تسجيل الدخول.");
+      } else {
+        setErrorMessage(
+          getErrorMessage(error, "البريد الإلكتروني أو كلمة المرور غير صحيحة")
+        );
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!emailValid) return;
+    try {
+      await resendVerification(email);
+      setResendStatus("تم إرسال رابط تأكيد جديد إلى بريدك الإلكتروني.");
+    } catch (error) {
+      setResendStatus(getErrorMessage(error, "تعذر إرسال رابط التأكيد."));
     }
   };
 
@@ -75,7 +95,23 @@ export default function Login() {
             {errorMessage && (
               <div className="alert-banner-error mb-5" role="alert">
                 <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                <span>{errorMessage}</span>
+                <div className="space-y-1">
+                  <span>{errorMessage}</span>
+                  {needsVerification && (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={handleResendVerification}
+                        className="text-xs font-extrabold underline text-primary-700"
+                      >
+                        إعادة إرسال رابط تأكيد البريد الإلكتروني
+                      </button>
+                      {resendStatus && (
+                        <p className="text-xs font-semibold text-slate-700 mt-1">{resendStatus}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

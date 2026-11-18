@@ -5,7 +5,7 @@ import { KeyboardAvoidingView, Platform, StyleSheet, View, Text, TextInput, Scro
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
-import { login, register, forgotPassword, setUnauthorizedHandler } from "./src/services/api";
+import { login, logout, register, forgotPassword, setUnauthorizedHandler } from "./src/services/api";
 
 import DashboardScreen from "./src/screens/DashboardScreen";
 import MockInterviewScreen from "./src/screens/MockInterviewScreen";
@@ -94,6 +94,7 @@ export default function App() {
   };
 
   const handleLogout = useCallback(async () => {
+    await logout(userToken);
     try {
       await SecureStore.deleteItemAsync("userToken");
       await AsyncStorage.removeItem("userToken");
@@ -103,7 +104,7 @@ export default function App() {
     }
     setUserToken(null);
     setCurrentScreen("dashboard");
-  }, []);
+  }, [userToken]);
 
   if (restoring) return null;
 

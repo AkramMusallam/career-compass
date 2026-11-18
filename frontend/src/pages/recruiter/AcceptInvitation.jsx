@@ -1,13 +1,20 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import apiClient, { getErrorMessage } from "../../api/client";
+import { readFragmentToken } from "../../utils/fragmentToken";
 
 export default function AcceptInvitation() {
-  const { token } = useParams();
-  const [message, setMessage] = useState("");
+  const { token: routeToken } = useParams();
+  const [token] = useState(() =>
+    readFragmentToken({ paramToken: routeToken, cleanPath: "/company-invitation" })
+  );
+  const [message, setMessage] = useState(
+    token ? "" : "رابط الدعوة غير مكتمل أو مفقود."
+  );
   const [busy, setBusy] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const accept = async () => {
+    if (!token) return;
     setBusy(true);
     try {
       await apiClient.post("/companies/invitations/accept", { token });
@@ -18,9 +25,9 @@ export default function AcceptInvitation() {
   };
   return <main className="mx-auto max-w-xl space-y-4 p-6" dir="rtl">
     <h1 className="text-2xl font-bold">دعوة للانضمام إلى شركة</h1>
-    <p>سجّل الدخول بالحساب المطابق للبريد الذي وصلته الدعوة.</p>
+    <p>سجّل الدخول بالحساب المؤكد المطابق للبريد الذي وصلته الدعوة.</p>
     {message && <p role="status">{message}</p>}
-    {!accepted && <button className="btn-primary" disabled={busy} onClick={accept}>قبول الدعوة</button>}
+    {!accepted && <button className="btn-primary" disabled={busy || !token} onClick={accept}>قبول الدعوة</button>}
     <Link className="block underline" to="/companies">الشركات</Link>
   </main>;
 }

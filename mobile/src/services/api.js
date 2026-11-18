@@ -52,6 +52,23 @@ export function forgotPassword(email) {
   return authRequest("/forgot-password", { email });
 }
 
+export async function logout(token) {
+  if (!token) return;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    await fetch(`${API_BASE_URL}/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+  } catch {
+    // Always allow local token cleanup even if server/network fails
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function analysisRequest(token, path, body) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 180000);

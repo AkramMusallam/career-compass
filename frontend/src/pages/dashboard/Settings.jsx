@@ -7,6 +7,10 @@ import {
   LogOut,
   AlertTriangle,
   AlertCircle,
+  KeyRound,
+  Copy,
+  Check,
+  Shield,
 } from "lucide-react";
 
 import { getErrorMessage } from "../../api/client";
@@ -18,6 +22,10 @@ import {
   deleteAccount,
   getRecruiterConsent,
   updateRecruiterConsent,
+  getCloudAiConsent,
+  updateCloudAiConsent,
+  createExtensionToken,
+  logoutAllSessions,
 } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -36,6 +44,12 @@ export default function Settings() {
   const [recruiterConsent, setRecruiterConsent] = useState(false);
   const [isSavingRecruiterConsent, setIsSavingRecruiterConsent] = useState(false);
   const [recruiterConsentLoaded, setRecruiterConsentLoaded] = useState(false);
+  const [cloudAiConsent, setCloudAiConsent] = useState(false);
+  const [isSavingCloudAiConsent, setIsSavingCloudAiConsent] = useState(false);
+  const [cloudAiConsentLoaded, setCloudAiConsentLoaded] = useState(false);
+  const [extensionTokenInfo, setExtensionTokenInfo] = useState(null);
+  const [isGeneratingExtensionToken, setIsGeneratingExtensionToken] = useState(false);
+  const [extensionTokenCopied, setExtensionTokenCopied] = useState(false);
   const [isSavingBenchmark, setIsSavingBenchmark] = useState(false);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,6 +75,17 @@ export default function Settings() {
     }).catch(() => showToast("تعذر تحميل إعداد مشاركة الملف مع مسؤولي التوظيف", "error"));
   }, [showToast]);
 
+  useEffect(() => {
+    getCloudAiConsent()
+      .then((res) => {
+        setCloudAiConsent(Boolean(res.data?.opted_in));
+        setCloudAiConsentLoaded(true);
+      })
+      .catch(() => {
+        setCloudAiConsentLoaded(true);
+      });
+  }, []);
+
   const handleRecruiterConsent = async (checked) => {
     setIsSavingRecruiterConsent(true);
     try {
@@ -74,8 +99,59 @@ export default function Settings() {
     }
   };
 
+  const handleCloudAiConsent = async (checked) => {
+    const previous = cloudAiConsent;
+    setCloudAiConsent(checked);
+    setIsSavingCloudAiConsent(true);
+    try {
+      const res = await updateCloudAiConsent(checked);
+      setCloudAiConsent(Boolean(res.data?.opted_in ?? checked));
+      showToast(
+        checked
+          ? "تمت الموافقة على المعالجة عبر مزوّد الذكاء الاصطناعي السحابي عند تفعيله"
+          : "تم إيقاف المعالجة عبر المزوّد السحابي (سيتم استخدام المعالجة المحلية فقط)"
+      );
+    } catch (error) {
+      setCloudAiConsent(previous);
+      showToast(getErrorMessage(error, "تعذر تحديث تفضيل المعالجة السحابية"), "error");
+    } finally {
+      setIsSavingCloudAiConsent(false);
+    }
+  };
+
+  const handleGenerateExtensionToken = async () => {
+    setIsGeneratingExtensionToken(true);
+    setExtensionTokenCopied(false);
+    try {
+      const res = await createExtensionToken();
+      setExtensionTokenInfo(res.data);
+      showToast("تم توليد رمز مطابقة الإضافة بنجاح");
+    } catch (error) {
+      showToast(getErrorMessage(error, "تعذر توليد رمز إضافة المتصفح"), "error");
+    } finally {
+      setIsGeneratingExtensionToken(false);
+    }
+  };
+
+  const handleCopyExtensionToken = async () => {
+    const token = extensionTokenInfo?.extension_token;
+    if (!token) return;
+    try {
+      if (!navigator?.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(token);
+      setExtensionTokenCopied(true);
+      setTimeout(() => setExtensionTokenCopied(false), 2000);
+    } catch {
+      showToast("تعذر النسخ التلقائي، انسخ الرمز يدوياً", "error");
+    }
+  };
+
+  const newPasswordBytes = new TextEncoder().encode(newPassword).length;
   const passwordValid =
     newPassword.length >= 8 &&
+    newPasswordBytes <= 72 &&
     /[A-Z]/.test(newPassword) &&
     /[a-z]/.test(newPassword) &&
     /[0-9]/.test(newPassword);
@@ -107,9 +183,21 @@ export default function Settings() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
+  };
+
+  const handleLogoutAll = async () => {
+    try {
+      await logoutAllSessions();
+      showToast("تم إنهاء جميع الجلسات النشطة");
+    } catch (error) {
+      showToast(getErrorMessage(error, "تعذر إنهاء جميع الجلسات"), "error");
+    } finally {
+      await logout({ skipServer: true });
+      navigate("/login");
+    }
   };
 
   const handleBenchmarkToggle = async (checked) => {
@@ -150,7 +238,7 @@ export default function Settings() {
     try {
       await deleteAccount();
       showToast("تم حذف الحساب بنجاح");
-      logout();
+      await logout({ skipServer: true });
       navigate("/login");
     } catch (error) {
       showToast(getErrorMessage(error, "خطأ أثناء حذف الحساب"), "error");
@@ -287,23 +375,114 @@ export default function Settings() {
 
       <label className="card flex cursor-pointer items-center justify-between gap-4">
         <div>
-          <p className="font-bold text-slate-800 text-sm">مشاركة ملفي مع مسؤولي التوظيف</p>
-          <p className="text-xs text-slate-500 mt-1">عند التفعيل يمكن لمسؤولي التوظيف الاطلاع على اسمك وبريدك ومهاراتك وخبراتك ومشاريعك وتعليمك. يمكنك إيقاف المشاركة في أي وقت.</p>
+          <p className="font-bold text-slate-800 text-sm">مشاركة ملفي المؤكد مع مسؤولي التوظيف</p>
+          <p className="text-xs text-slate-500 mt-1">عند التفعيل يمكن لمسؤولي التوظيف المعتمدين الاطلاع فقط على سيرتك الذاتية المؤكدة (ولا تظهر المسودات غير المؤكدة أبداً). يتم إخفاء بيانات الهوية المباشرة عند تقييم التوافق بالذكاء الاصطناعي. يمكنك إيقاف المشاركة في أي وقت.</p>
         </div>
         <input type="checkbox" checked={recruiterConsent} disabled={!recruiterConsentLoaded || isSavingRecruiterConsent} onChange={(e) => handleRecruiterConsent(e.target.checked)} />
       </label>
+
+      <div className="card space-y-3">
+        <div className="flex items-center gap-2">
+          <Shield size={18} className="text-primary-600" />
+          <h2 className="font-black text-slate-900 text-sm sm:text-base">
+            الخصوصية ومعالجة الذكاء الاصطناعي السحابي
+          </h2>
+        </div>
+        <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 transition-colors hover:bg-white">
+          <div>
+            <p className="font-bold text-slate-800 text-xs sm:text-sm">
+              الموافقة على معالجة البيانات عبر مزوّد الذكاء الاصطناعي السحابي (OpenAI)
+            </p>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              عند التفعيل وتوفّر مفتاح المزوّد السحابي في بيئة الخادم، قد تُرسل مقتطفات السيرة الذاتية ونصوص أو صوت المقابلة بعد تقليص البيانات وحجب البريد الإلكتروني ورقم الهاتف. عند الإيقاف يقتصر التحليل على المحرّك المحلي (Ollama) أو المنطق الداخلي دون نقل بيانات للخارج.
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded text-primary-600 focus:ring-primary-500"
+            checked={cloudAiConsent}
+            disabled={!cloudAiConsentLoaded || isSavingCloudAiConsent}
+            onChange={(e) => handleCloudAiConsent(e.target.checked)}
+          />
+        </label>
+      </div>
+
+      <div className="card space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <KeyRound size={18} className="text-primary-600" />
+            <div>
+              <h2 className="font-black text-slate-900 text-sm sm:text-base">
+                رمز إضافة المتصفح (Match-Only Extension Token)
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                رمز مؤقت محدود الصلاحية (extension:match) يُستخدم فقط لمطابقة إعلانات الوظائف في إضافة Chrome دون مشاركة رمز جلستك الكامل.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn-primary shrink-0"
+            onClick={handleGenerateExtensionToken}
+            disabled={isGeneratingExtensionToken}
+          >
+            {isGeneratingExtensionToken ? "جاري التوليد..." : "توليد رمز الإضافة"}
+          </button>
+        </div>
+
+        {extensionTokenInfo?.extension_token && (
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={extensionTokenInfo.extension_token}
+                aria-label="رمز مطابقة إضافة المتصفح"
+                className="input-field text-xs"
+                dir="ltr"
+              />
+              <button
+                type="button"
+                className="btn-outline shrink-0"
+                onClick={handleCopyExtensionToken}
+              >
+                {extensionTokenCopied ? (
+                  <>
+                    <Check size={14} />
+                    <span>تم النسخ</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={14} />
+                    <span>نسخ</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              النطاق: {extensionTokenInfo.scope || "extension:match"} — صالح لمدة {extensionTokenInfo.expires_in_minutes} دقيقة
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="card flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="font-black text-slate-900 text-sm sm:text-base">إدارة الجلسة</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            تسجيل الخروج من جلستك الحالية على هذا المتصفح
+            تسجيل الخروج من جلستك الحالية أو إنهاء جميع الجلسات النشطة
           </p>
         </div>
-        <button type="button" className="btn-outline" onClick={handleLogout}>
-          <LogOut size={15} />
-          <span>تسجيل الخروج</span>
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn-outline" onClick={handleLogout}>
+            <LogOut size={15} />
+            <span>تسجيل الخروج</span>
+          </button>
+          <button type="button" className="btn-outline" onClick={handleLogoutAll}>
+            <LogOut size={15} />
+            <span>خروج من كل الأجهزة</span>
+          </button>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-red-200 bg-red-50/60 p-5 sm:p-6">

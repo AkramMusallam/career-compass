@@ -45,8 +45,8 @@ export default function CompanyManagement({ token, companies, userId, onCompanie
   }
   function accept() {
     const value = invitation.trim();
-    const match = value.match(/\/company-invitation\/([^/?#]+)(?:[/?#]|$)/);
-    const inviteToken = match ? match[1] : value;
+    const match = value.match(/\/company-invitation(?:\/([^/?#]+)|#(?:.*&)?token=([^&]+))/);
+    const inviteToken = match ? decodeURIComponent(match[1] || match[2]) : value;
     if (!inviteToken || inviteToken.length > 200 || /[\s/]/.test(inviteToken)) { setError("أدخل رمز الدعوة أو رابطها الصحيح."); return; }
     run(async () => {
       const result = await companyRequest(token, "/companies/invitations/accept", null, "POST", { token: inviteToken });

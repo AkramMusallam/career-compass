@@ -18,7 +18,7 @@ export default function ShareModal({
   const [copied, setCopied] = useState(false);
 
   const shareUrl = shareToken
-    ? `${window.location.origin}/shared/${shareToken}`
+    ? `${window.location.origin}/shared#token=${encodeURIComponent(shareToken)}`
     : "";
 
   const handleGenerateLink = async () => {

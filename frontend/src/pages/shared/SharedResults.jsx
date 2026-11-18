@@ -12,14 +12,24 @@ import { getErrorMessage } from "../../api/client";
 import { getSharedAnalysis } from "../../api/endpoints";
 import CircularProgress from "../../components/ui/CircularProgress";
 import CompassLogo from "../../components/layout/CompassLogo";
+import { readFragmentToken } from "../../utils/fragmentToken";
 
 export default function SharedResults() {
-  const { shareToken } = useParams();
-  const [status, setStatus] = useState("loading");
+  const { shareToken: routeShareToken } = useParams();
+  const [shareToken] = useState(() =>
+    readFragmentToken({ paramToken: routeShareToken, cleanPath: "/shared" })
+  );
+  const [status, setStatus] = useState(shareToken ? "loading" : "error");
   const [data, setData] = useState(null);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState(
+    shareToken ? "" : "هذا الرابط غير موجود أو تم إلغاؤه من صاحبه"
+  );
 
   useEffect(() => {
+    if (!shareToken) {
+      setStatus("error");
+      return;
+    }
     let mounted = true;
     getSharedAnalysis(shareToken)
       .then((res) => {

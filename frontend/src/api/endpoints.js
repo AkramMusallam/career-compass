@@ -5,6 +5,10 @@ import apiClient from "./client";
 // ============================================================
 export const registerUser = (data) => apiClient.post("/register", data);
 export const loginUser = (data) => apiClient.post("/login", data);
+export const logoutUser = () => apiClient.post("/logout");
+export const logoutAllSessions = () => apiClient.post("/logout-all");
+export const verifyEmail = (token) => apiClient.post("/verify-email", { token });
+export const resendVerification = (email) => apiClient.post("/resend-verification", { email });
 export const requestPasswordReset = (data) => apiClient.post("/forgot-password", data);
 export const resetPassword = (data) => apiClient.post("/reset-password", data);
 
@@ -94,7 +98,8 @@ export const updateRoadmapSkillProgress = (analysisId, skill, completed) =>
 // ============================================================
 export const createShareLink = (analysisId) => apiClient.post(`/history/${analysisId}/share`);
 export const revokeShareLink = (analysisId) => apiClient.delete(`/history/${analysisId}/share`);
-export const getSharedAnalysis = (shareToken) => apiClient.get(`/shared/${shareToken}`);
+export const getSharedAnalysis = (shareToken) =>
+  apiClient.post("/shared/exchange", { share_token: shareToken });
 
 // ============================================================
 // Batch 4.2: مقارنة مجهولة مع الأقران (Benchmark)
@@ -105,6 +110,9 @@ export const updateBenchmarkOptIn = (optedIn) =>
 export const getRecruiterConsent = () => apiClient.get("/settings/recruiter-consent");
 export const updateRecruiterConsent = (optedIn) =>
   apiClient.put("/settings/recruiter-consent", { opted_in: optedIn });
+export const getCloudAiConsent = () => apiClient.get("/settings/cloud-ai-consent");
+export const updateCloudAiConsent = (optedIn) =>
+  apiClient.put("/settings/cloud-ai-consent", { opted_in: optedIn });
 
 // ============================================================
 // Batch 4.3: Badges / إنجازات
@@ -210,13 +218,22 @@ export const getAdminSupportGrants = (params) =>
 export const revokeAdminSupportGrant = (grantId) =>
   apiClient.post(`/admin/support-grants/${grantId}/revoke`);
 export const getCompaniesReview = () => apiClient.get("/companies/review");
-export const updateCompanyReviewStatus = (companyId, status) =>
-  apiClient.patch(`/companies/${companyId}/status`, { status });
+export const updateCompanyReviewStatus = (companyId, status, expectedVersion) =>
+  apiClient.patch(`/companies/${companyId}/status`, {
+    status,
+    ...(expectedVersion !== undefined && expectedVersion !== null
+      ? { expected_version: expectedVersion }
+      : {}),
+  });
+
+export const approveSupportGrant = (grantId) =>
+  apiClient.post(`/support/grants/${grantId}/approve`);
 
 export const getSubscriptionPlans = () => apiClient.get("/subscriptions/plans");
 export const getCurrentSubscription = () => apiClient.get("/subscriptions/current");
 export const createCheckoutSession = (data) => apiClient.post("/subscriptions/checkout-session", data);
 export const cancelSubscription = () => apiClient.post("/subscriptions/cancel");
 
+export const createExtensionToken = () => apiClient.post("/extension/token");
 export const matchExtensionJob = (data) => apiClient.post("/extension/match-job", data);
 export const getHealthStatus = () => apiClient.get("/health");

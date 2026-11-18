@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { loginUser, registerUser } from "../api/endpoints";
+import { loginUser, logoutUser, registerUser } from "../api/endpoints";
 
 const AuthContext = createContext(null);
 
@@ -74,7 +74,15 @@ export function AuthProvider({ children }) {
     return response.data;
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async ({ skipServer = false } = {}) => {
+    const token = localStorage.getItem("access_token");
+    if (!skipServer && token && !isTokenExpired(token)) {
+      try {
+        await logoutUser();
+      } catch {
+        // Always clear local session even if server/network fails
+      }
+    }
     clearStoredAuth();
     setUser(null);
   }, []);
