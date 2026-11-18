@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
@@ -39,7 +40,61 @@ from app.api.routes import (
     extension,
 )
 
+_TOKEN_PATH_RE = re.compile(
+    r"(/(?:reset-password|company-invitation|shared|verify-email)/)[^\s\"'&?#]+",
+    re.IGNORECASE,
+)
+_BEARER_TOKEN_RE = re.compile(r"(Bearer\s+)[A-Za-z0-9\-._~+/]+=*", re.IGNORECASE)
+_QUERY_SECRET_RE = re.compile(
+    r"([?&](?:app_id|app_key|token|access_token)=)[^&\s\"']+",
+    re.IGNORECASE,
+)
+
+
+def redact_sensitive_text(text: str) -> str:
+    """Redacts bearer tokens, URL token paths, and Adzuna query credentials from log strings."""
+    if not text:
+        return ""
+    cleaned = _TOKEN_PATH_RE.sub(r"\1[REDACTED]", str(text))
+    cleaned = _BEARER_TOKEN_RE.sub(r"\1[REDACTED]", cleaned)
+    cleaned = _QUERY_SECRET_RE.sub(r"\1[REDACTED]", cleaned)
+    return cleaned
+
+
+class CredentialRedactingFilter(logging.Filter):
+    """Logging filter that strips sensitive tokens and provider credentials from log records."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            rendered = record.getMessage()
+            record.msg = redact_sensitive_text(rendered)
+            record.args = None
+        except Exception:
+            if isinstance(record.msg, str):
+                record.msg = redact_sensitive_text(record.msg)
+            if isinstance(record.args, tuple):
+                record.args = tuple(
+                    redact_sensitive_text(a) if isinstance(a, str) else a for a in record.args
+                )
+        if record.exc_text:
+            record.exc_text = redact_sensitive_text(record.exc_text)
+        return True
+
+
+def _install_log_redaction() -> CredentialRedactingFilter:
+    redactor = CredentialRedactingFilter()
+    for logger_name in (None, "uvicorn.access", "uvicorn.error", "httpx", "career_compass"):
+        target = logging.getLogger(logger_name)
+        if not any(isinstance(f, CredentialRedactingFilter) for f in target.filters):
+            target.addFilter(redactor)
+        for handler in target.handlers:
+            if not any(isinstance(f, CredentialRedactingFilter) for f in handler.filters):
+                handler.addFilter(redactor)
+    return redactor
+
+
 logging.basicConfig(level=logging.INFO)
+_credential_redacting_filter = _install_log_redaction()
 logger = logging.getLogger("career_compass")
 
 
@@ -105,7 +160,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled error while processing %s %s", request.method, request.url)
+    safe_url = redact_sensitive_text(str(request.url))
+    logger.error(
+        "Unhandled error (%s) while processing %s %s",
+        type(exc).__name__,
+        request.method,
+        safe_url,
+    )
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": "Internal server error"})
 
 

@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -25,12 +27,64 @@ except ImportError:
     openai = None
 
 from app.core.config import settings
-from app.core.mongo import logs_collection
+from app.core.mongo import logs_collection, mongo_db
 
 logger = logging.getLogger("career_compass.llm")
 
 _client: ollama.Client | None = None
 _client_lock = threading.Lock()
+
+_OPENAI_FEATURE_ENV = {
+    "cv": "OPENAI_CV_ENABLED",
+    "interview": "OPENAI_INTERVIEW_ENABLED",
+    "voice": "OPENAI_VOICE_ENABLED",
+    "recruiter": "OPENAI_RECRUITER_ENABLED",
+}
+_TASK_TO_FEATURE = {
+    "cv_extraction": "cv",
+    "ats_evaluation": "cv",
+    "cover_letter": "cv",
+    "ats_optimize": "cv",
+    "interview_reply": "interview",
+    "interview_evaluation": "interview",
+    "recruiter_fit_evaluation": "recruiter",
+}
+_EMAIL_PII_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+_PHONE_PII_RE = re.compile(
+    r"(?<!\w)(?:\+\d{1,3}[\s.-]?\(?\d{1,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}|\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}|\b0\d{1,2}[\s.-]?\d{3}[\s.-]?\d{3,4}\b|\+?\d{9,15})(?!\w)"
+)
+
+
+def is_openai_feature_enabled(feature: str) -> bool:
+    """Returns True only when OPENAI_API_KEY is configured and the explicit per-feature flag is enabled."""
+    if not settings.OPENAI_API_KEY:
+        return False
+    env_name = _OPENAI_FEATURE_ENV.get(feature, "")
+    if not env_name:
+        return False
+    setting_val = getattr(settings, env_name, None)
+    if setting_val is not None:
+        return bool(setting_val)
+    return os.getenv(env_name, "0").strip().lower() in ("1", "true", "yes")
+
+
+def has_cloud_ai_consent(user_id: int | None) -> bool:
+    """Requires explicit user opt-in in Mongo `cloud_ai_consent` before transferring data to OpenAI."""
+    if user_id is None:
+        return False
+    try:
+        doc = mongo_db["cloud_ai_consent"].find_one({"_id": int(user_id)})
+        return bool(doc and (doc.get("enabled") is True or doc.get("consented") is True))
+    except Exception:
+        return False
+
+
+def redact_pii_text(text: str) -> str:
+    """Minimizes PII (emails and phone numbers) prior to external AI egress."""
+    if not text:
+        return ""
+    cleaned = _EMAIL_PII_RE.sub("[REDACTED_EMAIL]", str(text))
+    return _PHONE_PII_RE.sub("[REDACTED_PHONE]", cleaned)
 
 
 def _record_ai_inference_log(
@@ -185,8 +239,10 @@ def call_llm_messages(
     max_tokens: int | None = 220,
     timeout: float | None = 15.0,
     task: str = "general",
+    user_id: int | None = None,
+    feature: str | None = None,
 ) -> str:
-    """دالة موحدة لاستدعاء OpenAI (إن توفر المفتاح) مع التراجع التلقائي إلى Ollama المحلي."""
+    """دالة موحدة لاستدعاء OpenAI (عند تفعيل الميزة وموافقة المستخدم) مع التراجع إلى Ollama المحلي."""
     full_messages: list[dict[str, Any]] = []
     if system_instruction:
         full_messages.append({"role": "system", "content": system_instruction})
@@ -198,13 +254,25 @@ def call_llm_messages(
         recent_msgs = [m for m in full_messages if m.get("role") != "system"][-6:]
         full_messages = sys_msgs + recent_msgs
 
-    if settings.OPENAI_API_KEY and openai is not None:
+    resolved_feature = feature or _TASK_TO_FEATURE.get(task, "")
+    if (
+        openai is not None
+        and resolved_feature
+        and is_openai_feature_enabled(resolved_feature)
+        and has_cloud_ai_consent(user_id)
+    ):
+        egress_messages = [
+            {**m, "content": redact_pii_text(m["content"])}
+            if isinstance(m.get("content"), str)
+            else m
+            for m in full_messages
+        ]
         started = time.monotonic()
         try:
             client = openai.OpenAI(api_key=settings.OPENAI_API_KEY, timeout=timeout or 15.0)
             kwargs: dict[str, Any] = {
                 "model": "gpt-3.5-turbo",
-                "messages": full_messages,
+                "messages": egress_messages,
                 "temperature": temperature,
             }
             if max_tokens is not None:
@@ -251,6 +319,8 @@ def call_llm(
     max_tokens: int | None = 220,
     timeout: float | None = 15.0,
     task: str = "general",
+    user_id: int | None = None,
+    feature: str | None = None,
 ) -> str:
     """واجهة مختصرة لإرسال prompt + system_prompt عبر العميل الموحّد."""
     return call_llm_messages(
@@ -261,12 +331,17 @@ def call_llm(
         max_tokens=max_tokens,
         timeout=timeout,
         task=task,
+        user_id=user_id,
+        feature=feature,
     )
 
 
 def warmup_model_async() -> None:
     """يحمّل النموذج في الذاكرة في الخلفية دون تأخير إقلاع التطبيق."""
-    if not settings.OLLAMA_WARMUP or settings.OPENAI_API_KEY or settings.ENV == "testing":
+    all_cloud_enabled = all(
+        is_openai_feature_enabled(f) for f in ("cv", "interview", "voice", "recruiter")
+    )
+    if not settings.OLLAMA_WARMUP or all_cloud_enabled or settings.ENV == "testing":
         return
 
     def _run() -> None:

@@ -69,8 +69,11 @@ def create_checkout(
 @router.post("/cancel", response_model=CancelSubscriptionResponse)
 def cancel_subscription(current_user: User = Depends(get_current_user)):
     """إلغاء التجديد التلقائي للاشتراك والعودة للباقة المجانية."""
-    res = subscription_service.cancel_subscription(current_user)
-    return CancelSubscriptionResponse(**res)
+    try:
+        res = subscription_service.cancel_subscription(current_user)
+        return CancelSubscriptionResponse(**res)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
 
 
 @router.post("/webhook", status_code=status.HTTP_200_OK)

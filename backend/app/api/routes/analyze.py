@@ -25,7 +25,7 @@ from app.schemas.schemas import (
     SuggestedCourseOut,
 )
 from app.services.recommendation_engine import UserProfileInput, calculate_recommendation
-from app.services.subscription_service import check_user_quota
+from app.services.subscription_service import release_user_quota, reserve_user_quota
 
 router = APIRouter(tags=["Analysis"])
 
@@ -45,64 +45,69 @@ def analyze(payload: AnalyzeRequest, db: Session = Depends(get_db), current_user
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assessment not found")
 
     try:
-        check_user_quota(current_user, "analysis")
+        reserved = reserve_user_quota(current_user, "analysis")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
-    profile_input = UserProfileInput(
-        skills=extraction.get("skills", []),
-        projects=extraction.get("projects", []),
-        education=extraction.get("education", []),
-        experience=extraction.get("experience", []),
-        assessment_answers=assessment.get("answers", []),
-    )
+    try:
+        profile_input = UserProfileInput(
+            skills=extraction.get("skills", []),
+            projects=extraction.get("projects", []),
+            education=extraction.get("education", []),
+            experience=extraction.get("experience", []),
+            assessment_answers=assessment.get("answers", []),
+        )
 
-    # Eager loading: يمنع مشكلة الـ 141 استعلام N+1 ويختزلها إلى 3 استعلامات فقط
-    all_jobs = (
-        db.query(Job)
-        .options(joinedload(Job.skills).joinedload(JobSkill.skill))
-        .all()
-    )
-    all_questions = (
-        db.query(Question)
-        .options(selectinload(Question.options), joinedload(Question.related_skill))
-        .all()
-    )
+        # Eager loading: يمنع مشكلة الـ 141 استعلام N+1 ويختزلها إلى 3 استعلامات فقط
+        all_jobs = (
+            db.query(Job)
+            .options(joinedload(Job.skills).joinedload(JobSkill.skill))
+            .all()
+        )
+        all_questions = (
+            db.query(Question)
+            .options(selectinload(Question.options), joinedload(Question.related_skill))
+            .all()
+        )
 
-    result = calculate_recommendation(profile_input, all_jobs, all_questions, db)
+        result = calculate_recommendation(profile_input, all_jobs, all_questions, db)
 
-    analysis_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+        analysis_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
 
-    document = {
-        "analysis_id": analysis_id,
-        "user_id": current_user.id,
-        "date": now,
-        "career_score": result.career_score,
-        "career_dna": result.career_dna,
-        "top_jobs": [
-            {
-                "job_title": j.job_title,
-                "match_percentage": j.match_percentage,
-                "matched_skills": j.matched_skills,
-                "missing_skills": j.missing_skills,
-                "explanation": j.explanation,
-            }
-            for j in result.top_jobs
-        ],
-        "strengths": result.strengths,
-        "weaknesses": result.weaknesses,
-        "skill_gap": result.skill_gap,
-        "roadmap": result.roadmap,
-        "suggested_courses": result.suggested_courses,
-        "extraction_id": payload.extraction_id,
-        "assessment_id": payload.assessment_id,
-        "skills": profile_input.skills,
-        "completed_skills": [],  # Batch 2.2 — Skill Checklist تفاعلي على الـ Roadmap
-        "share_token": None,  # Batch 4.1 — لا يوجد رابط مشاركة حتى يطلبه المستخدم صراحة
-    }
-    # الحفظ التلقائي والفوري — ملاحظة الباك في الواجهة 8
-    analysis_results_collection.insert_one(document)
+        document = {
+            "analysis_id": analysis_id,
+            "user_id": current_user.id,
+            "date": now,
+            "career_score": result.career_score,
+            "career_dna": result.career_dna,
+            "top_jobs": [
+                {
+                    "job_title": j.job_title,
+                    "match_percentage": j.match_percentage,
+                    "matched_skills": j.matched_skills,
+                    "missing_skills": j.missing_skills,
+                    "explanation": j.explanation,
+                }
+                for j in result.top_jobs
+            ],
+            "strengths": result.strengths,
+            "weaknesses": result.weaknesses,
+            "skill_gap": result.skill_gap,
+            "roadmap": result.roadmap,
+            "suggested_courses": result.suggested_courses,
+            "extraction_id": payload.extraction_id,
+            "assessment_id": payload.assessment_id,
+            "skills": profile_input.skills,
+            "completed_skills": [],  # Batch 2.2 — Skill Checklist تفاعلي على الـ Roadmap
+            "share_token": None,  # Batch 4.1 — لا يوجد رابط مشاركة حتى يطلبه المستخدم صراحة
+        }
+        # الحفظ التلقائي والفوري — ملاحظة الباك في الواجهة 8
+        analysis_results_collection.insert_one(document)
+    except Exception:
+        if reserved:
+            release_user_quota(current_user.id, "analysis")
+        raise
     if current_user.benchmark_opt_in:
         invalidate_benchmark_cache()
 

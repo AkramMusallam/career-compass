@@ -15,6 +15,11 @@ from typing import Optional
 
 logger = logging.getLogger("career_compass.audio_metrics")
 
+MAX_AUDIO_SAMPLE_RATE = 16000
+MAX_DECODED_SECONDS = 180
+MAX_DECODED_SAMPLES = MAX_AUDIO_SAMPLE_RATE * MAX_DECODED_SECONDS
+MAX_DECODED_FRAMES = MAX_DECODED_SECONDS * 200
+
 
 @dataclass(frozen=True)
 class AcousticMetrics:
@@ -43,27 +48,45 @@ def extract_acoustic_metrics(audio_bytes: bytes) -> Optional[AcousticMetrics]:
         if audio_stream is None:
             return None
 
-        resampler = av.AudioResampler(format="flt", layout="mono", rate=16000)
+        resampler = av.AudioResampler(format="flt", layout="mono", rate=MAX_AUDIO_SAMPLE_RATE)
         chunks = []
-        for frame in container.decode(audio_stream):
-            resampled = resampler.resample(frame)
-            resampled_list = resampled if isinstance(resampled, list) else [resampled]
+        collected_samples = 0
+        frame_count = 0
+        cap_reached = False
+
+        def _append_resampled(resampled_item) -> bool:
+            nonlocal collected_samples
+            resampled_list = resampled_item if isinstance(resampled_item, list) else [resampled_item]
             for r_frame in resampled_list:
                 if r_frame is None:
                     continue
                 arr = r_frame.to_ndarray().reshape(-1).astype(np.float32)
-                if arr.size > 0:
-                    chunks.append(arr)
-
-        flushed = resampler.resample(None)
-        if flushed is not None:
-            flushed_list = flushed if isinstance(flushed, list) else [flushed]
-            for r_frame in flushed_list:
-                if r_frame is None:
+                if arr.size <= 0:
                     continue
-                arr = r_frame.to_ndarray().reshape(-1).astype(np.float32)
-                if arr.size > 0:
-                    chunks.append(arr)
+                remaining = MAX_DECODED_SAMPLES - collected_samples
+                if remaining <= 0:
+                    return True
+                if arr.size >= remaining:
+                    chunks.append(arr[:remaining])
+                    collected_samples += remaining
+                    return True
+                chunks.append(arr)
+                collected_samples += int(arr.size)
+            return False
+
+        for frame in container.decode(audio_stream):
+            frame_count += 1
+            if frame_count > MAX_DECODED_FRAMES:
+                cap_reached = True
+                break
+            if _append_resampled(resampler.resample(frame)):
+                cap_reached = True
+                break
+
+        if not cap_reached:
+            flushed = resampler.resample(None)
+            if flushed is not None:
+                _append_resampled(flushed)
 
         if not chunks:
             return None

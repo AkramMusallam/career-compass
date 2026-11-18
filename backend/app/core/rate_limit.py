@@ -3,7 +3,9 @@
 """
 from __future__ import annotations
 
+import hashlib
 import ipaddress
+import json
 import threading
 import time
 from collections import defaultdict, deque
@@ -117,7 +119,15 @@ class SlidingWindowRateLimiter:
 rate_limiter = SlidingWindowRateLimiter()
 
 # المسارات الحساسة للمصادقة (حماية من Brute-Force و Email Bombing)
-AUTH_PATHS = {"/login", "/register", "/forgot-password", "/reset-password"}
+AUTH_PATHS = {
+    "/login",
+    "/register",
+    "/forgot-password",
+    "/reset-password",
+    "/verify-email",
+    "/resend-verification",
+}
+ACCOUNT_RATE_LIMITED_PATHS = {"/login", "/forgot-password"}
 # المسارات الثقيلة والحساسة (حماية للذكاء الاصطناعي والقرص والمعالج وبوابات الدفع والشركات والدعم)
 HEAVY_PREFIXES = (
     "/upload-cv",
@@ -132,6 +142,40 @@ HEAVY_PREFIXES = (
     "/companies",
     "/support",
 )
+
+
+def _extract_account_identifier(raw_body: bytes) -> str:
+    if not raw_body or len(raw_body) > 8192:
+        return ""
+    try:
+        parsed = json.loads(raw_body)
+        if isinstance(parsed, dict):
+            email = str(parsed.get("email") or "").strip().lower()
+            if email:
+                return hashlib.sha256(email.encode("utf-8")).hexdigest()[:24]
+    except Exception:
+        pass
+    return ""
+
+
+def _apply_security_headers(response, path: str) -> None:
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Cache-Control", "no-store, no-cache, must-revalidate, private")
+    response.headers.setdefault("Pragma", "no-cache")
+    response.headers.setdefault("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)")
+    response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
+    if settings.ENV == "production" or path not in ("/docs", "/redoc"):
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+        )
+    if settings.ENV == "production":
+        response.headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains",
+        )
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -149,6 +193,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     content={"detail": "Too many authentication attempts. Please try again later."},
                     headers={"Retry-After": str(retry_after)},
                 )
+            if path in ACCOUNT_RATE_LIMITED_PATHS and request.method == "POST":
+                raw_body = await request.body()
+                acct_digest = _extract_account_identifier(raw_body)
+                if acct_digest:
+                    acct_allowed, acct_retry = rate_limiter.is_allowed(
+                        f"auth:account:{acct_digest}:{path}",
+                        max_requests=10,
+                        window_seconds=60.0,
+                    )
+                    if not acct_allowed:
+                        return JSONResponse(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            content={"detail": "Too many authentication attempts. Please try again later."},
+                            headers={"Retry-After": str(acct_retry)},
+                        )
         elif path.startswith(HEAVY_PREFIXES) and request.method in ("GET", "POST", "PUT", "PATCH", "DELETE"):
             subject_key = _extract_rate_limit_subject(request, client_ip)
             allowed, retry_after = rate_limiter.is_allowed(f"heavy:{subject_key}:{path}", max_requests=35, window_seconds=60.0)
@@ -166,20 +225,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """يضيف ترويسات الأمان القياسية (OWASP Secure Headers) لكل استجابات الـ API."""
 
     async def dispatch(self, request: Request, call_next):
+        if (
+            settings.ENV == "production"
+            and getattr(settings, "REQUIRE_HTTPS_IN_PRODUCTION", True)
+            and request.url.path != "/health"
+        ):
+            forwarded_proto = request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower()
+            if forwarded_proto == "http":
+                resp = JSONResponse(
+                    status_code=status.HTTP_426_UPGRADE_REQUIRED,
+                    content={"detail": "HTTPS is required in production."},
+                )
+                _apply_security_headers(resp, request.url.path)
+                return resp
+
         response = await call_next(request)
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        response.headers.setdefault("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)")
-        response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
-        if settings.ENV == "production" or request.url.path not in ("/docs", "/redoc"):
-            response.headers.setdefault(
-                "Content-Security-Policy",
-                "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
-            )
-        if settings.ENV == "production":
-            response.headers.setdefault(
-                "Strict-Transport-Security",
-                "max-age=31536000; includeSubDomains",
-            )
+        _apply_security_headers(response, request.url.path)
         return response

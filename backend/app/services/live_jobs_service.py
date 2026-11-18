@@ -238,8 +238,14 @@ def _fetch_adzuna_jobs(query_role: str, timeout: float) -> List[Dict[str, Any]]:
         f"&app_key={quote_plus(settings.ADZUNA_APP_KEY)}"
         f"&results_per_page=20&what={what}"
     )
-    resp = httpx.get(url, timeout=timeout)
-    resp.raise_for_status()
+    try:
+        resp = httpx.get(url, timeout=timeout)
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        status_code = exc.response.status_code if exc.response is not None else "unknown"
+        raise RuntimeError(f"Adzuna HTTP {status_code}") from None
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Adzuna request failed ({type(exc).__name__})") from None
     payload = resp.json() or {}
     out: List[Dict[str, Any]] = []
     for item in payload.get("results") or []:
@@ -313,7 +319,9 @@ def _write_cached_feed(cache_key: str, jobs: List[Dict[str, Any]]) -> None:
         pass
 
     try:
-        now_ts = datetime.now(timezone.utc).timestamp()
+        now_dt = datetime.now(timezone.utc)
+        now_ts = now_dt.timestamp()
+        expires_at_dt = datetime.fromtimestamp(now_ts + ttl, tz=timezone.utc)
         mongo_db["external_jobs_cache"].update_one(
             {"cache_key": cache_key},
             {
@@ -321,7 +329,8 @@ def _write_cached_feed(cache_key: str, jobs: List[Dict[str, Any]]) -> None:
                     "cache_key": cache_key,
                     "jobs": jobs,
                     "expires_at": now_ts + ttl,
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "expires_at_dt": expires_at_dt,
+                    "updated_at": now_dt.isoformat(),
                 }
             },
             upsert=True,
@@ -360,8 +369,13 @@ def fetch_live_external_jobs(target_role: str = "") -> List[Dict[str, Any]]:
                 if jid and jid not in seen_ids:
                     seen_ids.add(jid)
                     aggregated.append(item)
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code if exc.response is not None else "unknown"
+            logger.warning("External job feed '%s' unavailable (HTTP %s)", provider_name, status_code)
+        except httpx.HTTPError as exc:
+            logger.warning("External job feed '%s' unavailable (%s)", provider_name, type(exc).__name__)
         except Exception as exc:
-            logger.warning("External job feed '%s' unavailable: %s", provider_name, exc)
+            logger.warning("External job feed '%s' unavailable (%s)", provider_name, type(exc).__name__)
 
     if aggregated:
         _write_cached_feed(cache_key, aggregated)
