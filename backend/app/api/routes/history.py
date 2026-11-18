@@ -8,11 +8,12 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
+from app.core.config import settings
 from app.models.mysql_models import User
 from app.core.mongo import analysis_results_collection, feedback_collection
 from app.schemas.schemas import (
@@ -208,8 +209,22 @@ def update_roadmap_progress(
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
 
-    update_operator = {"$addToSet": {"completed_skills": payload.skill}} if payload.completed else {
-        "$pull": {"completed_skills": payload.skill}
+    roadmap_skill_map = {
+        skill.strip(): skill
+        for month in (doc.get("roadmap") or [])
+        if isinstance(month, dict)
+        for skill in (month.get("skills_to_learn") or [])
+        if isinstance(skill, str) and skill.strip()
+    }
+    matched_skill = roadmap_skill_map.get(payload.skill.strip())
+    if matched_skill is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Skill is not part of this analysis roadmap",
+        )
+
+    update_operator = {"$addToSet": {"completed_skills": matched_skill}} if payload.completed else {
+        "$pull": {"completed_skills": matched_skill}
     }
     analysis_results_collection.update_one({"analysis_id": analysis_id, "user_id": current_user.id}, update_operator)
 
@@ -217,9 +232,20 @@ def update_roadmap_progress(
     return RoadmapProgressResponse(analysis_id=analysis_id, completed_skills=updated_doc.get("completed_skills", []))
 
 
+def _coerce_utc(value) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value)
+            return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
 # ============================================================
 # Batch 4.1 — B4.1/B4.3: مشاركة رابط عام للنتائج
-# قرار الخصوصية المعتمد: الرابط لا ينتهي إلا بإلغاء يدوي صريح من المستخدم (لا مهلة زمنية).
 # ============================================================
 
 
@@ -229,16 +255,17 @@ def create_share_link(analysis_id: str, current_user: User = Depends(get_current
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
 
-    # عملية idempotent: إذا كان هناك رابط مُفعَّل مسبقاً، نعيده كما هو بدلاً من توليد رابط جديد
-    # يُبطل الرابط القديم الذي ربما شاركه المستخدم فعلياً مع أحد.
+    now = datetime.now(timezone.utc)
     existing_token = doc.get("share_token")
-    if existing_token:
+    expires_at = _coerce_utc(doc.get("share_expires_at"))
+    if existing_token and expires_at is not None and expires_at > now:
         return ShareCreateResponse(share_token=existing_token, already_existed=True)
 
     new_token = secrets.token_urlsafe(24)
+    new_expires_at = now + timedelta(days=settings.SHARE_LINK_EXPIRE_DAYS)
     analysis_results_collection.update_one(
         {"analysis_id": analysis_id, "user_id": current_user.id},
-        {"$set": {"share_token": new_token, "shared_at": datetime.now(timezone.utc)}},
+        {"$set": {"share_token": new_token, "shared_at": now, "share_expires_at": new_expires_at}},
     )
     return ShareCreateResponse(share_token=new_token, already_existed=False)
 
@@ -252,6 +279,6 @@ def revoke_share_link(analysis_id: str, current_user: User = Depends(get_current
     # إلغاء idempotent: النجاح حتى لو لم يكن هناك رابط مُفعَّل أصلاً
     analysis_results_collection.update_one(
         {"analysis_id": analysis_id, "user_id": current_user.id},
-        {"$unset": {"share_token": "", "shared_at": ""}},
+        {"$unset": {"share_token": "", "shared_at": "", "share_expires_at": ""}},
     )
     return ShareRevokeResponse(status="revoked")

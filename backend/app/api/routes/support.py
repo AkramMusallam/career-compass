@@ -60,6 +60,7 @@ def grant_support(payload: SupportGrantRequest, user: User = Depends(require_pla
     grant = {"grant_id": str(uuid4()), "candidate_id": payload.candidate_id,
              "candidate_user_id": extraction["user_id"], "owner_id": user.id,
              "reason": payload.reason, "consent_evidence": payload.consent_evidence,
+             "candidate_approved": False, "candidate_approved_at": None,
              "created_at": now_iso, "expires_at": (now + timedelta(hours=payload.hours)).isoformat(),
              "revoked": False}
     mongo_db["support_grants"].insert_one(grant)
@@ -100,6 +101,34 @@ def grant_access_log(grant_id: str, user: User = Depends(get_current_user)):
     return [public_grant(record) for record in mongo_db["support_access_log"].find({"grant_id": grant_id})]
 
 
+@router.post("/grants/{grant_id}/approve")
+def approve_grant(grant_id: str, user: User = Depends(get_current_user)):
+    now_iso = datetime.now(timezone.utc).isoformat()
+    grant = mongo_db["support_grants"].find_one_and_update(
+        {
+            "grant_id": grant_id,
+            "candidate_user_id": user.id,
+            "revoked": False,
+            "expires_at": {"$gt": now_iso},
+        },
+        {"$set": {"candidate_approved": True, "candidate_approved_at": now_iso}},
+        return_document=True,
+    )
+    if not grant:
+        raise HTTPException(status_code=404, detail="Active support grant not found")
+    mongo_db["logs"].insert_one(
+        {
+            "event": "support_grant_approved",
+            "grant_id": grant_id,
+            "candidate_user_id": user.id,
+            "candidate_id": grant["candidate_id"],
+            "timestamp": now_iso,
+        }
+    )
+    logger.info("Support grant approved grant_id=%s candidate_user_id=%s", grant_id, user.id)
+    return public_grant(grant)
+
+
 @router.delete("/grants/{grant_id}")
 def revoke_grant(grant_id: str, user: User = Depends(get_current_user)):
     is_owner = bool(mongo_db["platform_owner"].find_one({"_id": "owner", "user_id": user.id}))
@@ -122,6 +151,8 @@ def support_profile(grant_id: str, owner: User = Depends(require_platform_owner)
                                                  "revoked": False, "expires_at": {"$gt": now}})
     if not grant:
         raise HTTPException(status_code=404, detail="Active support grant not found")
+    if grant.get("candidate_approved") is not True:
+        raise HTTPException(status_code=403, detail="Candidate has not approved this support grant")
     extraction = mongo_db["extractions"].find_one({"extraction_id": grant["candidate_id"], "user_id": grant["candidate_user_id"]})
     candidate = db.query(User).filter(User.id == grant["candidate_user_id"]).first()
     if not extraction or not candidate:
