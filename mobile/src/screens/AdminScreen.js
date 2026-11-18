@@ -30,7 +30,10 @@ export default function AdminScreen({ token, onBack }) {
       { text: label, style: status === "approved" ? "default" : "destructive", onPress: async () => {
         setBusy(true); setError(""); setNotice("");
         try {
-          const updated = await companyRequest(token, `/companies/${encodeURIComponent(company.company_id)}/status`, null, "PATCH", { status });
+          const payload = company.review_version !== undefined
+            ? { status, expected_version: company.review_version }
+            : { status };
+          const updated = await companyRequest(token, `/companies/${encodeURIComponent(company.company_id)}/status`, null, "PATCH", payload);
           setCompanies((previous) => previous.map((item) => item.company_id === updated.company_id ? updated : item));
           setNotice(`تم تحديث حالة ${updated.name}.`);
         } catch { setError("تعذر تأكيد تحديث الحالة. أعد تحميل القائمة للتحقق."); }

@@ -12,6 +12,7 @@ const CompareAnalyses = lazy(() => import("./pages/analysis/CompareAnalyses"));
 const Dashboard = lazy(() => import("./pages/dashboard/Dashboard"));
 const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
+const VerifyEmail = lazy(() => import("./pages/auth/VerifyEmail"));
 const History = lazy(() => import("./pages/dashboard/History"));
 const Loading = lazy(() => import("./pages/analysis/Loading"));
 const Login = lazy(() => import("./pages/auth/Login"));
@@ -69,8 +70,12 @@ export default function App() {
           }
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/verify-email/:token" element={<VerifyEmail />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         {/* Batch 4.1 (F4.2) — صفحة عامة بدون تسجيل دخول، خارج ProtectedRoute عمداً */}
+        <Route path="/shared" element={<SharedResults />} />
         <Route path="/shared/:shareToken" element={<SharedResults />} />
 
         <Route
@@ -91,6 +96,7 @@ export default function App() {
           <Route path="/history" element={<History />} />
           <Route path="/recruiter" element={<RecruiterPortal />} />
           <Route path="/companies" element={<Companies />} />
+          <Route path="/company-invitation" element={<AcceptInvitation />} />
           <Route path="/company-invitation/:token" element={<AcceptInvitation />} />
           <Route path="/support-access" element={<SupportAccess />} />
           <Route path="/admin" element={<AdminPortal />} />

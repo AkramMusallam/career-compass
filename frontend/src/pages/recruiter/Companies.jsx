@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import apiClient, { getErrorMessage } from "../../api/client";
+import { updateCompanyReviewStatus } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
 
@@ -58,10 +59,10 @@ export default function Companies() {
     } finally { setBusy(false); }
   };
 
-  const update = async (companyId, status) => {
+  const update = async (company, status) => {
     setBusy(true);
     try {
-      await apiClient.patch(`/companies/${companyId}/status`, { status });
+      await updateCompanyReviewStatus(company.company_id, status, company.review_version);
       await load();
     } catch (err) {
       setError(getErrorMessage(err, "تعذر تحديث حالة الشركة"));
@@ -166,7 +167,7 @@ export default function Companies() {
         {review.map((company) => <div key={company.company_id} className="border-b pb-3">
           <p>{company.name} — {labels[company.status]} — رقم المالك: {company.owner_id}</p>
           <div className="flex flex-wrap gap-2 mt-2">
-            {["approved", "rejected", "suspended"].map((status) => <button key={status} type="button" disabled={busy || company.status === status} className="rounded border px-3 py-1 disabled:opacity-50" onClick={() => update(company.company_id, status)}>{labels[status]}</button>)}
+            {["approved", "rejected", "suspended"].map((status) => <button key={status} type="button" disabled={busy || company.status === status} className="rounded border px-3 py-1 disabled:opacity-50" onClick={() => update(company, status)}>{labels[status]}</button>)}
           </div>
         </div>)}
       </section>}

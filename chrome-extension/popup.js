@@ -39,14 +39,14 @@ function validateJwtToken(raw) {
     return {
       valid: false,
       reason: "empty",
-      message: "يرجى إدخال رمز الجلسة (JWT Access Token).",
+      message: "يرجى إدخال رمز مطابقة الإضافة (Extension Match-Only Token) من صفحة الإعدادات.",
     };
   }
   if (EMAIL_PATTERN.test(token)) {
     return {
       valid: false,
       reason: "email",
-      message: "يرجى إدخال رمز الجلسة (JWT Access Token) وليس البريد الإلكتروني.",
+      message: "يرجى إدخال رمز مطابقة الإضافة (Extension Token) وليس البريد الإلكتروني.",
     };
   }
 
@@ -87,11 +87,15 @@ function validateJwtToken(raw) {
     };
   }
 
-  if (payload.type !== undefined && payload.type !== "access") {
+  if (
+    payload.type !== "extension_match" ||
+    (payload.scope !== undefined && payload.scope !== "extension:match")
+  ) {
     return {
       valid: false,
       reason: "wrong_type",
-      message: "هذا الرمز مخصص لغرض آخر وليس رمز دخول (Access Token).",
+      message:
+        "هذا الرمز غير مخصص لإضافة المتصفح. يرجى توليد رمز مطابقة خاص بالإضافة (Extension Match-Only Token) من صفحة الإعدادات.",
     };
   }
 
@@ -148,17 +152,37 @@ function isLinkedInJobsUrl(url) {
   }
 }
 
-async function getStoredToken() {
-  const result = await chrome.storage.local.get("career_compass_token");
-  return normalizeToken(result.career_compass_token || "");
+async function getStoredTokenState() {
+  const result = await chrome.storage.local.get([
+    "career_compass_token",
+    "career_compass_token_origin",
+  ]);
+  return {
+    token: normalizeToken(result.career_compass_token || ""),
+    tokenOrigin:
+      typeof result.career_compass_token_origin === "string"
+        ? result.career_compass_token_origin.trim().replace(/\/$/, "")
+        : "",
+  };
 }
 
-async function setStoredToken(token) {
-  await chrome.storage.local.set({ career_compass_token: token });
+async function getStoredToken() {
+  const state = await getStoredTokenState();
+  return state.token;
+}
+
+async function setStoredToken(token, tokenOrigin) {
+  await chrome.storage.local.set({
+    career_compass_token: token,
+    career_compass_token_origin: tokenOrigin,
+  });
 }
 
 async function clearStoredToken() {
-  await chrome.storage.local.remove("career_compass_token");
+  await chrome.storage.local.remove([
+    "career_compass_token",
+    "career_compass_token_origin",
+  ]);
 }
 
 function syncAuthUi(token) {
@@ -357,9 +381,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Keep parsed.normalized if server is temporarily offline or self-signed cert blocks probe
       }
 
+      const prevSettings = await chrome.storage.local.get("api_base");
+      const previousBase = (prevSettings.api_base || API_BASE).trim().replace(/\/$/, "");
+
       await chrome.storage.local.set({ api_base: resolvedBase });
       document.getElementById("server-url").value = resolvedBase;
-      showStatus("تم حفظ عنوان الخادم بنجاح!", "success");
+
+      if (resolvedBase !== previousBase) {
+        await clearStoredToken();
+        syncAuthUi("");
+        document.getElementById("results-box")?.classList.add("hidden");
+        document.getElementById("detected-job-box")?.classList.remove("hidden");
+        showStatus(
+          "تم تغيير عنوان الخادم ومسح الرمز السابق. يرجى إعادة ربط الإضافة برمز مطابقة جديد للخادم الحالي.",
+          "info"
+        );
+      } else {
+        showStatus("تم حفظ عنوان الخادم بنجاح!", "success");
+      }
     } catch {
       showStatus(
         "يرجى إدخال عنوان HTTPS صالح ومكتمل (أو http://localhost:8000 للتطوير المحلي).",
@@ -368,13 +407,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  const rawStoredToken = await getStoredToken();
+  let initialValidatedBase = API_BASE;
+  let initialParsedOrigin = new URL(API_BASE).origin;
+  try {
+    const parsedInitial = parseValidApiBase(settings.api_base || API_BASE);
+    initialValidatedBase = parsedInitial.normalized;
+    initialParsedOrigin = parsedInitial.origin;
+  } catch {
+    // Keep default API_BASE fallback
+  }
+
+  const { token: rawStoredToken, tokenOrigin } = await getStoredTokenState();
   if (rawStoredToken) {
     const check = validateJwtToken(rawStoredToken);
-    if (!check.valid) {
+    const originMismatch =
+      !tokenOrigin ||
+      tokenOrigin !== initialValidatedBase ||
+      (check.valid && check.payload?.origin && check.payload.origin !== initialParsedOrigin);
+    if (!check.valid || originMismatch) {
       await clearStoredToken();
       syncAuthUi("");
-      showStatus(check.message, "error");
+      showStatus(
+        !check.valid
+          ? check.message
+          : "تغيّر عنوان الخادم عن الرمز المحفوظ. يرجى إعادة ربط الإضافة برمز جديد.",
+        "error"
+      );
     } else {
       syncAuthUi(check.token);
     }
@@ -393,18 +451,57 @@ document.addEventListener("DOMContentLoaded", async () => {
       inputEl.focus();
       return;
     }
-    await setStoredToken(check.token);
+
+    let parsedCurrentBase;
+    try {
+      const storedBase = await chrome.storage.local.get("api_base");
+      parsedCurrentBase = parseValidApiBase(storedBase.api_base || API_BASE);
+    } catch {
+      showStatus("عنوان الخادم المحفوظ غير صالح. يرجى تحديث عنوان الخادم أولاً.", "error");
+      return;
+    }
+
+    if (check.payload?.origin && check.payload.origin !== parsedCurrentBase.origin) {
+      showStatus(
+        "هذا الرمز مرتبط بخادم مختلف عن الخادم المحدد حالياً. يرجى توليد رمز من الخادم الحالي.",
+        "error"
+      );
+      inputEl.focus();
+      return;
+    }
+
+    await setStoredToken(check.token, parsedCurrentBase.normalized);
     inputEl.value = "";
     syncAuthUi(check.token);
-    showStatus("تم حفظ رمز الجلسة وربط الحساب بنجاح.", "success");
+    showStatus("تم حفظ رمز المطابقة وربط الحساب بالخادم الحالي بنجاح.", "success");
   });
 
   document.getElementById("logout-btn")?.addEventListener("click", async () => {
+    const { token: currentToken, tokenOrigin: currentTokenOrigin } = await getStoredTokenState();
+    try {
+      const storedBase = await chrome.storage.local.get("api_base");
+      const parsedBase = parseValidApiBase(storedBase.api_base || API_BASE);
+      if (currentToken && currentTokenOrigin === parsedBase.normalized) {
+        const logoutController = new AbortController();
+        const logoutTimeout = setTimeout(() => logoutController.abort(), 3000);
+        try {
+          await fetch(`${parsedBase.normalized}/logout`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${currentToken}` },
+            signal: logoutController.signal,
+          });
+        } finally {
+          clearTimeout(logoutTimeout);
+        }
+      }
+    } catch {
+      // Ignore network/scope errors on best-effort server logout and always clear local token
+    }
     await clearStoredToken();
     syncAuthUi("");
     document.getElementById("results-box").classList.add("hidden");
     document.getElementById("detected-job-box").classList.remove("hidden");
-    showStatus("تم مسح رمز الجلسة. أدخل رمزاً جديداً للمتابعة.", "info");
+    showStatus("تم مسح رمز الإضافة. أدخل رمزاً جديداً للمتابعة.", "info");
     document.getElementById("token-input")?.focus();
   });
 
@@ -460,7 +557,7 @@ async function executeJobAnalysis() {
   const detected = document.getElementById("detected-job-box");
   const analyzeBtn = document.getElementById("analyze-btn");
 
-  const rawToken = await getStoredToken();
+  const { token: rawToken, tokenOrigin } = await getStoredTokenState();
   const tokenCheck = validateJwtToken(rawToken);
   if (!tokenCheck.valid) {
     await clearStoredToken();
@@ -496,6 +593,22 @@ async function executeJobAnalysis() {
     return;
   }
 
+  const validatedApiBase = parsedApiBase.normalized;
+  if (
+    !tokenOrigin ||
+    tokenOrigin !== validatedApiBase ||
+    (tokenCheck.payload?.origin && tokenCheck.payload.origin !== parsedApiBase.origin)
+  ) {
+    await clearStoredToken();
+    syncAuthUi("");
+    showStatus(
+      "الرمز المحفوظ غير مرتبط بالخادم الحالي. يرجى إعادة ربط الإضافة برمز جديد للخادم المحدد.",
+      "error"
+    );
+    document.getElementById("token-input")?.focus();
+    return;
+  }
+
   if (
     parsedApiBase.protocol === "https:" &&
     typeof chrome.permissions?.contains === "function"
@@ -516,7 +629,6 @@ async function executeJobAnalysis() {
       return;
     }
   }
-  const validatedApiBase = parsedApiBase.normalized;
 
   if (analyzeBtn) analyzeBtn.disabled = true;
   detected.classList.add("hidden");

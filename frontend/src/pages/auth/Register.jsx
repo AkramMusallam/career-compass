@@ -54,10 +54,11 @@ export default function Register() {
       : "",
     password:
       password.length < 8 ||
+      new TextEncoder().encode(password).length > 72 ||
       !/[A-Z]/.test(password) ||
       !/[a-z]/.test(password) ||
       !/[0-9]/.test(password)
-        ? "8 أحرف على الأقل، تحتوي حرفاً كبيراً وصغيراً ورقماً"
+        ? "8 أحرف على الأقل (وحتى 72 بايت)، تحتوي حرفاً كبيراً وصغيراً ورقماً"
         : "",
     confirmPassword:
       confirmPassword !== password ? "كلمتا المرور غير متطابقتين" : "",
@@ -82,7 +83,16 @@ export default function Register() {
     setErrorMessage("");
     try {
       await register(fullName, email, password);
-      await login(email, password);
+      try {
+        await login(email, password);
+      } catch (loginError) {
+        if (loginError?.response?.status === 403) {
+          showToast("تم إنشاء الحساب! يرجى تأكيد بريدك الإلكتروني عبر الرابط المرسل قبل تسجيل الدخول.");
+          navigate("/login", { state: location.state, replace: true });
+          return;
+        }
+        throw loginError;
+      }
       showToast("تم إنشاء الحساب بنجاح، مرحباً بك");
       const from = location.state?.from;
       const redirectTo = from?.pathname

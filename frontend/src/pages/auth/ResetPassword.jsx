@@ -6,9 +6,13 @@ import CompassLogo from "../../components/layout/CompassLogo";
 import { resetPassword } from "../../api/endpoints";
 import { getErrorMessage } from "../../api/client";
 import { useToast } from "../../context/ToastContext";
+import { readFragmentToken } from "../../utils/fragmentToken";
 
 export default function ResetPassword() {
-  const { token } = useParams();
+  const { token: routeToken } = useParams();
+  const [token] = useState(() =>
+    readFragmentToken({ paramToken: routeToken, cleanPath: "/reset-password" })
+  );
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -17,14 +21,16 @@ export default function ResetPassword() {
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
 
+  const passwordBytes = new TextEncoder().encode(newPassword).length;
   const passwordValid =
     newPassword.length >= 8 &&
+    passwordBytes <= 72 &&
     /[A-Z]/.test(newPassword) &&
     /[a-z]/.test(newPassword) &&
     /[0-9]/.test(newPassword);
   const passwordsMatch =
     newPassword === confirmPassword && confirmPassword.length > 0;
-  const canSubmit = passwordValid && passwordsMatch && status !== "loading";
+  const canSubmit = Boolean(token) && passwordValid && passwordsMatch && status !== "loading";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -67,6 +73,12 @@ export default function ResetPassword() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 text-start">
+            {!token && (
+              <div className="alert-banner-error">
+                <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                <span>رابط استعادة كلمة المرور غير مكتمل أو مفقود.</span>
+              </div>
+            )}
             {status === "error" && (
               <div className="alert-banner-error">
                 <AlertCircle size={18} className="shrink-0 mt-0.5" />

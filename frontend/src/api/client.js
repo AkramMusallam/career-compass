@@ -39,6 +39,7 @@ const PUBLIC_AUTH_PATHS = [
   "/register",
   "/forgot-password",
   "/reset-password",
+  "/verify-email",
   "/shared",
 ];
 

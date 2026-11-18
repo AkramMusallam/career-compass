@@ -32,7 +32,7 @@ test('registration preserves company and invitation destinations', { timeout: 60
       });
       const page = await context.newPage();
       if (invited) {
-        await page.goto(base + '/company-invitation/test-token');
+        await page.goto(base + '/company-invitation#token=test-token');
         await page.waitForURL('**/login');
         await page.locator('a[href="/register"]').click();
       } else {
@@ -45,9 +45,11 @@ test('registration preserves company and invitation destinations', { timeout: 60
       await page.locator('#confirmPassword').fill('Password123!');
       await page.locator('input[type="checkbox"]').check();
       await page.locator('form button[type="submit"]').click();
-      await page.waitForURL(invited ? '**/company-invitation/test-token' : '**/companies');
+      await page.waitForURL(invited ? '**/company-invitation' : '**/companies');
       await page.waitForTimeout(500);
-      assert.equal(new URL(page.url()).pathname, invited ? '/company-invitation/test-token' : '/companies');
+      const finalUrl = new URL(page.url());
+      assert.equal(finalUrl.pathname, invited ? '/company-invitation' : '/companies');
+      assert.equal(finalUrl.hash, '');
       await context.close();
     }
   } finally {

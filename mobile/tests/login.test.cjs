@@ -176,3 +176,18 @@ test('recruiter sharing is read and changed explicitly for the signed-in user', 
   assert.deepEqual(JSON.parse(calls[1].options.body), { opted_in: true });
   assert.deepEqual(JSON.parse(calls[2].options.body), { opted_in: false });
 });
+
+test('logout calls POST /logout with bearer token and tolerates server errors', async () => {
+  const calls = [];
+  const { logout } = loadLogin(async (url, options) => {
+    calls.push({ url, options });
+    return { ok: true };
+  });
+  await logout('session-jwt');
+  assert.match(calls[0].url, /\/logout$/);
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer session-jwt');
+
+  const failing = loadLogin(async () => { throw new Error('offline'); });
+  await failing.logout('session-jwt');
+});

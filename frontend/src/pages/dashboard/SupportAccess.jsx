@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import apiClient, { getErrorMessage } from "../../api/client";
+import { approveSupportGrant } from "../../api/endpoints";
 
 export default function SupportAccess() {
   const [owner, setOwner] = useState(false);
@@ -42,6 +43,10 @@ export default function SupportAccess() {
   const revoke = async (id) => {
     try { await apiClient.delete(`/support/grants/${id}`); await load(); setMessage("تم إلغاء صلاحية الدعم."); }
     catch (error) { setMessage(getErrorMessage(error, "تعذر إلغاء الصلاحية")); }
+  };
+  const approve = async (id) => {
+    try { await approveSupportGrant(id); await load(); setMessage("تمت الموافقة على صلاحية الدعم."); }
+    catch (error) { setMessage(getErrorMessage(error, "تعذر اعتماد الموافقة")); }
   };
 
   return <main className="mx-auto max-w-3xl space-y-6 p-6" dir="rtl">
@@ -164,14 +169,23 @@ export default function SupportAccess() {
       )}
     </section>}
     {owner && <section className="card space-y-2"><h2 className="font-bold">سجل صلاحيات الدعم</h2>
-      {ownerGrants.map((grant) => <div key={grant.grant_id} className="border-b pb-2"><p>{grant.candidate_id} — {grant.reason} — {grant.expires_at} {grant.revoked && "— ملغاة"}</p>
+      {ownerGrants.map((grant) => <div key={grant.grant_id} className="border-b pb-2"><p>{grant.candidate_id} — {grant.reason} — {grant.expires_at} {grant.revoked ? "— ملغاة" : grant.candidate_approved ? "— موافق عليها من المرشح" : "— بانتظار موافقة المرشح"}</p>
         {!grant.revoked && <><button className="underline ml-3" onClick={() => { setCreated(grant); setProfile(null); }}>اختيار</button><button className="underline" onClick={() => revoke(grant.grant_id)}>إلغاء</button></>}
       </div>)}
     </section>}
     <section className="card space-y-3"><h2 className="font-bold">صلاحيات الدعم لملفي</h2>
       {!grants.length && <p>لا توجد صلاحيات مسجلة.</p>}
-      {grants.map((grant) => <div key={grant.grant_id} className="border-b pb-2"><p>{grant.reason} — تنتهي {grant.expires_at}</p>
-        {grant.revoked ? <p>ملغاة</p> : <button className="underline" onClick={() => revoke(grant.grant_id)}>إلغاء الصلاحية</button>}
+      {grants.map((grant) => <div key={grant.grant_id} className="border-b pb-2 space-y-1"><p>{grant.reason} — تنتهي {grant.expires_at}</p>
+        {grant.revoked ? <p>ملغاة</p> : (
+          <div className="flex flex-wrap gap-3">
+            {!grant.candidate_approved ? (
+              <button type="button" className="btn-primary !py-1 !px-3 text-xs" onClick={() => approve(grant.grant_id)}>الموافقة على صلاحية الدعم</button>
+            ) : (
+              <span className="text-xs font-bold text-secondary-700">تمت الموافقة</span>
+            )}
+            <button type="button" className="underline text-xs" onClick={() => revoke(grant.grant_id)}>إلغاء الصلاحية</button>
+          </div>
+        )}
       </div>)}
     </section>
   </main>;
