@@ -39,11 +39,14 @@ class User(Base):
     """جدول المستخدمين — الواجهة 1 (Login) و 2 (Register) و 10 (Profile)."""
 
     __tablename__ = "users"
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    email_verified = Column(Boolean, default=False, nullable=False)
+    token_version = Column(Integer, default=1, nullable=False)
     # Batch 4.2 — مشاركة اختيارية (Opt-in) ببيانات Career Score ضمن متوسط الأقران المجهول
     benchmark_opt_in = Column(Boolean, default=False, nullable=False)
     # Batch 5.6 — تفعيل/تعطيل التنبيهات البريدية الأسبوعية بحالة تقدّم الـ Roadmap (افتراضياً

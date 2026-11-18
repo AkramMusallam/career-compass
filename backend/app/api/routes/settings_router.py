@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.mongo import mongo_db
 from app.core.benchmark_cache import invalidate_benchmark_cache
-from app.core.security import bump_user_token_version, get_current_user, hash_password, verify_password
+from app.core.security import (
+    bump_user_token_version,
+    get_current_user,
+    get_user_token_version,
+    hash_password,
+    verify_password,
+)
 from app.models.mysql_models import User
 from app.schemas.schemas import (
     BenchmarkOptInRequest,
@@ -29,12 +35,42 @@ def get_recruiter_consent(current_user: User = Depends(get_current_user)):
 
 
 @router.put("/settings/recruiter-consent")
-def update_recruiter_consent(payload: BenchmarkOptInRequest, current_user: User = Depends(get_current_user)):
+def update_recruiter_consent(
+    payload: BenchmarkOptInRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
     consent = mongo_db["recruiter_consent"]
     if payload.opted_in:
-        consent.update_one({"_id": current_user.id}, {"$set": {"enabled": True}}, upsert=True)
+        consent.update_one({"_id": user.id}, {"$set": {"enabled": True}}, upsert=True)
     else:
-        consent.delete_one({"_id": current_user.id})
+        consent.delete_one({"_id": user.id})
+    return {"opted_in": payload.opted_in}
+
+
+@router.get("/settings/cloud-ai-consent")
+def get_cloud_ai_consent(current_user: User = Depends(get_current_user)):
+    doc = mongo_db["cloud_ai_consent"].find_one({"_id": current_user.id})
+    return {"opted_in": bool(doc and doc.get("enabled") is True)}
+
+
+@router.put("/settings/cloud-ai-consent")
+def update_cloud_ai_consent(
+    payload: BenchmarkOptInRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
+    consent = mongo_db["cloud_ai_consent"]
+    if payload.opted_in:
+        consent.update_one({"_id": user.id}, {"$set": {"enabled": True}}, upsert=True)
+    else:
+        consent.delete_one({"_id": user.id})
     return {"opted_in": payload.opted_in}
 
 
@@ -44,13 +80,26 @@ def update_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not verify_password(payload.current_password, current_user.hashed_password):
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
+    if not verify_password(payload.current_password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
-    user = db.merge(current_user)
+    current_tv = get_user_token_version(user.id, getattr(user, "token_version", 1))
+    new_tv = current_tv + 1
     user.hashed_password = hash_password(payload.new_password)
-    db.commit()
-    bump_user_token_version(user.id)
+    user.token_version = new_tv
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    try:
+        bump_user_token_version(user.id, min_version=new_tv)
+    except Exception:
+        pass
 
     return PasswordUpdateResponse(status="password_updated")
 
@@ -62,7 +111,9 @@ def update_benchmark_opt_in(
     current_user: User = Depends(get_current_user),
 ):
     """Batch 4.2 — تفعيل/تعطيل مشاركة Career Score ضمن متوسط الأقران المجهول (Opt-in)."""
-    user = db.merge(current_user)
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
     user.benchmark_opt_in = payload.opted_in
     db.commit()
     invalidate_benchmark_cache()
@@ -77,7 +128,9 @@ def update_notifications_preference(
     current_user: User = Depends(get_current_user),
 ):
     """Batch 5.6 (F5.2) — تفعيل/تعطيل التنبيهات البريدية الأسبوعية بحالة تقدّم الـ Roadmap."""
-    user = db.merge(current_user)
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
     user.notifications_opt_in = payload.notifications_opt_in
     db.commit()
 

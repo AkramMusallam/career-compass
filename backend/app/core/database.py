@@ -82,6 +82,10 @@ def init_db() -> None:
             )
         if "notifications_opt_in" not in existing_cols:
             alter_statements.append("ALTER TABLE users ADD COLUMN notifications_opt_in BOOLEAN NOT NULL DEFAULT TRUE")
+        if "email_verified" not in existing_cols:
+            alter_statements.append("ALTER TABLE users ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT FALSE")
+        if "token_version" not in existing_cols:
+            alter_statements.append("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 1")
         if alter_statements:
             with engine.begin() as conn:
                 for stmt in alter_statements:

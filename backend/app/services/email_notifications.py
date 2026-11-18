@@ -168,8 +168,8 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str) -> b
 
 
 def send_password_reset_email(to_email: str, user_name: str, token: str) -> bool:
-    """Send a password reset link to the user."""
-    reset_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/reset-password/{token}"
+    """Send a password reset link to the user using a URL fragment so the token stays out of HTTP logs."""
+    reset_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/reset-password#token={token}"
     safe_reset_url = html.escape(reset_url, quote=True)
     subject = "استعادة كلمة المرور - Career Compass"
     safe_name = html.escape(user_name, quote=True)
@@ -311,4 +311,33 @@ def send_registration_welcome_email(to_email: str, user_name: str) -> bool:
   </div>
 </div>'''
     text_body = f"أهلاً بك يا {user_name} في Career Compass!\nخطوتك الأولى هي رفع سيرتك الذاتية ليقوم الذكاء الاصطناعي بتحليلها.\nنتمنى لك التوفيق!"
+    return send_email(to_email, subject, html_body, text_body)
+
+
+def send_email_verification_email(to_email: str, user_name: str, token: str) -> bool:
+    """Send a mailbox-ownership verification link using a URL fragment."""
+    verify_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/verify-email#token={token}"
+    safe_verify_url = html.escape(verify_url, quote=True)
+    safe_name = html.escape(user_name, quote=True)
+    subject = "تأكيد البريد الإلكتروني - Career Compass"
+    html_body = f"""<div dir="rtl" style="font-family: Arial, Tahoma, sans-serif; max-width: 560px; margin: 0 auto; color: #1E293B;">
+  <div style="background: {PRIMARY_COLOR}; padding: 20px; border-radius: 12px 12px 0 0; text-align: center;">
+    <h1 style="color: #ffffff; margin: 0; font-size: 20px;">Career Compass</h1>
+  </div>
+  <div style="border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 12px 12px; padding: 24px;">
+    <p style="font-size: 16px;">مرحباً {safe_name}،</p>
+    <p style="font-size: 14px; line-height: 1.8;">يرجى تأكيد ملكية بريدك الإلكتروني لإكمال تفعيل حسابك وقبول دعوات الشركات:</p>
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="{safe_verify_url}" style="background: {SECONDARY_COLOR}; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">تأكيد البريد الإلكتروني</a>
+    </div>
+    <p style="font-size: 12px; color: #64748B; line-height: 1.6;">
+      هذا الرابط صالح لمدة 24 ساعة.
+    </p>
+  </div>
+</div>"""
+    text_body = (
+        f"مرحباً {user_name}،\n\n"
+        f"يرجى تأكيد بريدك الإلكتروني عبر الرابط التالي:\n{verify_url}\n\n"
+        "هذا الرابط صالح لمدة 24 ساعة."
+    )
     return send_email(to_email, subject, html_body, text_body)

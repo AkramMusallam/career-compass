@@ -17,10 +17,22 @@ from app.seed.skills_data import normalize_and_dedupe_skills
 # ============================================================
 
 
+def _validate_password_policy(v: str) -> str:
+    if len(v.encode("utf-8")) > 72:
+        raise ValueError("Password must not exceed 72 UTF-8 bytes")
+    if not any(c.isupper() for c in v):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in v):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in v):
+        raise ValueError("Password must contain at least one digit")
+    return v
+
+
 class RegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=255)
     email: EmailStr
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=8, max_length=72)
     role: Optional[str] = "candidate"
     company_name: Optional[str] = Field(None, max_length=200)
 
@@ -37,20 +49,23 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        return v
+        return _validate_password_policy(v)
 
 
 class RegisterResponse(BaseModel):
     id: str
     full_name: str
     email: EmailStr
+    email_verified: bool = False
     created_at: datetime
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(..., min_length=1, max_length=1024)
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -59,18 +74,12 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     token: str
-    new_password: str = Field(..., min_length=8, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=72)
 
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        return v
+        return _validate_password_policy(v)
 
 
 class LoginRequest(BaseModel):
@@ -82,6 +91,7 @@ class UserPublic(BaseModel):
     id: str
     full_name: str
     email: EmailStr
+    email_verified: bool = False
     role: str = "candidate"
     subscription_tier: str = "free"
     company_name: Optional[str] = None
@@ -223,7 +233,7 @@ class AssessmentAnswer(BaseModel):
 
 
 class AssessmentSubmitRequest(BaseModel):
-    answers: List[AssessmentAnswer]
+    answers: List[AssessmentAnswer] = Field(..., max_length=100)
 
 
 class AssessmentSubmitResponse(BaseModel):
@@ -313,6 +323,7 @@ class ProfileResponse(BaseModel):
     id: str
     full_name: str
     email: EmailStr
+    email_verified: bool = False
     created_at: datetime
     total_analyses: int
     highest_career_score: float
@@ -351,18 +362,12 @@ class ProfileUpdateResponse(BaseModel):
 
 class PasswordUpdateRequest(BaseModel):
     current_password: str
-    new_password: str = Field(..., min_length=8, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=72)
 
     @field_validator("new_password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        return v
+        return _validate_password_policy(v)
 
 
 class PasswordUpdateResponse(BaseModel):
@@ -403,7 +408,7 @@ class CompareAnalysesResponse(BaseModel):
 
 
 class RoadmapProgressRequest(BaseModel):
-    skill: str
+    skill: str = Field(..., min_length=1, max_length=200)
     completed: bool
 
 
@@ -439,6 +444,10 @@ class SharedJobMatchOut(BaseModel):
     matched_skills: List[str]
     missing_skills: List[str]
     explanation: str = ""
+
+
+class SharedExchangeRequest(BaseModel):
+    share_token: str = Field(..., min_length=1, max_length=256)
 
 
 class SharedAnalysisResponse(BaseModel):
@@ -903,7 +912,27 @@ class ExtensionMatchRequest(BaseModel):
     company: Optional[str] = Field("", max_length=200)
     location: Optional[str] = Field("", max_length=200)
     job_description: str = Field(..., min_length=5, max_length=15000)
-    extracted_skills: Optional[List[str]] = Field(default_factory=list)
+    extracted_skills: Optional[List[str]] = Field(default_factory=list, max_length=50)
+
+    @field_validator("extracted_skills")
+    @classmethod
+    def _bound_extracted_skills(cls, v: Optional[List[str]]) -> List[str]:
+        if not v:
+            return []
+        cleaned = []
+        for item in v[:50]:
+            if isinstance(item, str):
+                s = item.strip()[:100]
+                if s:
+                    cleaned.append(s)
+        return cleaned
+
+
+class ExtensionTokenResponse(BaseModel):
+    extension_token: str
+    token_type: str = "bearer"
+    scope: str = "extension:match"
+    expires_in_minutes: int
 
 
 class ExtensionMatchResponse(BaseModel):
