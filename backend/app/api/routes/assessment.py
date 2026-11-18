@@ -53,6 +53,9 @@ def submit_assessment(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
+    if len(payload.answers) > 100:
+        raise HTTPException(status_code=400, detail="Too many assessment answers submitted")
+
     questions = db.query(Question).options(selectinload(Question.options)).all()
     questions_by_id = {str(q.id): q for q in questions}
 
@@ -86,7 +89,9 @@ def submit_assessment(
                 raise HTTPException(status_code=400, detail=f"Invalid option selected for question {qid}")
             normalized_val = val
         elif q_type == QuestionType.multiple_choice:
-            if not isinstance(val, list) or any(not isinstance(item, str) or item not in allowed_options for item in val):
+            if not isinstance(val, list) or len(val) > max(50, len(allowed_options)):
+                raise HTTPException(status_code=400, detail=f"Invalid options selected for question {qid}")
+            if any(not isinstance(item, str) or item not in allowed_options for item in val):
                 raise HTTPException(status_code=400, detail=f"Invalid options selected for question {qid}")
             if question.required and not val:
                 raise HTTPException(status_code=400, detail=f"Question {qid} requires at least one selection")

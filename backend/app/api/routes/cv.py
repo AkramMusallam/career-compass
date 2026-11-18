@@ -23,7 +23,12 @@ from app.schemas.schemas import (
     UploadCVResponse,
 )
 from app.core.security import get_current_user
-from app.services.cv_extraction import extract_cv_data
+from app.services.cv_extraction import (
+    evaluate_ats_score,
+    extract_cv_data_isolated,
+    generate_cover_letter,
+)
+from app.services.subscription_service import check_feature_entitlement
 
 router = APIRouter(tags=["CV Analysis"])
 
@@ -109,7 +114,7 @@ def extract(payload: ExtractRequest, current_user: User = Depends(get_current_us
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Uploaded file not found")
 
     try:
-        extracted = extract_cv_data(upload["path"])
+        extracted = extract_cv_data_isolated(upload["path"], user_id=current_user.id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     extraction_id = str(uuid.uuid4())
@@ -201,7 +206,6 @@ def confirm_extraction(payload: ExtractConfirmRequest, current_user: User = Depe
 
 from app.core.mongo import analysis_results_collection
 from app.schemas.schemas import ATSScoreResponse, CoverLetterRequest, CoverLetterResponse
-from app.services.cv_extraction import evaluate_ats_score, generate_cover_letter
 
 
 def _resolve_extraction_source(id_or_analysis_id: str, user_id: int) -> str | None:
@@ -250,7 +254,10 @@ def get_ats_score(extraction_id: str, current_user: User = Depends(get_current_u
     if not source:
         raise HTTPException(status_code=404, detail="Extraction or file not found")
 
-    result = evaluate_ats_score(source)
+    try:
+        result = evaluate_ats_score(source, user_id=current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return ATSScoreResponse(**result)
 
 
@@ -260,7 +267,10 @@ def create_cover_letter(extraction_id: str, payload: CoverLetterRequest, current
     if not source:
         raise HTTPException(status_code=404, detail="Extraction or file not found")
 
-    letter = generate_cover_letter(source, payload.job_description)
+    try:
+        letter = generate_cover_letter(source, payload.job_description, user_id=current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return CoverLetterResponse(cover_letter=letter)
 
 
@@ -328,6 +338,21 @@ def extract_async(
                 parse_cv_task(payload.file_id, current_user.id, task_id)
             except Exception:
                 pass
+        elif settings.ENV == "production":
+            cv_tasks_collection.update_one(
+                {"task_id": task_id, "user_id": current_user.id},
+                {
+                    "$set": {
+                        "status": "failed",
+                        "error": "Background CV processing queue is temporarily unavailable.",
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                },
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Background CV processing queue is temporarily unavailable.",
+            )
         else:
             background_tasks.add_task(parse_cv_task, payload.file_id, current_user.id, task_id)
 
@@ -382,6 +407,11 @@ def optimize_ats_resume(
     current_user: User = Depends(get_current_user),
 ):
     """Phase 2 (Section 7.1): Refines and optimizes candidate profile data for ATS resume building."""
+    try:
+        check_feature_entitlement(current_user, "ats_builder")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
     extraction, analysis = _resolve_extraction_or_analysis_doc(extraction_id, current_user.id)
     if not extraction and not analysis and payload is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Extraction or analysis not found")
@@ -450,6 +480,9 @@ Return ONLY the summary text, no quotes or markdown.
                 is_json=False,
                 max_tokens=90,
                 timeout=10.0,
+                task="ats_optimize",
+                user_id=current_user.id,
+                feature="cv",
             ).strip()
             if ai_summary and len(ai_summary) > 30:
                 summary = ai_summary
@@ -486,6 +519,11 @@ def export_ats_resume_pdf(
     current_user: User = Depends(get_current_user),
 ):
     """Phase 2 (Section 7.1): Formats and exports an ATS-compliant resume PDF directly from refined profile data."""
+    try:
+        check_feature_entitlement(current_user, "ats_builder")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
     optimized = optimize_ats_resume(extraction_id=extraction_id, payload=payload, current_user=current_user)
     pdf_bytes = build_ats_resume_pdf(optimized.model_dump())
     filename = f"ATS-Resume-{extraction_id[:8]}.pdf"

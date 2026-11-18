@@ -34,6 +34,9 @@ celery_app.conf.update(
     task_track_started=True,
     worker_hijack_root_logger=False,
     broker_connection_retry_on_startup=True,
+    result_expires=300,
+    task_soft_time_limit=120,
+    task_time_limit=150,
 )
 
 # جدولة المهمة الأسبوعية الوحيدة الحالية (الدفعة 5.3 / B5.4-B5.5)

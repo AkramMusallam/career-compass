@@ -10,6 +10,8 @@ import logging
 import uuid
 from typing import Any, Dict, List, Optional
 
+from pymongo import ReturnDocument
+
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.mongo import analysis_results_collection, mongo_db, subscriptions_collection
@@ -148,6 +150,100 @@ def get_user_usage(user_id: int) -> Dict[str, int]:
     }
 
 
+def check_feature_entitlement(user: User, feature: str) -> None:
+    """Enforces plan feature entitlements (e.g. voice_interview, ats_builder) server-side."""
+    if not settings.ENFORCE_SUBSCRIPTION_QUOTAS:
+        return
+
+    tier = getattr(user, "subscription_tier", "free") or "free"
+    plan = get_plan_by_id(tier) or SUBSCRIPTION_PLANS[0]
+    limits = plan.get("limits", {})
+
+    if feature in ("voice_interview", "voice_interviews"):
+        if not limits.get("voice_interviews", False):
+            raise ValueError(
+                f"المقابلات الصوتية غير متاحة في {plan['name_ar']}. "
+                "يرجى الترقية إلى باقة المحترف (AI Pro) لتفعيل المقابلات الصوتية."
+            )
+    elif feature in ("ats_builder", "ats_builder_export"):
+        if not limits.get("ats_builder_export", False):
+            raise ValueError(
+                f"منشئ السيرة الذاتية وتصدير ATS PDF غير متاحين في {plan['name_ar']}. "
+                "يرجى الترقية إلى باقة المحترف (AI Pro) لتفعيل هذه الميزة."
+            )
+
+
+def _quota_field_and_limit(user: User, resource: str) -> tuple[str, int, Dict[str, Any]]:
+    tier = getattr(user, "subscription_tier", "free") or "free"
+    plan = get_plan_by_id(tier) or SUBSCRIPTION_PLANS[0]
+    limits = plan.get("limits", {})
+    if resource == "analysis":
+        return "analyses_used", int(limits.get("max_analyses", 3)), plan
+    if resource == "interview":
+        return "interviews_used", int(limits.get("max_interviews", 2)), plan
+    raise ValueError(f"Unknown quota resource: {resource}")
+
+
+def _quota_exceeded_message(resource: str, plan: Dict[str, Any], max_limit: int) -> str:
+    if resource == "analysis":
+        return (
+            f"لقد استنفدت الحد الأقصى للتحليلات في {plan['name_ar']} ({max_limit} تحليلات). "
+            "يرجى الترقية إلى باقة المحترف (AI Pro) للحصول على تحليلات سيرة ذاتية غير محدودة."
+        )
+    return (
+        f"لقد استنفدت الحد الأقصى للمقابلات التجريبية في {plan['name_ar']} ({max_limit} مقابلات). "
+        "يرجى الترقية إلى باقة المحترف (AI Pro) للحصول على مقابلات ذكية غير محدودة."
+    )
+
+
+def _sync_usage_quota_floor(user_id: int) -> None:
+    """Ensures usage_quotas exists and reflects at least the persisted collection counts."""
+    uid = int(user_id)
+    analyses_cnt = int(analysis_results_collection.count_documents({"user_id": uid}))
+    interviews_cnt = int(interviews_collection.count_documents({"user_id": uid}))
+    quotas = mongo_db["usage_quotas"]
+    try:
+        quotas.update_one(
+            {"_id": uid},
+            {"$setOnInsert": {"analyses_used": analyses_cnt, "interviews_used": interviews_cnt}},
+            upsert=True,
+        )
+    except Exception:
+        pass
+    quotas.update_one({"_id": uid, "analyses_used": {"$lt": analyses_cnt}}, {"$set": {"analyses_used": analyses_cnt}})
+    quotas.update_one({"_id": uid, "interviews_used": {"$lt": interviews_cnt}}, {"$set": {"interviews_used": interviews_cnt}})
+
+
+def reserve_user_quota(user: User, resource: str) -> bool:
+    """Atomically reserves one usage quota slot in `usage_quotas` to prevent concurrent race bypasses."""
+    if not settings.ENFORCE_SUBSCRIPTION_QUOTAS:
+        return False
+
+    field, max_limit, plan = _quota_field_and_limit(user, resource)
+    uid = int(user.id)
+    _sync_usage_quota_floor(uid)
+
+    updated = mongo_db["usage_quotas"].find_one_and_update(
+        {"_id": uid, field: {"$lt": max_limit}},
+        {"$inc": {field: 1}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if updated is None:
+        raise ValueError(_quota_exceeded_message(resource, plan, max_limit))
+    return True
+
+
+def release_user_quota(user_id: int, resource: str) -> None:
+    """Rolls back a previously reserved quota slot when downstream processing fails."""
+    field = "analyses_used" if resource == "analysis" else "interviews_used" if resource == "interview" else None
+    if not field:
+        return
+    mongo_db["usage_quotas"].update_one(
+        {"_id": int(user_id), field: {"$gt": 0}},
+        {"$inc": {field: -1}},
+    )
+
+
 def check_user_quota(user: User, resource: str) -> None:
     """
     التحقق من حدود الباقة الحالية للمستخدم (Free vs Pro / Enterprise).
@@ -156,25 +252,12 @@ def check_user_quota(user: User, resource: str) -> None:
     if not settings.ENFORCE_SUBSCRIPTION_QUOTAS:
         return
 
-    tier = getattr(user, "subscription_tier", "free") or "free"
-    plan = get_plan_by_id(tier) or SUBSCRIPTION_PLANS[0]
-    limits = plan.get("limits", {})
+    field, max_limit, plan = _quota_field_and_limit(user, resource)
     usage = get_user_usage(user.id)
-
-    if resource == "analysis":
-        max_analyses = int(limits.get("max_analyses", 3))
-        if usage["analyses_used"] >= max_analyses:
-            raise ValueError(
-                f"لقد استنفدت الحد الأقصى للتحليلات في {plan['name_ar']} ({max_analyses} تحليلات). "
-                "يرجى الترقية إلى باقة المحترف (AI Pro) للحصول على تحليلات سيرة ذاتية غير محدودة."
-            )
-    elif resource == "interview":
-        max_interviews = int(limits.get("max_interviews", 2))
-        if usage["interviews_used"] >= max_interviews:
-            raise ValueError(
-                f"لقد استنفدت الحد الأقصى للمقابلات التجريبية في {plan['name_ar']} ({max_interviews} مقابلات). "
-                "يرجى الترقية إلى باقة المحترف (AI Pro) للحصول على مقابلات ذكية غير محدودة."
-            )
+    quota_doc = mongo_db["usage_quotas"].find_one({"_id": int(user.id)}) or {}
+    used = max(int(usage.get(field, 0)), int(quota_doc.get(field, 0)))
+    if used >= max_limit:
+        raise ValueError(_quota_exceeded_message(resource, plan, max_limit))
 
 
 def get_current_subscription(user: User) -> Dict[str, Any]:
@@ -236,6 +319,49 @@ def get_current_subscription(user: User) -> Dict[str, Any]:
     }
 
 
+def _create_stripe_checkout_session(
+    *,
+    user: User,
+    plan: Dict[str, Any],
+    billing_cycle: str,
+    amount_usd: float,
+    success_redirect: str,
+    cancel_redirect: str,
+) -> Dict[str, Any]:
+    import stripe
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    price_amount = int(amount_usd * 100)
+    sub_metadata = {"user_id": str(user.id), "plan_id": plan["id"]}
+    session = stripe.checkout.Session.create(
+        payment_method_types=["card"],
+        customer_email=user.email,
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "product_data": {
+                    "name": f"Career Compass — {plan['name']}",
+                    "description": plan["description"],
+                },
+                "unit_amount": price_amount,
+                "recurring": {"interval": "year" if billing_cycle == "annual" else "month"},
+            },
+            "quantity": 1,
+        }],
+        mode="subscription",
+        success_url=success_redirect,
+        cancel_url=cancel_redirect,
+        metadata=sub_metadata,
+        subscription_data={"metadata": sub_metadata},
+    )
+    return {
+        "session_id": session.id,
+        "checkout_url": session.url,
+        "provider": "stripe",
+        "mode": "payment",
+    }
+
+
 def create_checkout_session(
     user: User,
     plan_id: str,
@@ -284,36 +410,14 @@ def create_checkout_session(
         if not settings.STRIPE_SECRET_KEY:
             raise ValueError("Payment gateway is not configured")
         try:
-            import stripe
-
-            stripe.api_key = settings.STRIPE_SECRET_KEY
-            price_amount = int(amount_usd * 100)
-            session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                customer_email=user.email,
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {
-                            "name": f"Career Compass — {plan['name']}",
-                            "description": plan["description"],
-                        },
-                        "unit_amount": price_amount,
-                        "recurring": {"interval": "year" if billing_cycle == "annual" else "month"},
-                    },
-                    "quantity": 1,
-                }],
-                mode="subscription",
-                success_url=success_redirect,
-                cancel_url=cancel_redirect,
-                metadata={"user_id": str(user.id), "plan_id": plan["id"]},
+            return _create_stripe_checkout_session(
+                user=user,
+                plan=plan,
+                billing_cycle=billing_cycle,
+                amount_usd=amount_usd,
+                success_redirect=success_redirect,
+                cancel_redirect=cancel_redirect,
             )
-            return {
-                "session_id": session.id,
-                "checkout_url": session.url,
-                "provider": "stripe",
-                "mode": "payment",
-            }
         except Exception as e:
             raise ValueError("Payment gateway error") from e
 
@@ -321,36 +425,14 @@ def create_checkout_session(
     allow_sandbox_bypass = bool(test_token)
     if settings.STRIPE_SECRET_KEY and not allow_sandbox_bypass and not clean_last4 and payment_method == "card":
         try:
-            import stripe
-            stripe.api_key = settings.STRIPE_SECRET_KEY
-            price_amount = int(amount_usd * 100)
-
-            session = stripe.checkout.Session.create(
-                payment_method_types=["card"],
-                customer_email=user.email,
-                line_items=[{
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {
-                            "name": f"Career Compass — {plan['name']}",
-                            "description": plan["description"],
-                        },
-                        "unit_amount": price_amount,
-                        "recurring": {"interval": "year" if billing_cycle == "annual" else "month"},
-                    },
-                    "quantity": 1,
-                }],
-                mode="subscription",
-                success_url=success_redirect,
-                cancel_url=cancel_redirect,
-                metadata={"user_id": str(user.id), "plan_id": plan["id"]},
+            return _create_stripe_checkout_session(
+                user=user,
+                plan=plan,
+                billing_cycle=billing_cycle,
+                amount_usd=amount_usd,
+                success_redirect=success_redirect,
+                cancel_redirect=cancel_redirect,
             )
-            return {
-                "session_id": session.id,
-                "checkout_url": session.url,
-                "provider": "stripe",
-                "mode": "payment",
-            }
         except Exception as e:
             logger.warning("Stripe API call failed (%s), falling back to direct checkout processor in testing", e)
 
@@ -408,18 +490,51 @@ def create_checkout_session(
     }
 
 
-def cancel_subscription(user: User) -> Dict[str, Any]:
-    """إلغاء الاشتراك النشط وإعادة الحساب للباقة المجانية."""
+def _apply_local_subscription_cancellation(user_id: int) -> None:
     with SessionLocal() as db:
-        db_user = db.query(User).filter(User.id == user.id).first()
+        db_user = db.query(User).filter(User.id == user_id).first()
         if db_user:
             db_user.subscription_tier = "free"
             db.commit()
 
     subscriptions_collection.update_many(
-        {"user_id": user.id, "status": "active"},
+        {"user_id": user_id, "status": "active"},
         {"$set": {"status": "canceled", "canceled_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}},
     )
+
+
+def cancel_subscription(user: User) -> Dict[str, Any]:
+    """إلغاء الاشتراك النشط في Stripe (عند تفعيله) ومزامنة الحالة محلياً وإعادة الحساب للباقة المجانية."""
+    active_subs = list(subscriptions_collection.find({"user_id": user.id, "status": "active"}))
+    stripe_sub_ids = [
+        s.get("stripe_subscription_id")
+        or (s.get("subscription_id") if str(s.get("subscription_id", "")).startswith("sub_") else None)
+        for s in active_subs
+    ]
+    stripe_sub_ids = [str(sid) for sid in stripe_sub_ids if sid]
+
+    if settings.STRIPE_SECRET_KEY and stripe_sub_ids:
+        try:
+            import stripe
+
+            stripe.api_key = settings.STRIPE_SECRET_KEY
+            for sid in stripe_sub_ids:
+                if hasattr(stripe.Subscription, "cancel"):
+                    stripe_resp = stripe.Subscription.cancel(sid)
+                else:
+                    stripe_resp = stripe.Subscription.delete(sid)
+                resp_status = (
+                    getattr(stripe_resp, "status", None)
+                    or (stripe_resp.get("status") if isinstance(stripe_resp, dict) else None)
+                )
+                if resp_status and resp_status not in ("canceled", "incomplete_expired"):
+                    raise ValueError(f"Unexpected Stripe cancellation status: {resp_status}")
+        except ValueError:
+            raise
+        except Exception as exc:
+            raise ValueError("Failed to cancel subscription at Stripe") from exc
+
+    _apply_local_subscription_cancellation(user.id)
 
     return {
         "status": "canceled",
@@ -472,23 +587,71 @@ def handle_webhook_event(body: bytes, stripe_signature: Optional[str] = None) ->
                     if db_user:
                         db_user.subscription_tier = plan["id"]
                         db.commit()
+                stripe_sub_id = data_obj.get("subscription")
+                if stripe_sub_id:
+                    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    subscriptions_collection.update_many(
+                        {"user_id": uid, "status": "active", "stripe_subscription_id": {"$ne": stripe_sub_id}},
+                        {"$set": {"status": "superseded", "updated_at": now_iso}},
+                    )
+                    subscriptions_collection.update_one(
+                        {"stripe_subscription_id": stripe_sub_id},
+                        {
+                            "$set": {
+                                "subscription_id": stripe_sub_id,
+                                "stripe_subscription_id": stripe_sub_id,
+                                "stripe_customer_id": data_obj.get("customer"),
+                                "user_id": uid,
+                                "plan_id": plan["id"],
+                                "plan_name_ar": plan["name_ar"],
+                                "status": "active",
+                                "provider": "stripe",
+                                "updated_at": now_iso,
+                            },
+                            "$setOnInsert": {"created_at": now_iso},
+                        },
+                        upsert=True,
+                    )
             except (ValueError, TypeError):
                 pass
     elif event_type == "customer.subscription.deleted":
         user_id_raw = metadata.get("user_id")
+        uid: Optional[int] = None
         if user_id_raw:
             try:
                 uid = int(user_id_raw)
-                with SessionLocal() as db:
-                    db_user = db.query(User).filter(User.id == uid).first()
-                    if db_user:
-                        db_user.subscription_tier = "free"
-                        db.commit()
-                subscriptions_collection.update_many(
-                    {"user_id": uid, "status": "active"},
-                    {"$set": {"status": "canceled", "canceled_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}},
-                )
             except (ValueError, TypeError):
-                pass
+                uid = None
+        if uid is None and data_obj.get("id"):
+            sub_doc = subscriptions_collection.find_one({"stripe_subscription_id": data_obj.get("id")})
+            if sub_doc and sub_doc.get("user_id") is not None:
+                uid = int(sub_doc["user_id"])
+        if uid is not None:
+            _apply_local_subscription_cancellation(uid)
+    elif event_type == "customer.subscription.updated":
+        sub_status = str(data_obj.get("status") or "").lower()
+        user_id_raw = metadata.get("user_id")
+        uid = None
+        if user_id_raw:
+            try:
+                uid = int(user_id_raw)
+            except (ValueError, TypeError):
+                uid = None
+        if uid is None and data_obj.get("id"):
+            sub_doc = subscriptions_collection.find_one({"stripe_subscription_id": data_obj.get("id")})
+            if sub_doc and sub_doc.get("user_id") is not None:
+                uid = int(sub_doc["user_id"])
+        if uid is not None:
+            if sub_status in ("canceled", "unpaid", "incomplete_expired"):
+                _apply_local_subscription_cancellation(uid)
+            elif sub_status == "active":
+                plan_id = metadata.get("plan_id")
+                plan = get_plan_by_id(plan_id) if plan_id else None
+                if plan and plan["id"] != "free":
+                    with SessionLocal() as db:
+                        db_user = db.query(User).filter(User.id == uid).first()
+                        if db_user:
+                            db_user.subscription_tier = plan["id"]
+                            db.commit()
 
     return {"status": "received", "length": len(body), "event_type": event_type}

@@ -9,7 +9,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from app.core.config import settings
-from app.services.llm_client import call_llm_messages, sanitize_prompt_input, strip_json_fences
+from app.services.llm_client import call_llm_messages, redact_pii_text, sanitize_prompt_input, strip_json_fences
 from app.services.regional_taxonomy import normalize_regional_job_title
 
 logger = logging.getLogger(__name__)
@@ -26,12 +26,14 @@ def generate_candidate_fit_evaluation(
     missing_skills: List[str],
     match_percentage: int,
     use_llm: bool = False,
+    user_id: Optional[int] = None,
+    candidate_user_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """توليد تقرير ملاءمة معمّق للمرشح لصالح مسؤولي التوظيف والشركات بالاستناد لمعايير النطاق."""
     raw = ""
     if use_llm:
-        safe_cand_name = sanitize_prompt_input(candidate_name, 120)
-        safe_target_role = sanitize_prompt_input(target_role, 120)
+        safe_cand_name = sanitize_prompt_input(redact_pii_text(candidate_name), 120)
+        safe_target_role = sanitize_prompt_input(redact_pii_text(target_role), 120)
         safe_cand_skills = ", ".join(sanitize_prompt_input(s, 60) for s in candidate_skills[:15])
         safe_job_title = sanitize_prompt_input(job_title, 150)
         safe_req = ", ".join(sanitize_prompt_input(s, 60) for s in required_skills)
@@ -78,6 +80,7 @@ def generate_candidate_fit_evaluation(
                     "أرجع تقييماً موضوعياً ومختصراً بصيغة JSON صالحة فقط."
                 ),
             )
+            effective_consent_uid = candidate_user_id if candidate_user_id is not None else user_id
             raw = call_llm_messages(
                 [{"role": "user", "content": prompt}],
                 system_instruction=sys_prompt,
@@ -86,6 +89,8 @@ def generate_candidate_fit_evaluation(
                 max_tokens=400,
                 timeout=10.0,
                 task="recruiter_fit_evaluation",
+                user_id=effective_consent_uid,
+                feature="recruiter",
             )
         except Exception:
             pass
