@@ -32,8 +32,10 @@ def candidate_with_skills(client):
         "user_id": uid,
         "skills": ["Python", "FastAPI", "React", "PostgreSQL", "Docker", "Git"],
         "confirmed": True,
+        "status": "confirmed",
     })
-    return token, uid
+    ext_token = client.post("/extension/token", headers={"Authorization": f"Bearer {token}"}).json()["extension_token"]
+    return ext_token, uid
 
 
 def test_extract_skills_from_text_regex():
@@ -112,11 +114,12 @@ def test_extension_candidate_without_cv(client):
     email = f"nocv.{uuid.uuid4().hex[:8]}@example.com"
     client.post("/register", json={"full_name": "Newbie Dev", "email": email, "password": "Passw0rd123"})
     token = client.post("/login", json={"email": email, "password": "Passw0rd123"}).json()["access_token"]
+    ext_token = client.post("/extension/token", headers={"Authorization": f"Bearer {token}"}).json()["extension_token"]
 
     resp = client.post(
         "/extension/match-job",
         json={"job_title": "Python Dev", "job_description": "We need Python and Git."},
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {ext_token}"},
     )
     assert resp.status_code == 200
     data = resp.json()

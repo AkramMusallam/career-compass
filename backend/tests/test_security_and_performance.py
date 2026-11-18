@@ -55,7 +55,8 @@ def test_health_check_and_security_headers(client):
     assert data["checks"]["mongo"] == "ok"
     assert resp.headers.get("X-Content-Type-Options") == "nosniff"
     assert resp.headers.get("X-Frame-Options") == "DENY"
-    assert "strict-origin" in resp.headers.get("Referrer-Policy", "")
+    assert resp.headers.get("Referrer-Policy") == "no-referrer"
+    assert "no-store" in resp.headers.get("Cache-Control", "")
 
 
 def test_assessment_eager_loading_eliminates_n_plus_1(client, registered_user_token):
@@ -155,6 +156,14 @@ def test_rate_limiter_blocks_excessive_auth_requests(client):
 def test_voice_interview_rejects_invalid_mime_type(client, registered_user_token):
     token, _ = registered_user_token
     headers = {"Authorization": f"Bearer {token}"}
+    assert (
+        client.post(
+            "/subscriptions/checkout-session",
+            headers=headers,
+            json={"plan_id": "pro", "billing_cycle": "monthly", "test_token": "ok"},
+        ).status_code
+        == 200
+    )
 
     extraction_id, assessment_id = _create_user_analysis(client, headers)
     analyze_resp = client.post(
@@ -253,6 +262,20 @@ def test_phase3_input_validation_and_newest_extraction_ranking(client):
     )
     assert newest_ext.status_code == 200
     newest_ext_id = newest_ext.json()["extraction_id"]
+    assert (
+        client.post(
+            "/extract/confirm",
+            headers=cand_headers,
+            json={
+                "extraction_id": newest_ext_id,
+                "skills": ["Python", "FastAPI", "Docker", "SQL"],
+                "projects": [],
+                "education": [],
+                "experience": [],
+            },
+        ).status_code
+        == 200
+    )
 
     # 3. Open redirect protection on checkout-session
     bad_checkout = client.post(
@@ -263,9 +286,10 @@ def test_phase3_input_validation_and_newest_extraction_ranking(client):
     assert bad_checkout.status_code in (400, 422)
 
     # 4. Extension match-job accurately detects C++ and C# symbol skills
+    ext_tok = client.post("/extension/token", headers=cand_headers).json()["extension_token"]
     ext_match = client.post(
         "/extension/match-job",
-        headers=cand_headers,
+        headers={"Authorization": f"Bearer {ext_tok}"},
         json={
             "job_title": "Systems Engineer",
             "company": "CoreTech",

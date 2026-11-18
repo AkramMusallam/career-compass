@@ -12,6 +12,7 @@ def test_recruiter_access_requires_revocable_candidate_consent(client, registere
     extractions_collection.insert_one({
         "extraction_id": extraction_id, "user_id": user_id,
         "skills": ["Python"], "experience": [], "projects": [], "education": [],
+        "status": "confirmed",
     })
     email = f"recruiter-{uuid.uuid4().hex}@example.com"
     client.post("/register", json={"full_name": "Recruiter", "email": email, "password": "Passw0rd123"})

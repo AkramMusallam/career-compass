@@ -100,6 +100,7 @@ def test_recruiter_pipeline_canonicalizes_objectid_and_extraction_id(client):
             "user_id": cand_uid,
             "skills": ["Python", "SQL"],
             "confirmed": True,
+            "status": "confirmed",
         }
     )
     mongo_db["recruiter_consent"].update_one({"_id": cand_uid}, {"$set": {"enabled": True}}, upsert=True)
@@ -446,14 +447,14 @@ def test_429_has_security_headers_and_heavy_rate_limit_hardened(client, monkeypa
     client.get("/companies/mine", headers={"Authorization": "Bearer fake-token-1"})
     client.get("/companies/mine", headers={"Authorization": "Bearer fake-token-2"})
     client.get("/support/my-profiles", headers=headers)
-    client.get("/shared/nonexistent-token")
+    client.post("/shared/exchange", json={"share_token": "nonexistent-token"})
     client.put("/companies/nonexistent", headers=headers, json={"name": "Co"})
     client.put("/settings/password", headers=headers, json={"current_password": "x", "new_password": "Passw0rdNew!"})
 
     assert captured_keys[0] == "heavy:ip:testclient:/companies/mine"
     assert captured_keys[1] == "heavy:ip:testclient:/companies/mine"
     assert captured_keys[2] == f"heavy:user:{uid}:testclient:/support/my-profiles"
-    assert captured_keys[3] == "heavy:ip:testclient:/shared/nonexistent-token"
+    assert captured_keys[3] == "heavy:ip:testclient:/shared/exchange"
     assert captured_keys[4] == f"heavy:user:{uid}:testclient:/companies/nonexistent"
     assert captured_keys[5] == "auth:testclient:/settings/password"
 
@@ -504,6 +505,14 @@ def test_upload_sanitizes_filename_enforces_page_limit_and_contains_paths(client
 
 def test_voice_validates_audio_magic_and_whisper_precedes_hint(client, monkeypatch):
     headers, _, _ = _register_and_login(client)
+    assert (
+        client.post(
+            "/subscriptions/checkout-session",
+            headers=headers,
+            json={"plan_id": "pro", "billing_cycle": "monthly", "test_token": "ok"},
+        ).status_code
+        == 200
+    )
     ext_id, assess_id = _create_extraction_and_assessment(client, headers)
     analysis_id = client.post(
         "/analyze", headers=headers, json={"extraction_id": ext_id, "assessment_id": assess_id}

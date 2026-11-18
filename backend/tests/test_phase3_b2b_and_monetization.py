@@ -66,6 +66,7 @@ def candidate_profile(client, registered_user_token):
         "ats_score": 88,
         "career_score": 85.0,
         "confirmed": True,
+        "status": "confirmed",
     }
     extractions_collection.insert_one(doc)
     return extraction_id, uid
@@ -326,7 +327,8 @@ def test_stripe_webhook_listener(client):
 
 def test_extension_job_matcher_endpoint(client, candidate_profile, registered_user_token):
     token, _ = registered_user_token
-    headers = {"Authorization": f"Bearer {token}"}
+    ext_token = client.post("/extension/token", headers={"Authorization": f"Bearer {token}"}).json()["extension_token"]
+    headers = {"Authorization": f"Bearer {ext_token}"}
 
     payload = {
         "job_title": "Full Stack Engineer (React & FastAPI)",

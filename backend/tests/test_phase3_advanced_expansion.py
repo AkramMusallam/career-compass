@@ -194,7 +194,8 @@ def test_extension_match_job_advanced_cases():
     user_email = f"ext.adv.{uuid.uuid4().hex[:6]}@example.com"
     client.post("/register", json={"full_name": "Ext User", "email": user_email, "password": "Password123!"})
     token = client.post("/login", json={"email": user_email, "password": "Password123!"}).json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    ext_token = client.post("/extension/token", headers={"Authorization": f"Bearer {token}"}).json()["extension_token"]
+    headers = {"Authorization": f"Bearer {ext_token}"}
 
     payload = {
         "job_title": "Full Stack Engineer (React & FastAPI)",
@@ -279,6 +280,14 @@ def test_recruiter_pipeline_audit_trail_progression():
     candidate_headers = {"Authorization": f"Bearer {candidate_token}"}
     client.put("/settings/recruiter-consent", headers=candidate_headers, json={"opted_in": True})
     cand_id = client.post("/extract/manual", headers=candidate_headers, json={"skills": ["React"]}).json()["extraction_id"]
+    assert (
+        client.post(
+            "/extract/confirm",
+            headers=candidate_headers,
+            json={"extraction_id": cand_id, "skills": ["React"], "projects": [], "education": [], "experience": []},
+        ).status_code
+        == 200
+    )
     stages = ["shortlisted", "contacted", "interviewed", "offered"]
     for st in stages:
         r = client.post(

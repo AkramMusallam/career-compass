@@ -29,7 +29,13 @@ def test_support_requires_owner_grant_and_records_access(client, registered_user
         grant = client.post("/support/grants", headers=headers, json=data)
         assert grant.status_code == 201, grant.text
         grant_id = grant.json()["grant_id"]
+        assert grant.json()["candidate_approved"] is False
         assert client.get(f"/support/grants/{grant_id}/profile", headers=candidate_headers).status_code == 403
+        # Owner cannot access profile before independent candidate approval
+        assert client.get(f"/support/grants/{grant_id}/profile", headers=headers).status_code == 403
+        assert client.post(f"/support/grants/{grant_id}/approve", headers=headers).status_code == 404
+        approved = client.post(f"/support/grants/{grant_id}/approve", headers=candidate_headers)
+        assert approved.status_code == 200 and approved.json()["candidate_approved"] is True
         profile = client.get(f"/support/grants/{grant_id}/profile", headers=headers)
         assert profile.status_code == 200 and profile.json()["skills"] == ["Python"]
         assert len(client.get(f"/support/grants/{grant_id}/access-log", headers=candidate_headers).json()) == 1

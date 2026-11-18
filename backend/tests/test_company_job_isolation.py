@@ -23,7 +23,7 @@ def test_company_job_and_pipeline_isolation(client):
         {"company_id": other_id_company, "name": "Second", "owner_id": other_id, "status": "approved"},
     ])
     extraction_id = uuid.uuid4().hex
-    mongo_db["extractions"].insert_one({"extraction_id": extraction_id, "user_id": candidate_user_id, "skills": ["Python"]})
+    mongo_db["extractions"].insert_one({"extraction_id": extraction_id, "user_id": candidate_user_id, "skills": ["Python"], "status": "confirmed"})
     mongo_db["recruiter_consent"].insert_one({"_id": candidate_user_id})
     job_id = None
     try:

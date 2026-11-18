@@ -19,7 +19,7 @@ FAKE_USER_ID = 987654
 
 
 async def override_get_current_user():
-    user = User(id=FAKE_USER_ID, email="test@example.com", full_name="Test User")
+    user = User(id=FAKE_USER_ID, email="test@example.com", full_name="Test User", subscription_tier="pro")
     return user
 
 
@@ -27,6 +27,22 @@ async def override_get_current_user():
 def client():
     """Override auth only for the duration of this test, then restore the real dependency."""
     from app.core.config import settings
+    from app.core.database import SessionLocal
+    from app.core.security import hash_password
+
+    with SessionLocal() as db:
+        if not db.query(User).filter(User.id == FAKE_USER_ID).first():
+            db.add(
+                User(
+                    id=FAKE_USER_ID,
+                    full_name="Test User",
+                    email="test@example.com",
+                    hashed_password=hash_password("Passw0rd123"),
+                    email_verified=True,
+                    subscription_tier="pro",
+                )
+            )
+            db.commit()
 
     app.dependency_overrides[get_current_user] = override_get_current_user
     try:
@@ -35,7 +51,10 @@ def client():
             yield c
     finally:
         app.dependency_overrides.pop(get_current_user, None)
-        for coll in ("analysis_results", "extractions", "uploads", "interviews", "interview_sessions"):
+        with SessionLocal() as db:
+            db.query(User).filter(User.id == FAKE_USER_ID).delete()
+            db.commit()
+        for coll in ("analysis_results", "extractions", "uploads", "interviews", "interview_sessions", "cv_tasks"):
             mongo_db[coll].delete_many({"user_id": FAKE_USER_ID})
 
 

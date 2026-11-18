@@ -361,9 +361,11 @@ def test_share_link_and_public_view_batch4(client):
     assert share_resp_2.json()["share_token"] == token
     assert share_resp_2.json()["already_existed"] is True
 
-    # ---- B4.2: عرض عام بدون أي توكن ----
-    public_resp = client.get(f"/shared/{token}")
+    # ---- B4.2: عرض عام بدون أي توكن عبر POST /shared/exchange ----
+    public_resp = client.post("/shared/exchange", json={"share_token": token})
     assert public_resp.status_code == 200
+    assert public_resp.headers.get("Referrer-Policy") == "no-referrer"
+    assert "no-store" in public_resp.headers.get("Cache-Control", "")
     public_data = public_resp.json()
     assert set(public_data.keys()) == {"career_score", "career_dna", "top_jobs", "date"}
     assert "email" not in public_data
@@ -376,7 +378,7 @@ def test_share_link_and_public_view_batch4(client):
         assert set(job.keys()) == {"job_title", "match_percentage", "matched_skills", "missing_skills", "explanation"}
 
     # رمز غير موجود يُرفض بـ 404
-    missing_share_resp = client.get("/shared/not-a-real-token-xyz")
+    missing_share_resp = client.post("/shared/exchange", json={"share_token": "not-a-real-token-xyz"})
     assert missing_share_resp.status_code == 404
 
     # ---- محاولة مشاركة/إلغاء تحليل شخص آخر تُرفض ----
@@ -390,7 +392,7 @@ def test_share_link_and_public_view_batch4(client):
     assert revoke_resp.json()["status"] == "revoked"
 
     # الرابط القديم لم يعد يعمل بعد الإلغاء
-    after_revoke_resp = client.get(f"/shared/{token}")
+    after_revoke_resp = client.post("/shared/exchange", json={"share_token": token})
     assert after_revoke_resp.status_code == 404
 
     # الإلغاء مرة ثانية (idempotent) لا يفشل
@@ -403,7 +405,7 @@ def test_share_link_and_public_view_batch4(client):
 
 
 def test_benchmark_opt_in_only_batch4(client):
-    """يغطي فيتشر Benchmark (B4.4): لا بيانات تدخل الحساب إلا للمستخدمين الموافقين صراحة."""
+    """يغطي فيتشر Benchmark (B4.4) مع حد أدنى للخصوصية (k-anonymity >= 5 مستخدمين فريدين)."""
     # مستخدم لم يوافق على المشاركة
     headers_a, _, _ = _run_full_analysis(client, "batch4-bench-a@example.com")
 
@@ -411,8 +413,9 @@ def test_benchmark_opt_in_only_batch4(client):
     assert benchmark_before.status_code == 200
     assert benchmark_before.json()["sample_size"] == 0
     assert benchmark_before.json()["average_career_score"] is None
+    assert benchmark_before.json()["by_job_title"] == {}
 
-    # نفس المستخدم يوافق الآن صراحة (Opt-in)
+    # نفس المستخدم يوافق الآن صراحة (Opt-in): أقل من الحد الأدنى (5) يُظهر sample_size=1 مع حجب المتوسطات
     opt_in_resp = client.put("/settings/benchmark-opt-in", headers=headers_a, json={"opted_in": True})
     assert opt_in_resp.status_code == 200
     assert opt_in_resp.json()["opted_in"] is True
@@ -421,19 +424,40 @@ def test_benchmark_opt_in_only_batch4(client):
     assert benchmark_after.status_code == 200
     data = benchmark_after.json()
     assert data["sample_size"] == 1
-    assert data["average_career_score"] is not None
+    assert data["average_career_score"] is None
+    assert data["by_job_title"] == {}
 
     # مستخدم آخر لم يوافق أبداً — بياناته يجب ألا تدخل حساب مستخدم آخر يطّلع على الـ benchmark
     headers_b, _, _ = _run_full_analysis(client, "batch4-bench-b@example.com")
     benchmark_from_b = client.get("/benchmark", headers=headers_b)
     assert benchmark_from_b.json()["sample_size"] == 1  # فقط المستخدم الموافق (a)، وليس b نفسه
+    assert benchmark_from_b.json()["average_career_score"] is None
 
     # بدون توكن يُرفض
     unauth_resp = client.get("/benchmark")
     assert unauth_resp.status_code == 401
 
-    # إلغاء الموافقة يعيد إخراج المستخدم من الحساب
+    # إضافة 4 مستخدمين فريدين آخرين موافقين (المجموع = 5) يُفعّل عرض المتوسط
+    extra_headers = []
+    for idx in range(4):
+        h_extra, _, _ = _run_full_analysis(client, f"batch4-bench-extra-{idx}@example.com")
+        assert client.put("/settings/benchmark-opt-in", headers=h_extra, json={"opted_in": True}).status_code == 200
+        extra_headers.append(h_extra)
+
+    benchmark_k5 = client.get("/benchmark", headers=headers_a)
+    assert benchmark_k5.status_code == 200
+    k5_data = benchmark_k5.json()
+    assert k5_data["sample_size"] == 5
+    assert k5_data["average_career_score"] is not None
+
+    # سحب الموافقة من أحد المستخدمين يعيد العينة إلى 4 ويحجب المتوسط فوراً (إبطال الكاش)
     client.put("/settings/benchmark-opt-in", headers=headers_a, json={"opted_in": False})
+    benchmark_below = client.get("/benchmark", headers=headers_b)
+    assert benchmark_below.json()["sample_size"] == 4
+    assert benchmark_below.json()["average_career_score"] is None
+
+    for h_extra in extra_headers:
+        client.put("/settings/benchmark-opt-in", headers=h_extra, json={"opted_in": False})
     benchmark_final = client.get("/benchmark", headers=headers_a)
     assert benchmark_final.json()["sample_size"] == 0
 

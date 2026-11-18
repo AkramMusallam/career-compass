@@ -98,6 +98,7 @@ def test_recruiter_cached_and_on_demand_ai_review(client, registered_user_token)
             "projects": [],
             "education": [],
             "ats_score": 84,
+            "status": "confirmed",
         }
     )
 

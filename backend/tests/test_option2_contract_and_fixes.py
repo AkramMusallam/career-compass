@@ -82,6 +82,14 @@ def test_profile_target_role_persistence_and_clear(client):
 
 def test_analyze_and_history_expose_extraction_id_and_ats_bounds(client):
     headers, uid, _ = _register_and_login(client)
+    assert (
+        client.post(
+            "/subscriptions/checkout-session",
+            headers=headers,
+            json={"plan_id": "pro", "billing_cycle": "monthly", "test_token": "ok"},
+        ).status_code
+        == 200
+    )
     ext_id = None
     assessment_id = None
     analysis_id = None
@@ -297,6 +305,7 @@ def test_recruiter_discovery_scoring_dedup_and_pipeline_isolation(client):
                 ],
                 "projects": [],
                 "education": [],
+                "status": "confirmed",
             }
         )
         analysis_results_collection.insert_one({"analysis_id": f"ana-{uuid.uuid4().hex}", "user_id": c1_uid, "career_score": 72.5})
@@ -305,7 +314,7 @@ def test_recruiter_discovery_scoring_dedup_and_pipeline_isolation(client):
         for idx in range(205):
             eid = f"ext-c2-{idx}-{uuid.uuid4().hex[:6]}"
             created_ext_ids.append(eid)
-            bulk_docs.append({"extraction_id": eid, "user_id": c2_uid, "skills": ["Python"], "experience": []})
+            bulk_docs.append({"extraction_id": eid, "user_id": c2_uid, "skills": ["Python"], "experience": [], "status": "confirmed"})
         extractions_collection.insert_many(bulk_docs)
         c2_mongo_id = str(extractions_collection.find_one({"extraction_id": created_ext_ids[-1]})["_id"])
 
@@ -426,12 +435,14 @@ def test_security_non_int_sub_pdf_rtl_urls_and_health_degraded(client):
 
     # 5. Extension match_score allows full 100 (not capped at 98)
     ext_headers, ext_uid, _ = _register_and_login(client, "Ext Perfect Match")
+    ext_scoped_tok = client.post("/extension/token", headers=ext_headers).json()["extension_token"]
+    ext_scoped_headers = {"Authorization": f"Bearer {ext_scoped_tok}"}
     ext_doc_id = f"ext-perf-{uuid.uuid4().hex}"
     extractions_collection.insert_one({"extraction_id": ext_doc_id, "user_id": ext_uid, "skills": ["Python", "FastAPI"]})
     try:
         ext_resp = client.post(
             "/extension/match-job",
-            headers=ext_headers,
+            headers=ext_scoped_headers,
             json={
                 "job_title": "Python FastAPI Dev",
                 "job_description": "Need Python and FastAPI.",

@@ -20,6 +20,14 @@ def user_with_confirmed_cv(client):
     email = f"ats.user.{uuid.uuid4().hex[:8]}@example.com"
     client.post("/register", json={"full_name": "Laila Engineer", "email": email, "password": "Passw0rd123"})
     token = client.post("/login", json={"email": email, "password": "Passw0rd123"}).json()["access_token"]
+    assert (
+        client.post(
+            "/subscriptions/checkout-session",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"plan_id": "pro", "billing_cycle": "monthly", "test_token": "ok"},
+        ).status_code
+        == 200
+    )
 
     with SessionLocal() as db:
         uid = db.query(User).filter(User.email == email).first().id

@@ -65,6 +65,7 @@ def populated_candidates(client):
             "ats_score": ats,
             "career_score": float(ats),
             "confirmed": True,
+            "status": "confirmed",
         }
         extractions_collection.insert_one(doc)
         mongo_db["recruiter_consent"].update_one({"_id": uid}, {"$set": {"enabled": True}}, upsert=True)

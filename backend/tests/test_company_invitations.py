@@ -25,22 +25,32 @@ def test_invitation_is_email_bound_single_use_and_expires(client, registered_use
         assert client.post(f"/companies/{company_id}/invitations", headers=member_headers, json={"email": email}).status_code == 404
         response = client.post(f"/companies/{company_id}/invitations", headers=owner_headers, json={"email": email})
         assert response.status_code == 201 and response.json()["delivery"] == "sent"
-        invitation_token = re.search(r"company-invitation/([^ ]+)", messages[-1]).group(1)
+        invitation_token = re.search(r"company-invitation#token=([^\s]+)", messages[-1]).group(1)
+        # Unverified owner & member cannot accept until email is verified
+        assert client.post("/companies/invitations/accept", headers=owner_headers, json={"token": invitation_token}).status_code == 403
+        assert client.post("/companies/invitations/accept", headers=member_headers, json={"token": invitation_token}).status_code == 403
+        from app.core.security import create_email_verification_token
+        owner_id = int(decode_access_token(token)["sub"])
+        owner_email = client.get("/profile", headers=owner_headers).json()["email"]
+        assert client.post("/verify-email", json={"token": create_email_verification_token(str(owner_id), owner_email)}).status_code == 200
+        member_id = int(decode_access_token(member_token)["sub"])
+        verify_token = create_email_verification_token(str(member_id), email)
+        assert client.post("/verify-email", json={"token": verify_token}).status_code == 200
+        # Verified owner still cannot accept an invitation bound to member's email
         assert client.post("/companies/invitations/accept", headers=owner_headers, json={"token": invitation_token}).status_code == 404
         assert client.post("/companies/invitations/accept", headers=member_headers, json={"token": invitation_token}).status_code == 200
         assert client.post("/companies/invitations/accept", headers=member_headers, json={"token": invitation_token}).status_code == 404
         assert any(c["company_id"] == company_id for c in client.get("/companies/mine", headers=member_headers).json())
 
         client.post(f"/companies/{company_id}/invitations", headers=owner_headers, json={"email": email})
-        expired_token = re.search(r"company-invitation/([^ ]+)", messages[-1]).group(1)
+        expired_token = re.search(r"company-invitation#token=([^\s]+)", messages[-1]).group(1)
         mongo_db["companies"].update_one({"company_id": company_id}, {"$set": {"status": "suspended"}})
         assert client.post("/companies/invitations/accept", headers=member_headers, json={"token": expired_token}).status_code == 404
         mongo_db["companies"].update_one({"company_id": company_id}, {"$set": {"status": "approved"}})
         mongo_db["companies"].update_one({"company_id": company_id}, {"$set": {"invitations.0.expires_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()}})
         assert client.post("/companies/invitations/accept", headers=member_headers, json={"token": expired_token}).status_code == 404
         client.post(f"/companies/{company_id}/invitations", headers=owner_headers, json={"email": email})
-        pending_token = re.search(r"company-invitation/([^ ]+)", messages[-1]).group(1)
-        member_id = int(decode_access_token(member_token)["sub"])
+        pending_token = re.search(r"company-invitation#token=([^\s]+)", messages[-1]).group(1)
         assert client.delete(f"/companies/{company_id}/members/{member_id}", headers=owner_headers).status_code == 200
         assert client.post("/companies/invitations/accept", headers=member_headers, json={"token": pending_token}).status_code == 404
         monkeypatch.setattr(companies, "send_email", lambda *args: False)
