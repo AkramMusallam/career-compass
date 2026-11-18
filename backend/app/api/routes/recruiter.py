@@ -117,6 +117,7 @@ def get_ranked_candidates(
     min_match: int = Query(0, ge=0, le=100, description="الحد الأدنى لنسبة التطابق"),
     skill_filter: Optional[str] = Query(None, description="تصفية حسب مهارة محددة"),
     limit: int = Query(50, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
     company: dict = Depends(require_company),
 ):
     """اكتشاف، مطابقة وترتيب الكفاءات والسير الذاتية المؤكدة للشاغر."""
@@ -130,6 +131,7 @@ def get_ranked_candidates(
         min_match=min_match,
         skill_filter=skill_filter,
         limit=limit,
+        recruiter_id=current_user.id,
     )
     return CandidateListResponse(**result)
 
@@ -160,6 +162,7 @@ def update_candidate_status(
 def get_candidate_profile(
     candidate_id: str,
     job_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
     company: dict = Depends(require_company),
 ):
     """معاينة الملف التقني المفصّل للمرشح."""
@@ -167,6 +170,7 @@ def get_candidate_profile(
         candidate_id,
         company_id=company["company_id"],
         job_id=job_id,
+        recruiter_id=current_user.id,
     )
     if not profile_data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate profile not found")
@@ -177,7 +181,8 @@ def get_candidate_profile(
 def trigger_candidate_ai_review(
     job_id: str,
     candidate_id: str,
-    force_refresh: bool = Query(True),
+    force_refresh: bool = Query(False),
+    current_user: User = Depends(get_current_user),
     company: dict = Depends(require_company),
 ):
     """تشغيل تقييم الملاءمة المعمّق للمرشح عبر نموذج الذكاء الاصطناعي الإقليمي."""
@@ -187,7 +192,10 @@ def trigger_candidate_ai_review(
             candidate_id=candidate_id,
             company_id=company["company_id"],
             force_refresh=force_refresh,
+            recruiter_id=current_user.id,
         )
+    except recruiter_service.AIEvaluationBudgetExceeded as e:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 

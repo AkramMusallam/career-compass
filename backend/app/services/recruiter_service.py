@@ -7,6 +7,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+import os
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -25,6 +26,60 @@ from app.services.finetuned_llm_service import generate_candidate_fit_evaluation
 from app.services.llm_client import is_ollama_mocked
 from app.services.recommendation_engine import _is_job_skill_match
 from app.services.regional_taxonomy import normalize_regional_job_title
+
+
+RECRUITER_AI_USER_DAILY_LIMIT = int(os.getenv("RECRUITER_AI_USER_DAILY_LIMIT", "50"))
+RECRUITER_AI_COMPANY_DAILY_LIMIT = int(os.getenv("RECRUITER_AI_COMPANY_DAILY_LIMIT", "200"))
+
+
+class AIEvaluationBudgetExceeded(Exception):
+    """Raised when per-user or per-company AI evaluation budget is exhausted."""
+
+
+def _atomic_increment_budget(scope_key: str, limit: int) -> bool:
+    if limit <= 0:
+        return False
+    coll = mongo_db["recruiter_ai_budgets"]
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    coll.update_one(
+        {"_id": scope_key},
+        {"$setOnInsert": {"count": 0, "created_at": now_iso}},
+        upsert=True,
+    )
+    updated = coll.find_one_and_update(
+        {"_id": scope_key, "count": {"$lt": limit}},
+        {"$inc": {"count": 1}, "$set": {"updated_at": now_iso}},
+        return_document=True,
+    )
+    return updated is not None
+
+
+def _consume_ai_eval_budget(recruiter_id: Optional[int], company_id: str) -> None:
+    day_key = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+    user_key: Optional[str] = None
+    if recruiter_id is not None:
+        user_key = f"user:{int(recruiter_id)}:{day_key}"
+        if not _atomic_increment_budget(user_key, RECRUITER_AI_USER_DAILY_LIMIT):
+            raise AIEvaluationBudgetExceeded("User daily AI evaluation budget exceeded")
+    company_key = f"company:{company_id}:{day_key}"
+    if not _atomic_increment_budget(company_key, RECRUITER_AI_COMPANY_DAILY_LIMIT):
+        if user_key is not None:
+            mongo_db["recruiter_ai_budgets"].update_one(
+                {"_id": user_key, "count": {"$gt": 0}},
+                {"$inc": {"count": -1}},
+            )
+        raise AIEvaluationBudgetExceeded("Company daily AI evaluation budget exceeded")
+
+
+def _is_user_deleted_or_missing(uid: int) -> bool:
+    auth_doc = mongo_db["user_auth_state"].find_one(
+        {"_id": uid},
+        {"deleted_at_ts": 1, "suspended": 1},
+    )
+    if auth_doc and (auth_doc.get("deleted_at_ts") is not None or auth_doc.get("suspended") is True):
+        return True
+    with SessionLocal() as db:
+        return db.query(User.id).filter(User.id == uid).first() is None
 
 
 def _score_candidate_against_job(
@@ -79,7 +134,7 @@ def _resolve_candidate_fit(
     *,
     job: Dict[str, Any],
     candidate_id: str,
-    candidate_name: str,
+    candidate_name: str = "Candidate",
     target_role: str,
     cand_skills: List[str],
     matched_req: List[str],
@@ -88,7 +143,10 @@ def _resolve_candidate_fit(
     match_percentage: int,
     allow_llm: bool,
     force_refresh: bool = False,
+    recruiter_id: Optional[int] = None,
+    raise_on_budget: bool = False,
 ) -> Dict[str, Any]:
+    del candidate_name  # Minimize PII passed to external LLM providers
     req_skills = job.get("required_skills", [])
     bon_skills = job.get("bonus_skills", [])
     cache_key = _fit_cache_key(
@@ -110,8 +168,17 @@ def _resolve_candidate_fit(
         except Exception:
             pass
 
+    effective_allow_llm = bool(allow_llm)
+    if effective_allow_llm:
+        try:
+            _consume_ai_eval_budget(recruiter_id, job["company_id"])
+        except AIEvaluationBudgetExceeded:
+            if raise_on_budget:
+                raise
+            effective_allow_llm = False
+
     fit_eval = generate_candidate_fit_evaluation(
-        candidate_name=candidate_name or "مرشح تقني",
+        candidate_name="Candidate",
         target_role=target_role or job["title"],
         candidate_skills=cand_skills,
         job_title=job["title"],
@@ -120,7 +187,7 @@ def _resolve_candidate_fit(
         matched_skills=matched_req + matched_bon,
         missing_skills=missing_req,
         match_percentage=match_percentage,
-        use_llm=allow_llm,
+        use_llm=effective_allow_llm,
     )
 
     if fit_eval.get("evaluation_source") == "llm":
@@ -248,16 +315,21 @@ def delete_job(job_id: str, company_id: str) -> bool:
 
 
 def _find_consented_extraction(candidate_id: str) -> Optional[Dict[str, Any]]:
-    """Lookup candidate extraction by extraction_id or ObjectId and verify active consent."""
-    ext = extractions_collection.find_one({"extraction_id": candidate_id})
+    """Lookup confirmed candidate extraction by extraction_id or ObjectId and verify active consent and live user."""
+    ext = extractions_collection.find_one({"extraction_id": candidate_id, "status": "confirmed"})
     if not ext:
         try:
             from bson import ObjectId
 
-            ext = extractions_collection.find_one({"_id": ObjectId(candidate_id)})
+            ext = extractions_collection.find_one({"_id": ObjectId(candidate_id), "status": "confirmed"})
         except Exception:
             ext = None
-    if not ext or not mongo_db["recruiter_consent"].find_one({"_id": ext.get("user_id")}):
+    if not ext:
+        return None
+    uid = ext.get("user_id")
+    if not isinstance(uid, int) or not mongo_db["recruiter_consent"].find_one({"_id": uid}):
+        return None
+    if _is_user_deleted_or_missing(uid):
         return None
     return ext
 
@@ -284,6 +356,7 @@ def discover_and_rank_candidates(
     min_match: int = 0,
     skill_filter: Optional[str] = None,
     limit: int = 50,
+    recruiter_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     محرك اكتشاف وترتيب المرشحين الذكي:
@@ -297,10 +370,41 @@ def discover_and_rank_candidates(
     req_skills = job.get("required_skills", [])
     bon_skills = job.get("bonus_skills", [])
 
-    # Fetch all consented extractions ordered newest-first before deduplicating by user_id
+    consented_uids = [uid for uid in mongo_db["recruiter_consent"].distinct("_id") if isinstance(uid, int)]
+    if not consented_uids:
+        return {"job_id": job_id, "job_title": job["title"], "total_matches": 0, "candidates": []}
+
+    blocked_uids = {
+        doc["_id"]
+        for doc in mongo_db["user_auth_state"].find(
+            {
+                "_id": {"$in": consented_uids},
+                "$or": [{"deleted_at_ts": {"$ne": None}}, {"suspended": True}],
+            },
+            {"_id": 1},
+        )
+    }
+    candidate_check_uids = [uid for uid in consented_uids if uid not in blocked_uids]
+    if not candidate_check_uids:
+        return {"job_id": job_id, "job_title": job["title"], "total_matches": 0, "candidates": []}
+
+    user_map: Dict[int, Dict[str, Optional[str]]] = {}
+    with SessionLocal() as db:
+        users = db.query(User).filter(User.id.in_(candidate_check_uids)).all()
+        for u in users:
+            user_map[u.id] = {
+                "full_name": u.full_name,
+                "email": u.email,
+                "target_role": getattr(u, "target_role", None),
+            }
+    active_uids = list(user_map.keys())
+    if not active_uids:
+        return {"job_id": job_id, "job_title": job["title"], "total_matches": 0, "candidates": []}
+
+    # Fetch all confirmed, consented extractions for live users ordered newest-first before deduplicating by user_id
     extractions = list(
         extractions_collection.find(
-            {"user_id": {"$in": mongo_db["recruiter_consent"].distinct("_id")}},
+            {"user_id": {"$in": active_uids}, "status": "confirmed"},
             {
                 "extraction_id": 1,
                 "user_id": 1,
@@ -368,19 +472,10 @@ def discover_and_rank_candidates(
     preliminary_candidates.sort(key=lambda c: c["final_percentage"], reverse=True)
     selected_candidates = preliminary_candidates[:limit]
 
-    # Batch-fetch user profiles and latest real career_score values
+    # Batch-fetch latest real career_score values
     user_ids = [c["uid"] for c in selected_candidates]
-    user_map: Dict[int, Dict[str, Optional[str]]] = {}
     career_score_map: Dict[int, float] = {}
     if user_ids:
-        with SessionLocal() as db:
-            users = db.query(User).filter(User.id.in_(user_ids)).all()
-            for u in users:
-                user_map[u.id] = {
-                    "full_name": u.full_name,
-                    "email": u.email,
-                    "target_role": getattr(u, "target_role", None),
-                }
         for doc in analysis_results_collection.find(
             {"user_id": {"$in": user_ids}},
             {"user_id": 1, "career_score": 1},
@@ -423,7 +518,6 @@ def discover_and_rank_candidates(
         fit_eval = _resolve_candidate_fit(
             job=job,
             candidate_id=candidate_id,
-            candidate_name=user_info["full_name"] or "مرشح تقني",
             target_role=real_target_role or job["title"],
             cand_skills=cand_skills,
             matched_req=matched_req,
@@ -431,6 +525,8 @@ def discover_and_rank_candidates(
             matched_bon=matched_bon,
             match_percentage=final_percentage,
             allow_llm=llm_runtime_ready and idx < llm_budget,
+            recruiter_id=recruiter_id,
+            raise_on_budget=False,
         )
 
         candidates.append({
@@ -505,6 +601,7 @@ def get_candidate_profile_detail(
     candidate_id: str,
     company_id: str,
     job_id: Optional[str] = None,
+    recruiter_id: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """عرض الملف التقني الكامل للمرشح (سيرة ذاتية، مهارات، مشاريع)."""
     if job_id and not get_job_by_id(job_id, company_id):
@@ -519,9 +616,11 @@ def get_candidate_profile_detail(
     user_target_role: Optional[str] = None
     with SessionLocal() as db:
         user = db.query(User).filter(User.id == uid).first()
-        full_name = user.full_name if user else "مرشح مسجل"
-        email = user.email if user else "candidate@example.com"
-        user_target_role = getattr(user, "target_role", None) if user else None
+        if not user:
+            return None
+        full_name = user.full_name
+        email = user.email
+        user_target_role = getattr(user, "target_role", None)
 
     if job_id:
         pipeline_query: Dict[str, Any] = {
@@ -573,7 +672,6 @@ def get_candidate_profile_detail(
             fit_eval = _resolve_candidate_fit(
                 job=job_doc,
                 candidate_id=canonical_id,
-                candidate_name=full_name,
                 target_role=(ext.get("target_role") or user_target_role or job_doc["title"]),
                 cand_skills=cand_skills,
                 matched_req=matched_req,
@@ -581,6 +679,8 @@ def get_candidate_profile_detail(
                 matched_bon=matched_bon,
                 match_percentage=pct,
                 allow_llm=settings.ENV != "testing" or is_ollama_mocked(),
+                recruiter_id=recruiter_id,
+                raise_on_budget=False,
             )
 
     return {
@@ -610,7 +710,8 @@ def evaluate_candidate_fit_on_demand(
     job_id: str,
     candidate_id: str,
     company_id: str,
-    force_refresh: bool = True,
+    force_refresh: bool = False,
+    recruiter_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """تشغيل وتخزين تقييم الملاءمة المعمّق عبر نموذج النطاق (career-model) لمرشح محدد عند الطلب."""
     job = get_job_by_id(job_id, company_id)
@@ -623,23 +724,22 @@ def evaluate_candidate_fit_on_demand(
     canonical_id = ext.get("extraction_id") or candidate_id
     cand_skills = ext.get("skills", [])
     uid = ext.get("user_id")
-    full_name = "مرشح مسجل"
     user_target_role = None
     with SessionLocal() as db:
         user = db.query(User).filter(User.id == uid).first()
-        if user:
-            full_name = user.full_name or full_name
-            user_target_role = getattr(user, "target_role", None)
+        if not user:
+            raise ValueError("Candidate not found")
+        user_target_role = getattr(user, "target_role", None)
 
     matched_req, missing_req, matched_bon, pct = _score_candidate_against_job(
         job.get("required_skills", []),
         job.get("bonus_skills", []),
         cand_skills,
     )
+    effective_recruiter_id = recruiter_id if recruiter_id is not None else job.get("recruiter_id")
     fit_eval = _resolve_candidate_fit(
         job=job,
         candidate_id=canonical_id,
-        candidate_name=full_name,
         target_role=(ext.get("target_role") or user_target_role or job["title"]),
         cand_skills=cand_skills,
         matched_req=matched_req,
@@ -648,6 +748,8 @@ def evaluate_candidate_fit_on_demand(
         match_percentage=pct,
         allow_llm=True,
         force_refresh=force_refresh,
+        recruiter_id=effective_recruiter_id,
+        raise_on_budget=True,
     )
     return {
         "job_id": job_id,

@@ -3,11 +3,11 @@ import hashlib
 import html
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Literal, Optional
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -35,6 +35,7 @@ class CompanyRequest(BaseModel):
 
 class CompanyStatus(BaseModel):
     status: Literal["approved", "rejected", "suspended"]
+    expected_version: Optional[int] = Field(default=None, ge=1)
 
 
 class InvitationRequest(BaseModel):
@@ -65,6 +66,7 @@ def create_company_application(name: str, owner_id: int) -> dict:
         "name": name.strip()[:200],
         "owner_id": owner_id,
         "status": "pending",
+        "review_version": 1,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     mongo_db["companies"].insert_one(company)
@@ -88,6 +90,11 @@ def review_companies(user: User = Depends(require_platform_owner)):
 
 @router.post("/invitations/accept")
 def accept_invitation(payload: InvitationAcceptance, user: User = Depends(get_current_user)):
+    if user.email_verified is not True:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email address must be verified before accepting a company invitation",
+        )
     token_hash = hashlib.sha256(payload.token.encode()).hexdigest()
     match = {"token_hash": token_hash, "email": user.email.strip().lower(),
              "expires_at": {"$gt": datetime.now(timezone.utc).isoformat()}, "delivery": {"$in": ["sending", "sent"]}}
@@ -111,7 +118,7 @@ def invite_member(company_id: str, payload: InvitationRequest, user: User = Depe
     email = str(payload.email).strip().lower()
     token = secrets.token_urlsafe(32)
     token_hash = hashlib.sha256(token.encode()).hexdigest()
-    url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/company-invitation/{token}"
+    url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/company-invitation#token={token}"
     text = f"You have been invited to join {company['name']} on Career Compass. Open {url} within 7 days."
     invitation = {"token_hash": token_hash, "email": email,
                   "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
@@ -141,6 +148,28 @@ def list_invitations(company_id: str, user: User = Depends(get_current_user)):
             for invitation in company.get("invitations", [])]
 
 
+@router.delete("/{company_id}/invitations")
+def revoke_invitation(
+    company_id: str,
+    email: Optional[EmailStr] = Query(None),
+    payload: Optional[InvitationRequest] = Body(default=None),
+    user: User = Depends(get_current_user),
+):
+    target_email = str(email or (payload.email if payload else "")).strip().lower()
+    if not target_email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation email is required")
+    company = mongo_db["companies"].find_one({"company_id": company_id, "owner_id": user.id})
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    result = mongo_db["companies"].update_one(
+        {"company_id": company_id, "owner_id": user.id, "invitations.email": target_email},
+        {"$pull": {"invitations": {"email": target_email}}},
+    )
+    if not result.modified_count:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pending invitation not found")
+    return {"detail": "Invitation revoked", "email": target_email}
+
+
 @router.get("/{company_id}/members")
 def list_members(company_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     company = mongo_db["companies"].find_one({"company_id": company_id, "owner_id": user.id})
@@ -155,16 +184,33 @@ def update_company(company_id: str, payload: CompanyRequest, user: User = Depend
     existing = mongo_db["companies"].find_one({"company_id": company_id, "owner_id": user.id})
     if not existing:
         raise HTTPException(status_code=404, detail="Company not found")
-    updates: dict = {"name": payload.name}
-    if existing.get("status") == "approved" and payload.name != existing.get("name"):
-        updates["status"] = "pending"
-        updates["reviewed_by"] = None
-        updates["reviewed_at"] = None
+    if existing.get("status") == "suspended":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Suspended company cannot be modified")
     company = mongo_db["companies"].find_one_and_update(
-        {"company_id": company_id, "owner_id": user.id}, {"$set": updates}, return_document=True,
+        {
+            "company_id": company_id,
+            "owner_id": user.id,
+            "status": {"$ne": "suspended"},
+            "name": {"$ne": payload.name},
+        },
+        {
+            "$set": {
+                "name": payload.name,
+                "status": "pending",
+                "reviewed_by": None,
+                "reviewed_at": None,
+            },
+            "$inc": {"review_version": 1},
+        },
+        return_document=True,
     )
     if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+        current = mongo_db["companies"].find_one({"company_id": company_id, "owner_id": user.id})
+        if not current:
+            raise HTTPException(status_code=404, detail="Company not found")
+        if current.get("status") == "suspended":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Suspended company cannot be modified")
+        return public_company(current)
     mongo_db["recruiter_jobs"].update_many({"company_id": company_id}, {"$set": {"company_name": payload.name}})
     return public_company(company)
 
@@ -185,12 +231,45 @@ def remove_member(company_id: str, member_id: int, user: User = Depends(get_curr
 
 @router.patch("/{company_id}/status")
 def set_company_status(company_id: str, payload: CompanyStatus, user: User = Depends(require_platform_owner)):
+    existing = mongo_db["companies"].find_one({"company_id": company_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    current_version = int(existing.get("review_version", 1))
+    if payload.expected_version is not None and payload.expected_version != current_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Company revision is stale; refresh and review the latest version",
+        )
+
+    target_version = payload.expected_version if payload.expected_version is not None else current_version
+    version_filter: dict = (
+        {"$or": [{"review_version": 1}, {"review_version": {"$exists": False}}]}
+        if target_version == 1
+        else {"review_version": target_version}
+    )
+    query: dict = {"company_id": company_id, **version_filter}
+    if payload.status == "approved":
+        query["status"] = {"$in": ["pending", "rejected", "suspended"]}
+
     company = mongo_db["companies"].find_one_and_update(
-        {"company_id": company_id},
-        {"$set": {"status": payload.status, "reviewed_by": user.id,
-                  "reviewed_at": datetime.now(timezone.utc).isoformat()}},
+        query,
+        {
+            "$set": {
+                "status": payload.status,
+                "reviewed_by": user.id,
+                "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                "review_version": target_version,
+            }
+        },
         return_document=True,
     )
     if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+        latest = mongo_db["companies"].find_one({"company_id": company_id})
+        if not latest:
+            raise HTTPException(status_code=404, detail="Company not found")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Company revision is stale or not eligible for this status transition",
+        )
     return public_company(company)

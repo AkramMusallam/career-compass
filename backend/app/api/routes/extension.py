@@ -9,10 +9,11 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.core.config import settings
 from app.core.mongo import analysis_results_collection, extractions_collection
-from app.core.security import get_current_user
+from app.core.security import create_extension_token, get_current_user, get_extension_user
 from app.models.mysql_models import User
-from app.schemas.schemas import ExtensionMatchRequest, ExtensionMatchResponse
+from app.schemas.schemas import ExtensionMatchRequest, ExtensionMatchResponse, ExtensionTokenResponse
 from app.seed.skills_data import SKILLS, normalize_and_dedupe_skills
 from app.services.recommendation_engine import _is_job_skill_match
 
@@ -40,10 +41,22 @@ def _extract_skills_from_text(text: str) -> List[str]:
     return normalize_and_dedupe_skills(found)
 
 
+@router.post("/token", response_model=ExtensionTokenResponse)
+def issue_extension_token(current_user: User = Depends(get_current_user)):
+    """إصدار رمز محدود النطاق (match-only) لإضافة المتصفح بدلاً من تمرير رمز الجلسة الكامل."""
+    token = create_extension_token(subject=str(current_user.id))
+    return ExtensionTokenResponse(
+        extension_token=token,
+        token_type="bearer",
+        scope="extension:match",
+        expires_in_minutes=settings.EXTENSION_TOKEN_EXPIRE_MINUTES,
+    )
+
+
 @router.post("/match-job", response_model=ExtensionMatchResponse)
 def match_extension_job(
     payload: ExtensionMatchRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_extension_user),
 ):
     """
     تحليل إعلان الوظيفة المعروض حالياً على LinkedIn أو مواقع التوظيف

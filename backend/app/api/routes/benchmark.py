@@ -17,7 +17,8 @@ from app.schemas.schemas import BenchmarkResponse
 
 router = APIRouter(tags=["Benchmark"])
 
-MIN_SAMPLE_SIZE_FOR_JOB_BREAKDOWN = 3
+MIN_DISTINCT_USERS_FOR_BENCHMARK = 5
+MIN_SAMPLE_SIZE_FOR_JOB_BREAKDOWN = MIN_DISTINCT_USERS_FOR_BENCHMARK
 
 
 @router.get("/benchmark", response_model=BenchmarkResponse)
@@ -35,36 +36,50 @@ def get_benchmark(db: Session = Depends(get_db), current_user: User = Depends(ge
         set_cached_benchmark(res)
         return res
 
-    # Projection: نجلب فقط career_score وأول عنصر من top_jobs لتوفير استهلاك الذاكرة والشبكة
-    docs = list(
-        analysis_results_collection.find(
-            {"user_id": {"$in": opted_in_user_ids}},
-            {"career_score": 1, "top_jobs": {"$slice": 1}, "_id": 0},
+    # Projection: نجلب فقط user_id و career_score وأول عنصر من top_jobs لتجميع مشارك واحد لكل مستخدم فريد
+    cursor = analysis_results_collection.find(
+        {"user_id": {"$in": opted_in_user_ids}},
+        {"user_id": 1, "career_score": 1, "top_jobs": {"$slice": 1}, "_id": 1},
+    ).sort([("date", -1), ("_id", -1)])
+
+    latest_by_user: dict[int, dict] = {}
+    for doc in cursor:
+        uid = doc.get("user_id")
+        score = doc.get("career_score")
+        if not isinstance(uid, int) or uid in latest_by_user:
+            continue
+        if not isinstance(score, (int, float)) or isinstance(score, bool):
+            continue
+        latest_by_user[uid] = doc
+
+    distinct_user_count = len(latest_by_user)
+    if distinct_user_count < MIN_DISTINCT_USERS_FOR_BENCHMARK:
+        res = BenchmarkResponse(
+            average_career_score=None,
+            sample_size=distinct_user_count,
+            by_job_title={},
         )
-    )
-    if not docs:
-        res = BenchmarkResponse(average_career_score=None, sample_size=0, by_job_title={})
         set_cached_benchmark(res)
         return res
 
-    scores = [d["career_score"] for d in docs]
+    scores = [float(doc["career_score"]) for doc in latest_by_user.values()]
     average_score = sum(scores) / len(scores)
 
-    scores_by_job: dict = defaultdict(list)
-    for doc in docs:
+    scores_by_job: dict[str, list[float]] = defaultdict(list)
+    for doc in latest_by_user.values():
         top_jobs = doc.get("top_jobs", [])
-        if top_jobs:
-            scores_by_job[top_jobs[0]["job_title"]].append(doc["career_score"])
+        if top_jobs and isinstance(top_jobs[0], dict) and top_jobs[0].get("job_title"):
+            scores_by_job[top_jobs[0]["job_title"]].append(float(doc["career_score"]))
 
     by_job_title = {
         job_title: round(sum(job_scores) / len(job_scores), 2)
         for job_title, job_scores in scores_by_job.items()
-        if len(job_scores) >= MIN_SAMPLE_SIZE_FOR_JOB_BREAKDOWN
+        if len(job_scores) >= MIN_DISTINCT_USERS_FOR_BENCHMARK
     }
 
     res = BenchmarkResponse(
         average_career_score=round(average_score, 2),
-        sample_size=len(docs),
+        sample_size=distinct_user_count,
         by_job_title=by_job_title,
     )
     set_cached_benchmark(res)
