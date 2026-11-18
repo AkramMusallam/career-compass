@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.benchmark_cache import invalidate_benchmark_cache
 from app.core.database import get_db
 from app.core.mongo import (
     analysis_results_collection,
@@ -21,7 +23,13 @@ from app.core.mongo import (
     subscriptions_collection,
     uploads_collection,
 )
-from app.core.security import get_current_user
+from app.core.security import (
+    decode_access_token,
+    get_current_user,
+    mark_user_deleted_auth_state,
+    oauth2_scheme,
+    revoke_token_jti,
+)
 from app.models.mysql_models import User
 from app.schemas.schemas import (
     BadgeOut,
@@ -53,6 +61,7 @@ def get_profile(current_user: User = Depends(get_current_user)):
         id=str(current_user.id),
         full_name=current_user.full_name,
         email=current_user.email,
+        email_verified=bool(getattr(current_user, "email_verified", False)),
         created_at=current_user.created_at,
         total_analyses=total_analyses,
         highest_career_score=highest,
@@ -72,7 +81,9 @@ def update_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    user = db.merge(current_user)
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
     user.full_name = payload.full_name
     if "target_role" in payload.model_fields_set:
         user.target_role = payload.target_role
@@ -103,11 +114,17 @@ def get_profile_badges(current_user: User = Depends(get_current_user)):
 def delete_account(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    token: Optional[str] = Depends(oauth2_scheme),
     current_user: User = Depends(get_current_user),
 ):
-    user_email = current_user.email
-    user_name = current_user.full_name
     user_id = current_user.id
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
+
+    user_email = user.email
+    user_name = user.full_name
+    had_benchmark_opt_in = bool(getattr(user, "benchmark_opt_in", False))
 
     if mongo_db["companies"].find_one({"owner_id": user_id}) or mongo_db["platform_owner"].find_one({"_id": "owner", "user_id": user_id}):
         raise HTTPException(status_code=409, detail="Company and platform owners cannot delete their account while they own these records")
@@ -125,9 +142,22 @@ def delete_account(
     ]
 
     # 1. Delete the user in MySQL first so a relational DB error never leaves an active user with wiped MongoDB data
-    user = db.merge(current_user)
-    db.delete(user)
+    deleted_count = db.query(User).filter(User.id == user_id).delete(synchronize_session=False)
+    if not deleted_count:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
     db.commit()
+
+    # Invalidate active sessions & mark deleted in Mongo to guard against SQLite ID reuse
+    mark_user_deleted_auth_state(user_id)
+    if token:
+        try:
+            token_payload = decode_access_token(token)
+            revoke_token_jti(token_payload.get("jti"), user_id, token_payload.get("exp"))
+        except HTTPException:
+            pass
+    if had_benchmark_opt_in:
+        invalidate_benchmark_cache()
 
     # 2. Delete all associated user data in MongoDB
     for coll in (
@@ -142,11 +172,13 @@ def delete_account(
     ):
         coll.delete_many({"user_id": user_id})
     mongo_db["recruiter_consent"].delete_one({"_id": user_id})
+    mongo_db["cloud_ai_consent"].delete_one({"_id": user_id})
     mongo_db["support_grants"].delete_many({"candidate_user_id": user_id})
     mongo_db["recruiter_approvals"].delete_one({"_id": user_id})
+    # Only remove active company memberships by user_id; never delete cross-company invitations by email alone
     mongo_db["companies"].update_many(
-        {"$or": [{"members": user_id}, {"invitations.email": user_email.strip().lower()}]},
-        {"$pull": {"members": user_id, "invitations": {"email": user_email.strip().lower()}}},
+        {"members": user_id},
+        {"$pull": {"members": user_id}},
     )
     recruiter_jobs_collection.delete_many({"recruiter_id": user_id, "company_id": {"$exists": False}})
     recruitment_pipeline_collection.delete_many({"recruiter_id": user_id, "company_id": {"$exists": False}})

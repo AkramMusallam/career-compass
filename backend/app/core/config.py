@@ -40,7 +40,13 @@ class Settings:
     # ---- الأمان / JWT ----
     JWT_SECRET_KEY: str = _resolve_jwt_secret(ENV)
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
-    JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 ساعة
+    JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))  # 1 ساعة للجلسات القصيرة القابلة للإلغاء
+    EXTENSION_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("EXTENSION_TOKEN_EXPIRE_MINUTES", "480"))
+    SHARE_LINK_EXPIRE_DAYS: int = int(os.getenv("SHARE_LINK_EXPIRE_DAYS", "30"))
+    REQUIRE_EMAIL_VERIFICATION: bool = (
+        os.getenv("REQUIRE_EMAIL_VERIFICATION", "1" if ENV == "production" else "0") == "1"
+    )
+    REQUIRE_HTTPS_IN_PRODUCTION: bool = os.getenv("REQUIRE_HTTPS_IN_PRODUCTION", "1") == "1"
 
     # ---- قاعدة البيانات العلائقية (MySQL) ----
     # في بيئة التطوير/الاختبار بدون MySQL متاح، يمكن استخدام SQLite تلقائياً
