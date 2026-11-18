@@ -10,23 +10,29 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "0004_security_remediation_columns"
+revision: str = "0004_security_remediation"
 down_revision: Union[str, None] = "0003_user_target_role"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "users",
-        sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.false()),
-    )
-    op.add_column(
-        "users",
-        sa.Column("token_version", sa.Integer(), nullable=False, server_default="1"),
-    )
+    existing_cols = {c["name"] for c in sa.inspect(op.get_bind()).get_columns("users")}
+    if "email_verified" not in existing_cols:
+        op.add_column(
+            "users",
+            sa.Column("email_verified", sa.Boolean(), nullable=False, server_default=sa.false()),
+        )
+    if "token_version" not in existing_cols:
+        op.add_column(
+            "users",
+            sa.Column("token_version", sa.Integer(), nullable=False, server_default="1"),
+        )
 
 
 def downgrade() -> None:
-    op.drop_column("users", "token_version")
-    op.drop_column("users", "email_verified")
+    existing_cols = {c["name"] for c in sa.inspect(op.get_bind()).get_columns("users")}
+    if "token_version" in existing_cols:
+        op.drop_column("users", "token_version")
+    if "email_verified" in existing_cols:
+        op.drop_column("users", "email_verified")
